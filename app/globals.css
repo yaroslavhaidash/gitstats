@@ -1,0 +1,237 @@
+@import "tailwindcss";
+
+@theme {
+  --color-void: #050505;
+  --color-alert: #ff3333;
+  --color-silver: #e0e2e5;
+  --color-dark: #2d2d2d;
+  --color-dim: #aab2bf;
+  --color-faint: #8b93a4;
+  --color-green: #22c55e;
+  --color-amber: #eab308;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --font-sans: var(--font-grotesk), ui-sans-serif, sans-serif;
+  --shadow-brutal: 4px 4px 0px #ff3333;
+  --shadow-brutal-hover: 2px 2px 0px #ff3333;
+}
+
+html {
+  background-color: var(--color-void);
+  color: var(--color-silver);
+  font-family: var(--font-mono);
+  overflow-x: hidden;
+}
+
+/* Static TV-noise texture. Fixed and non-animated; content floats above it. */
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+button,
+[role="button"],
+input[type="radio"],
+input[type="checkbox"],
+label:has(> input[type="radio"]),
+label:has(> input[type="checkbox"]) {
+  cursor: pointer;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-void);
+  border-left: 1px solid var(--color-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border: 1px solid var(--color-void);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-alert);
+}
+
+@utility btn-brutal {
+  @apply font-mono font-bold text-center bg-alert text-void px-6 py-3 border-2 border-silver shadow-brutal transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-brutal-hover active:shadow-none;
+}
+
+@utility btn-ghost {
+  @apply font-mono font-bold text-center bg-transparent text-silver px-6 py-3 border-2 border-silver transition-colors hover:bg-silver hover:text-void;
+}
+
+@utility tag {
+  @apply inline-block border border-alert text-alert font-mono text-xs px-2 py-1 uppercase tracking-wide;
+}
+
+@utility panel {
+  @apply bg-void border-2 border-dark;
+}
+
+/* ---- motion: quiet by default, all of it off under reduced-motion ---- */
+@keyframes train {
+  from {
+    transform: translateX(-160px);
+  }
+  to {
+    transform: translateX(100vw);
+  }
+}
+@keyframes glitch {
+  0% {
+    text-shadow: 2px 0 #ff3333, -2px 0 #3ad1ff;
+  }
+  40% {
+    text-shadow: -2px 0 #ff3333, 2px 0 #3ad1ff;
+  }
+  100% {
+    text-shadow: none;
+  }
+}
+
+/* A short bright segment sliding along a section's bottom border. */
+.rail {
+  position: relative;
+  /* The segment ends its run past the right edge, which would let the page scroll sideways.
+     Clipping only the x axis keeps the 2px the rail sits below the border visible. */
+  overflow-x: clip;
+}
+.rail::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  height: 2px;
+  width: 160px;
+  background: linear-gradient(90deg, transparent, var(--color-silver) 60%, transparent);
+  opacity: 0.7;
+  animation: train 9s linear infinite;
+  animation-delay: var(--rail-delay, 0s);
+  pointer-events: none;
+}
+
+.glitch:hover {
+  animation: glitch 0.35s steps(3) 1;
+}
+
+/* A settings form with unsaved changes: its save button pulses until it is pressed. */
+@keyframes save-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+.save-dirty {
+  animation: save-pulse 1s ease-in-out infinite;
+}
+
+/* Picking one series out of a chart: the rest fade rather than disappear. */
+.series-fade {
+  transition: opacity 0.15s ease;
+}
+
+.lift {
+  transition: border-color 0.2s, transform 0.2s;
+}
+.lift:hover {
+  border-color: var(--color-silver);
+  transform: translate(-2px, -2px);
+}
+
+/*
+ * The crew race: the only thing on a page that moves by itself, and only once, on load. The duration
+ * is one frame of the race, set on the element, and the easing is linear so a week's slide runs at a
+ * constant speed and ends exactly as the next one starts instead of stopping between every step.
+ */
+.race-bar {
+  transition:
+    transform var(--race-step, 0ms) linear,
+    width var(--race-step, 0ms) linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail::after,
+  .glitch:hover,
+  .series-fade,
+  .lift,
+  .race-bar,
+  .save-dirty {
+    animation: none;
+    transition: none;
+  }
+  /* No pulse to notice, so the unsaved button stands out by outline instead. */
+  .save-dirty {
+    outline: 3px solid var(--color-alert);
+    outline-offset: 3px;
+  }
+}
+
+/* A blog post's rendered Markdown, in the same type scale as the rest of the site. */
+.post {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.75;
+  color: var(--color-dim);
+  overflow-wrap: anywhere;
+}
+.post > * + * {
+  margin-top: 1.25em;
+}
+.post h2,
+.post h3 {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  color: var(--color-silver);
+  line-height: 1.25;
+  margin-top: 2.25em;
+}
+.post h2 {
+  font-size: 1.5rem;
+}
+.post h3 {
+  font-size: 1.125rem;
+}
+.post a {
+  color: var(--color-silver);
+  text-decoration: underline;
+}
+.post a:hover {
+  color: var(--color-alert);
+}
+.post strong {
+  color: var(--color-silver);
+}
+.post ul,
+.post ol {
+  padding-left: 1.25rem;
+}
+.post ul {
+  list-style: square;
+}
+.post ol {
+  list-style: decimal;
+}
+.post li + li {
+  margin-top: 0.4em;
+}
+.post code {
+  color: var(--color-silver);
+}
+.post pre {
+  border: 2px solid var(--color-dark);
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.post blockquote {
+  border-left: 2px solid var(--color-alert);
+  padding-left: 1.25rem;
+}
+.post hr {
+  border: 0;
+  border-top: 2px solid var(--color-dark);
+}

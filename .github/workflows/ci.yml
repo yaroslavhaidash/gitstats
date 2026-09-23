@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      # Dummy values: the build only needs them to exist. Nothing here reaches a real service.
+      DATABASE_URL: postgresql://ci:ci@localhost.invalid/ci
+      DATABASE_URL_UNPOOLED: postgresql://ci:ci@localhost.invalid/ci
+      AUTH_SECRET: ci-dummy-auth-secret
+      AUTH_GITHUB_ID: ci-dummy
+      AUTH_GITHUB_SECRET: ci-dummy
+      GITHUB_TOKEN: ci-dummy
+      CRON_SECRET: ci-dummy
+      TOKEN_ENCRYPTION_KEY: ci-dummy
+      SHARE_SECRET: ci-dummy
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx eslint .
+      - run: npx next build

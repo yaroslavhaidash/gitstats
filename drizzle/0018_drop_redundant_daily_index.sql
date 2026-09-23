@@ -1,0 +1,1 @@
+DROP INDEX "daily_contributions_user_date_idx";

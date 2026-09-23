@@ -1,0 +1,1 @@
+ALTER TABLE "cli_tokens" ADD COLUMN "cli_version" text;

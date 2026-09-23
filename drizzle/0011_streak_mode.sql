@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "streak_mode" text DEFAULT 'all_days' NOT NULL;
