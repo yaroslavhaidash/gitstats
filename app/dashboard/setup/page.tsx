@@ -84,7 +84,7 @@ export default async function Setup({ searchParams }: { searchParams: Promise<{ 
             <Link href={first ? `/dashboard/c/${first}` : "/dashboard"} className="btn-brutal inline-block mt-6">OPEN MY BOARD_</Link>
             <p className="font-mono text-xs text-faint mt-4">
               Want to show a number to someone without a GitHub account? <span className="text-silver">SHARE_</span> on your own page mints a card
-              anyone can open with no sign-in &mdash; you pick what it carries. <Link href="/docs#share" className="text-silver underline hover:text-alert">How it works</Link>.
+              anyone can open with no sign-in. You pick what it carries. <Link href="/docs#share" className="text-silver underline hover:text-alert">How it works</Link>.
             </p>
           </>
         )}

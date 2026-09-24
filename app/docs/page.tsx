@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 const NPX = "npx @yaroslavhaidash/gitstats-cli@latest";
 
 const COMMANDS: [string, string][] = [
-  ["stats", "Count this machine and print the table, without pairing with anything. No account, no upload, no config file, no network call at all \u2014 it reads git and exits. Run it first if you want to see the numbers before you decide. Options: --root <dir> and --email <addr> (both repeatable), --fetch (refresh each repo from its origin first)."],
+  ["stats", "Count this machine and print the table, without pairing with anything. No account, no upload, no config file, no network call at all. It reads git and exits. Run it first if you want to see the numbers before you decide. Options: --root <dir> and --email <addr> (both repeatable), --fetch (refresh each repo from its origin first)."],
   ["link", "Pair this computer, scan for repos, show what it found, upload after you confirm, install the background sync. Re-running replaces the previous link. Options: --root <dir> (repeatable, default: your home folder), --yes (skip the confirmation)."],
   ["sync", "Recount the last year and upload now. Safe to run any time; every run replaces the previous numbers, so amends and rebases correct themselves."],
   ["status", "Show server, account, machine, scanned folders, emails, and when the last sync ran."],
@@ -81,7 +81,7 @@ export default async function Docs() {
             Want the numbers first? <span className="text-silver">{NPX} stats</span> runs before <span className="text-silver">link</span>, with no account: it prints the same table and sends nothing.
           </p>
           <ol className="font-mono text-xs text-dim leading-relaxed list-decimal pl-5 space-y-2">
-            <li>A browser tab opens asking you to confirm the link for this computer. It opens in whichever browser your OS calls default, so check the account named on that page before you confirm &mdash; if it is not you, hit <span className="text-silver">not you? sign out first</span>. The terminal then prints the account it paired as on its own line. To settle it up front: <span className="text-silver">{NPX} link --user &lt;your-login&gt;</span> refuses the pairing if the browser confirms as anyone else.</li>
+            <li>A browser tab opens asking you to confirm the link for this computer. It opens in whichever browser your OS calls default, so check the account named on that page before you confirm. If it is not you, hit <span className="text-silver">not you? sign out first</span>. The terminal then prints the account it paired as on its own line. To settle it up front: <span className="text-silver">{NPX} link --user &lt;your-login&gt;</span> refuses the pairing if the browser confirms as anyone else.</li>
             <li>It scans your home folder for git repos and counts your commits for the last year.</li>
             <li>It prints every repo it found with totals and asks <span className="text-silver">Upload? [Y/n]</span>. Nothing is sent before you answer.</li>
             <li>It installs a background sync (macOS launchd, Windows Task Scheduler, Linux systemd user timer) that re-runs every day, also after the machine was off.</li>
@@ -141,7 +141,7 @@ export default async function Docs() {
             mints a link anyone can open, carrying the window and the metric you were looking at.
           </p>
           <p className="font-mono text-xs text-dim leading-relaxed">
-            Three switches decide what travels with it &mdash; the totals, the 26-week day grid, and your top three repos by lines. Repo names are off
+            Three switches decide what travels with it: the totals, the 26-week day grid, and your top three repos by lines. Repo names are off
             by default, and a repo you hid on your own page stays hidden whatever you pick. The link is signed, so it cannot be edited into someone
             else&apos;s numbers, and <span className="text-silver">new link</span> on the same panel makes every card you minted before it a 404.
           </p>
@@ -150,7 +150,7 @@ export default async function Docs() {
         <section id="faq" className="mb-14">
           <h2 className="font-sans font-bold text-2xl mb-4">Questions</h2>
           <dl className="space-y-6 font-mono text-xs leading-relaxed">
-            <div><dt className="text-silver mb-1">Can I see the numbers without signing up?</dt><dd className="text-dim">Yes. `npx @yaroslavhaidash/gitstats-cli@latest stats` scans this computer, prints the per-repo table and the year&apos;s totals, and exits. It pairs with nothing, uploads nothing, writes no config and makes no network call \u2014 it only reads your git history. If you like what you see, run `link`.</dd></div>
+            <div><dt className="text-silver mb-1">Can I see the numbers without signing up?</dt><dd className="text-dim">Yes. `npx @yaroslavhaidash/gitstats-cli@latest stats` scans this computer, prints the per-repo table and the year&apos;s totals, and exits. It pairs with nothing, uploads nothing, writes no config and makes no network call. It only reads your git history. If you like what you see, run `link`.</dd></div>
             <div><dt className="text-silver mb-1">Is my work repo safe?</dt><dd className="text-dim">Yes. Only weekly counts of your own commits leave the machine, under a keyed hash instead of the repo name. No content, names, paths, or branch names. Nothing touches your employer&apos;s GitHub org.</dd></div>
             <div><dt className="text-silver mb-1">Which commits count?</dt><dd className="text-dim">Commits on the default branch (origin/main or whatever origin/HEAD points to) authored by one of your emails, last 365 days, merge commits excluded. Squash-merged PRs count once. Work sitting on an unmerged branch is counted separately as &ldquo;pending&rdquo; by a linked computer: it shows as a faint line under the numbers on your page and as hatched caps on your lines-per-week chart, visible to whoever may see those repos&rsquo; numbers, which is your crewmates when you share private repos with them, and it never counts toward a board ranking. Only branches you have pushed count, and only while their last commit is under 30 days old; branches that live on your laptop alone are ignored. On the board, WEEK means this calendar week (Monday 00:00 UTC up to today, not the last seven days), MONTH means the 1st of this month up to today, and YEAR is the last 365 days.</dd></div>
             <div><dt className="text-silver mb-1">Some of my commits are missing.</dt><dd className="text-dim">Usually the email. Run `status` to see which emails are matched, then `emails add you@work.com`. Or the repo is outside your home folder: `roots add /path`.</dd></div>
