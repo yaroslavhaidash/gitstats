@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminVisitors } from "@/components/AdminVisitors";
 import { DangerConfirm } from "@/components/DangerConfirm";
 import { Logo } from "@/components/Logo";
 import { ARCHIVE_DAYS } from "@/lib/account";
@@ -40,9 +41,9 @@ function daysLeft(deletedAt: Date): number {
   return Math.max(0, ARCHIVE_DAYS - Math.floor((Date.now() - deletedAt.getTime()) / 86_400_000));
 }
 
-export default async function Admin({ searchParams }: { searchParams: Promise<{ done?: string }> }) {
+export default async function Admin({ searchParams }: { searchParams: Promise<{ done?: string; v?: string }> }) {
   const admin = await requireAdmin();
-  const [{ done }, { totals, capacity, runs, members, crewList, archives, log }, funnel] = await Promise.all([searchParams, adminOverview(), funnelDays(14)]);
+  const [{ done, v }, { totals, capacity, runs, members, crewList, archives, log }, funnel] = await Promise.all([searchParams, adminOverview(), funnelDays(14)]);
   const funnelTotals: Record<string, number> = {};
   for (const d of funnel) for (const [step, n] of Object.entries(d.counts)) funnelTotals[step] = (funnelTotals[step] ?? 0) + n;
   const errorCodes = Object.entries(funnelTotals).filter(([step]) => step.startsWith("signin_error:"));
@@ -53,6 +54,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
           <Logo href="/dashboard" />
           <div className="hidden md:flex gap-6 font-mono text-sm">
             <a href="#funnel" className="hover:text-alert transition-colors">[FUNNEL]</a>
+            <a href="#visitors" className="hover:text-alert transition-colors">[VISITORS]</a>
             <a href="#runs" className="hover:text-alert transition-colors">[RUNS]</a>
             <a href="#members" className="hover:text-alert transition-colors">[MEMBERS]</a>
             <a href="#crews" className="hover:text-alert transition-colors">[CREWS]</a>
@@ -136,6 +138,8 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
             </p>
           )}
         </section>
+
+        <AdminVisitors filter={v === "stopped" || v === "leads" ? v : "all"} />
 
         <section id="runs" className="mb-12 scroll-mt-20">
           <div className="flex items-center justify-between mb-4 gap-4">

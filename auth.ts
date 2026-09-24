@@ -6,6 +6,7 @@ import { revalidateForUsers } from "@/lib/cache";
 import { eq } from "drizzle-orm";
 import { after } from "next/server";
 import { countStep } from "@/lib/funnel";
+import { currentVisitor, recordSignIn } from "@/lib/visits";
 
 type GitHubIdentity = {
   login: string;
@@ -84,6 +85,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // inside the Auth.js route handler, where `updateTag` throws. The first snapshot itself is
         // started by the dashboard layout, which has a render to hang `after()` on.
         if (isNew) await revalidateForUsers([id]);
+        // The OAuth callback comes from the same browser that clicked sign-in, so it is the same visitor.
+        await recordSignIn(await currentVisitor(), id, identity.login);
       }
       return token;
     },

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { dailyContributions, repos, snapshotRuns, userTokens, users, weeklyStats, type SnapshotError, type SnapshotKind } from "@/db/schema";
 import { purgeExpiredArchives } from "./account";
 import { purgeExpiredOAuth } from "./oauth";
+import { purgeOldVisits } from "./visits";
 import { revalidateForUsers, revalidateStats } from "./cache";
 import { locallyOwnedPairs, mergeLocalIntoGithub } from "./cli";
 import { decrypt } from "./crypto";
@@ -412,6 +413,8 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
   const purged = await purgeExpiredArchives();
   if (purged > 0) log(`purged ${purged} deleted-member archive${purged === 1 ? "" : "s"} past retention`);
   await purgeExpiredOAuth();
+  const expiredVisits = await purgeOldVisits();
+  if (expiredVisits > 0) log(`deleted ${expiredVisits} visitor-day${expiredVisits === 1 ? "" : "s"} past retention`);
   await alertOnRepeatedFailure(run.id, errors);
 
   const summary: SnapshotSummary = {

@@ -22,6 +22,7 @@ import { newShareNonce } from "./share";
 import { runSnapshot } from "./snapshot";
 import { crewByCode, leaveCrew, regenerateCode, removeMember, renameCrew, userByLogin, type AdminResult } from "./crews";
 import { canViewProfile, toggleProps } from "./props";
+import { currentVisitor, recordEvent } from "./visits";
 import { rateLimit } from "./ratelimit";
 import { parseWindow, windowQuery } from "./window";
 
@@ -210,6 +211,8 @@ export async function confirmDevice(formData: FormData): Promise<void> {
   await db.insert(cliTokens).values({ userId: session.user.id, tokenHash: hashToken(token), machine: device.machine });
   await db.update(deviceCodes).set({ userId: session.user.id, issuedToken: token }).where(eq(deviceCodes.id, device.id));
   await countStep("cli_linked");
+  const visitor = await currentVisitor();
+  if (visitor) await recordEvent(visitor, "cli_linked", "/link");
   redirect(`/link?code=${code}&done=1`);
 }
 

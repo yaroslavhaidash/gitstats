@@ -3,6 +3,7 @@
 import { track } from "@vercel/analytics";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { beacon } from "@/components/Beacon";
 
 /** Where this visit came from: the referring host and any `utm_source`, when there is one. */
 function source(): Record<string, string> {
@@ -20,7 +21,10 @@ function source(): Record<string, string> {
 /** A "Sign in with GitHub" submit button that records which placement was clicked. */
 export function SignInButton({ where, className, children }: { where: string; className: string; children: ReactNode }) {
   return (
-    <button className={className} onClick={() => track("signin_click", { where, ...source() })}>
+    <button className={className} onClick={() => {
+        track("signin_click", { where, ...source() });
+        beacon({ kind: "signin_click", from: where });
+      }}>
       {children}
     </button>
   );

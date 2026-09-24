@@ -1,5 +1,7 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  customType,
   date,
   index,
   integer,
@@ -7,6 +9,7 @@ import {
   pgTable,
   primaryKey,
   serial,
+  smallint,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -407,3 +410,83 @@ export const funnelDaily = pgTable(
   },
   (t) => [primaryKey({ columns: [t.day, t.step] })],
 );
+
+/** Case-insensitive text: GitHub logins compare without case. Needs the `citext` extension. */
+const citext = customType<{ data: string }>({ dataType: () => "citext" });
+/** Read with `array_to_string`, written with `array_append`: the driver does not parse extension arrays. */
+const citextArray = customType<{ data: string[] }>({ dataType: () => "citext[]" });
+
+/**
+ * Today's salt for visitor ids: a visitor is sha256(salt + IP + user agent), so the same browser is
+ * one visitor for one UTC day and cannot be followed past it. Older salts are deleted as a new one
+ * is made; the IP and user agent themselves are never stored.
+ */
+export const visitSalts = pgTable("visit_salts", {
+  day: date("day", { mode: "string" }).primaryKey(),
+  salt: text("salt").notNull(),
+});
+
+/**
+ * One visitor-day: where it came from, how far it got (`furthest_step`, see `VISIT_STEPS` in
+ * `lib/visits.ts`), the handle typed as their own, and the account when they signed in. Deleted
+ * after 90 days by the nightly job; a deleted account only loses the link (`user_id` goes null).
+ */
+export const visits = pgTable(
+  "visits",
+  {
+    visitorId: text("visitor_id").notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    firstAt: timestamp("first_at", { withTimezone: true }).notNull().defaultNow(),
+    lastAt: timestamp("last_at", { withTimezone: true }).notNull().defaultNow(),
+    landingPath: text("landing_path").notNull(),
+    /** The referring URL without its query string. */
+    referrer: text("referrer"),
+    utmSource: text("utm_source"),
+    utmMedium: text("utm_medium"),
+    utmCampaign: text("utm_campaign"),
+    country: text("country"),
+    device: text("device").$type<"mobile" | "desktop">().notNull(),
+    furthestStep: smallint("furthest_step").notNull().default(0),
+    leadLogin: citext("lead_login"),
+    userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => [primaryKey({ columns: [t.visitorId, t.day] }), index("visits_day_idx").on(t.day)],
+);
+
+export type VisitEventKind = "view" | "demo_view" | "handle_self" | "handle_other" | "signin_click" | "signin_done" | "cli_linked";
+
+/** Every page view and key action of a visitor-day, in order. `from` is the sign-in button's placement. */
+export const visitEvents = pgTable(
+  "visit_events",
+  {
+    visitorId: text("visitor_id").notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    path: text("path").notNull(),
+    kind: text("kind").$type<VisitEventKind>().notNull(),
+    from: text("from"),
+  },
+  (t) => [index("visit_events_visit_idx").on(t.visitorId, t.day)],
+);
+
+/** A GitHub handle someone typed as their own. Kept after the visits behind it expire. */
+export const leads = pgTable("leads", {
+  login: citext("login").primaryKey(),
+  firstSeen: timestamp("first_seen", { withTimezone: true }).notNull().defaultNow(),
+  lastSeen: timestamp("last_seen", { withTimezone: true }).notNull().defaultNow(),
+  /** Visitor-days it was typed on. */
+  visits: integer("visits").notNull().default(1),
+  firstReferrer: text("first_referrer"),
+  firstLanding: text("first_landing"),
+  furthestStep: smallint("furthest_step").notNull().default(0),
+  becameMemberAt: timestamp("became_member_at", { withTimezone: true }),
+});
+
+/** Handles typed as someone else's, and which leads typed them. Never mixed into `leads`. */
+export const lookedUpHandles = pgTable("looked_up_handles", {
+  login: citext("login").primaryKey(),
+  firstSeen: timestamp("first_seen", { withTimezone: true }).notNull().defaultNow(),
+  lastSeen: timestamp("last_seen", { withTimezone: true }).notNull().defaultNow(),
+  lookups: integer("lookups").notNull().default(1),
+  byLeads: citextArray("by_leads").notNull().default(sql`'{}'`),
+});

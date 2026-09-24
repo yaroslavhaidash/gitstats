@@ -34,6 +34,8 @@ export const LIMITS = {
   oauthToken: { capacity: 120, windowMs: 60_000 },
   /** Props given or taken back, per giver. */
   props: { capacity: 60, windowMs: 3_600_000 },
+  /** Page-view beacons per address; a visitor clicking through the site sends a handful a minute. */
+  beacon: { capacity: 120, windowMs: 60_000 },
 } as const satisfies Record<string, Limit>;
 
 export type LimitName = keyof typeof LIMITS;

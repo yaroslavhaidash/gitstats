@@ -47,6 +47,8 @@ GitHub (public)                    your computers (private + public)
 | `oauth_codes` | `id` (`code_hash` unique) | authorization codes between consent and token exchange: client, user, redirect URI, PKCE challenge, resource; one use (deleted on redeem), 10 minutes |
 | `oauth_grants` | `id` | one connected app per row: user, client name, redirect host, sha256 of the current access token (1 hour) and refresh token (90 days, replaced on every refresh); deleting the row is disconnecting |
 | `props` | `(giver_id, receiver_id, week_start)` | props once per giver per member per Monday week; the key is the rule. `lib/props.ts`: `giveProps` re-checks that the giver can open the page (`canViewProfile`), 60/hour per giver; everyone who can open the page sees the counts, only the receiver sees who gave. Exported, archived and deleted in both directions (`lib/account.ts`) |
+| `visits` / `visit_events` / `visit_salts` | `(visitor_id, day)` / – / `day` | visitor journeys without cookies (`lib/visits.ts`): a visitor is sha256(daily salt + IP + user agent), so one browser is one visitor per UTC day; IP and user agent are never stored, the salt row is replaced daily. Nothing is recorded under `Sec-GPC: 1` or for a bot user agent. Page views and sign-in clicks arrive by beacon (`components/Beacon.tsx` → `POST /api/t`) because pages are cached; typed handles (`/gh` and `/vs` lookup redirects), `signin_done` (Auth.js `jwt` callback) and `cli_linked` (`confirmDevice`) are recorded server-side. `furthest_step` indexes `VISIT_STEPS`. Kept 90 days (the snapshot run deletes older); `user_id` goes null when the account is deleted |
+| `leads` / `looked_up_handles` | `login` (citext) | a real GitHub handle typed into a box that asks for your own (landing hero, "compare with me"): the first per visitor-day is a lead, any other the same visitor types goes to `looked_up_handles` with the leads that typed it. A lead whose login signs in gets `became_member_at`. Kept after their visits expire |
 | `repo_name_overrides` | `(user_id, repo_node_id)` | per-repo exception to the repo-names row; only ever hides more than the matrix |
 | `device_codes` | `code` | pairing in flight; purged on expiry |
 | `admin_log` | `id` | every mutation made from `/admin`: `who`, `action`, `target`, `at` |
@@ -77,7 +79,7 @@ Repos are keyed by GitHub node id so renames/deletions never orphan rows. Preced
 | `/dashboard/u/[login]` | owner / allowed | tiles, one-time record banners, "Your week" Monday to Wednesday for the owner (`RecapPanel`: last week's recap and the crew select that opens the recap share card), records (`RecordsPanel`: best Monday-to-Sunday week and calendar month by lines and by commits, longest streak ever, from `userRecords`, gated like the tiles), `WeeklyBars`, `YearCalendar`, day calendar, lines-per-day trend, language share, weekday profile, repo mix + share, repos table (names masked per settings) |
 | `/dashboard/r/[nodeId]` | own rows, or a crewmate who shows the name | one repo: commits per week stacked per member, member table, GitHub link when public |
 | `/dashboard/settings` | session | linked machines, profile visibility, tokens, MCP tokens, data export + account deletion |
-| `/admin` | GitHub account id in `ADMIN_GITHUB_IDS` | totals, last 10 snapshot runs, every member and machine, every crew, the delete archive and the admin log; 404 for everyone else. Deleting a member or revoking a machine needs the exact name typed into a modal, re-checked server-side |
+| `/admin` | GitHub account id in `ADMIN_GITHUB_IDS` | totals, the funnel, visitors (visitor-days with their pages, leads, looked-up handles, funnel by sign-in placement and referrer host), last 10 snapshot runs, every member and machine, every crew, the delete archive and the admin log; 404 for everyone else. Deleting a member or revoking a machine needs the exact name typed into a modal, re-checked server-side |
 | `/api/cron/snapshot` | `CRON_SECRET` | nightly job (`maxDuration 300`, 240s budget); chains itself via `?chain=&run=` until no users are pending |
 | `/api/ingest` | machine token | CLI upload |
 | `/api/mcp` | MCP token or OAuth access token | read-only remote MCP (Streamable HTTP, stateless, `mcp-handler`); tools in `lib/mcp.ts`; 60 requests/min per token; each tool call counts `mcp_call` in `funnel_daily`. A 401 carries `resource_metadata` (path-suffixed) and `scope="read"` |
@@ -88,6 +90,7 @@ Repos are keyed by GitHub node id so renames/deletions never orphan rows. Preced
 | `/api/cli/device`, `/device/poll`, `/unlink` | – / token | pairing, revoke |
 | `/api/auth/[...nextauth]` | – | Auth.js |
 | `/api/health` | – | `{ok, lastSnapshot: {id, finishedAt, errors}, chain: {runs, usersDone, usersPending}, signins: {lastHour, last24h}, quotaRemaining, db}`; 503 when Postgres does not answer. No secrets, no error text |
+| `/api/t` | – | page-view and sign-in-click beacon; always 204, 120/min per address, skips `/admin` and `/api` paths |
 
 ## File map
 
