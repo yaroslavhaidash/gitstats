@@ -2,6 +2,7 @@ import { and, asc, between, desc, eq, inArray, isNull, lt, or, sql } from "drizz
 import { db } from "@/db";
 import { dailyContributions, repos, snapshotRuns, userTokens, users, weeklyStats, type SnapshotError, type SnapshotKind } from "@/db/schema";
 import { purgeExpiredArchives } from "./account";
+import { purgeExpiredOAuth } from "./oauth";
 import { revalidateForUsers, revalidateStats } from "./cache";
 import { locallyOwnedPairs, mergeLocalIntoGithub } from "./cli";
 import { decrypt } from "./crypto";
@@ -410,6 +411,7 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
   else revalidateStats();
   const purged = await purgeExpiredArchives();
   if (purged > 0) log(`purged ${purged} deleted-member archive${purged === 1 ? "" : "s"} past retention`);
+  await purgeExpiredOAuth();
   await alertOnRepeatedFailure(run.id, errors);
 
   const summary: SnapshotSummary = {

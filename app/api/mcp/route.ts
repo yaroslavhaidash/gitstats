@@ -2,11 +2,13 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { hashToken } from "@/lib/cli";
 import { tooMany } from "@/lib/http";
 import { mcpTokenOwner, registerTools } from "@/lib/mcp";
+import { grantOwner, isOAuthAccessToken, PROTECTED_RESOURCE_PATH, publicOrigin, SCOPE } from "@/lib/oauth";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
 
 /**
- * Remote MCP over Streamable HTTP, stateless and read-only. Auth is a personal token from settings
- * as `Authorization: Bearer …`; the verified owner's id travels as the auth `clientId`.
+ * Remote MCP over Streamable HTTP, stateless and read-only. Auth is `Authorization: Bearer …` with
+ * either a personal token from settings or an OAuth access token this app issued for this endpoint
+ * (`lib/oauth.ts`); the verified owner's id travels as the auth `clientId` either way.
  */
 const handler = createMcpHandler(
   (server) => registerTools(server, (clientId) => (clientId ? Number(clientId) : null)),
@@ -18,11 +20,17 @@ const handler = createMcpHandler(
 
 const authed = withMcpAuth(
   handler,
-  async (_req, bearer) => {
-    const owner = bearer ? await mcpTokenOwner(bearer) : null;
-    return owner ? { token: bearer ?? "", clientId: String(owner.userId), scopes: [] } : undefined;
+  async (req, bearer) => {
+    if (!bearer) return undefined;
+    if (isOAuthAccessToken(bearer)) {
+      const grant = await grantOwner(bearer, publicOrigin(req.headers));
+      return grant ? { token: bearer, clientId: String(grant.userId), scopes: [SCOPE], expiresAt: grant.expiresAt } : undefined;
+    }
+    const owner = await mcpTokenOwner(bearer);
+    return owner ? { token: bearer, clientId: String(owner.userId), scopes: [SCOPE] } : undefined;
   },
-  { required: true },
+  // The 401 names the path-suffixed metadata document and the one scope, so a client can start OAuth from it.
+  { required: true, resourceMetadataPath: PROTECTED_RESOURCE_PATH, requiredScopes: [SCOPE] },
 );
 
 async function route(request: Request): Promise<Response> {

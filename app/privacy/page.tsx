@@ -184,6 +184,11 @@ export default async function Privacy() {
             read-only: nothing sent with it can change anything. The token is shown once when you create it and stored
             only as a sha256 hash. Each one records when it was last used, and you can revoke it any time under{" "}
             <Link href="/dashboard/settings#assistants" className="text-silver underline hover:text-alert">settings</Link>.
+            An app you connect by signing in (claude.ai, as a custom connector) gets the same read-only access through
+            OAuth instead: you approve it on a gitstats screen, it receives an access token that lasts an hour and a
+            refresh token that is replaced every time it is used, and both are stored only as sha256 hashes, with the
+            app&apos;s name, where it sent you back to, and when it was last used. Disconnect it in settings and both stop
+            working. Your GitHub sign-in is never shared with the app.
             The server also counts how many MCP calls were made each day, as one number with no user attached.
           </p>
         </section>

@@ -28,6 +28,10 @@ export const LIMITS = {
   mcp: { capacity: 60, windowMs: 60_000 },
   /** MCP requests per address, spent before the token lookup, for the same reason as `cliIp`. */
   mcpIp: { capacity: 300, windowMs: 60_000 },
+  /** OAuth client registrations per address; a connector registers once per fresh connection. */
+  oauthRegister: { capacity: 30, windowMs: 3_600_000 },
+  /** OAuth code exchanges and refreshes per address. */
+  oauthToken: { capacity: 120, windowMs: 60_000 },
   /** Kudos given or taken back, per giver. */
   kudos: { capacity: 60, windowMs: 3_600_000 },
 } as const satisfies Record<string, Limit>;

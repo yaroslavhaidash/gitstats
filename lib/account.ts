@@ -17,6 +17,8 @@ import {
   deletedUsersArchive,
   mcpTokens,
   kudos,
+  oauthCodes,
+  oauthGrants,
   type ArchivedAccount,
 } from "@/db/schema";
 import { handOffCrews } from "./crews";
@@ -24,13 +26,13 @@ import { handOffCrews } from "./crews";
 /**
  * Everything the server holds about one member, for the settings export: every table that carries
  * their user id, every column of it. Left out on purpose, and only these: the secrets themselves —
- * `users.hash_salt`, `cli_tokens.token_hash`, `mcp_tokens.token_hash`, the encrypted PATs in `user_tokens.token` — and
- * `device_codes`, a pairing in flight that is nothing but secrets and expires in ten minutes.
+ * `users.hash_salt`, `cli_tokens.token_hash`, `mcp_tokens.token_hash`, the OAuth token hashes, the encrypted PATs in `user_tokens.token` — and
+ * `device_codes` and `oauth_codes`, pairings in flight that are nothing but secrets and expire in ten minutes.
  */
 export async function exportAccount(userId: number) {
   const giver = alias(users, "giver");
   const receiver = alias(users, "receiver");
-  const [[user], memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, kudosRows] = await Promise.all([
+  const [[user], memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, kudosRows, apps] = await Promise.all([
     db
       .select({
         id: users.id,
@@ -131,6 +133,11 @@ export async function exportAccount(userId: number) {
       .innerJoin(receiver, eq(receiver.id, kudos.receiverId))
       .where(or(eq(kudos.giverId, userId), eq(kudos.receiverId, userId)))
       .orderBy(desc(kudos.createdAt)),
+    db
+      .select({ app: oauthGrants.clientName, redirectHost: oauthGrants.redirectHost, scope: oauthGrants.scope, createdAt: oauthGrants.createdAt, lastUsedAt: oauthGrants.lastUsedAt })
+      .from(oauthGrants)
+      .where(eq(oauthGrants.userId, userId))
+      .orderBy(oauthGrants.id),
   ]);
   if (!user) return null;
   return {
@@ -145,6 +152,7 @@ export async function exportAccount(userId: number) {
     repoNameOverrides: nameOverrides,
     mcpTokens: assistants,
     kudos: kudosRows,
+    oauthApps: apps,
   };
 }
 
@@ -170,7 +178,7 @@ export async function archiveAccount(userId: number): Promise<void> {
   const found = await db.execute<{ row: Record<string, unknown> }>(sql`select to_jsonb(t) as row from ${users} t where t.id = ${userId}`);
   const user = found.rows[0]?.row;
   if (!user) return;
-  const [memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, kudosRows] = await Promise.all([
+  const [memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, kudosRows, apps] = await Promise.all([
     rowsAsJson(crewMembers, userId),
     rowsAsJson(cliTokens, userId),
     rowsAsJson(userTokens, userId),
@@ -185,6 +193,7 @@ export async function archiveAccount(userId: number): Promise<void> {
         sql`select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) as rows from ${kudos} t where t.giver_id = ${userId} or t.receiver_id = ${userId}`,
       )
       .then((res) => res.rows[0].rows),
+    rowsAsJson(oauthGrants, userId),
   ]);
   const data: ArchivedAccount = {
     user,
@@ -197,6 +206,7 @@ export async function archiveAccount(userId: number): Promise<void> {
     repoNameOverrides: nameOverrides,
     mcpTokens: assistants,
     kudos: kudosRows,
+    oauthGrants: apps,
   };
   await db.insert(deletedUsersArchive).values({ userId, login: String(user.github_login), data });
 }
@@ -234,6 +244,7 @@ export async function restoreAccount(archiveId: number): Promise<string | null> 
   await restoreRows(dailyLocal, data.dailyLocal);
   await restoreRows(repoNameOverrides, data.repoNameOverrides);
   await restoreRows(mcpTokens, data.mcpTokens ?? []);
+  await restoreRows(oauthGrants, data.oauthGrants ?? []);
   // Only kudos whose other member is still here can come back.
   if (data.kudos && data.kudos.length > 0) {
     await db.execute(sql`
@@ -270,6 +281,8 @@ export async function deleteAccount(userId: number): Promise<void> {
   await db.delete(repoNameOverrides).where(eq(repoNameOverrides.userId, userId));
   await db.delete(cliTokens).where(eq(cliTokens.userId, userId));
   await db.delete(mcpTokens).where(eq(mcpTokens.userId, userId));
+  await db.delete(oauthGrants).where(eq(oauthGrants.userId, userId));
+  await db.delete(oauthCodes).where(eq(oauthCodes.userId, userId));
   await db.delete(kudos).where(or(eq(kudos.giverId, userId), eq(kudos.receiverId, userId)));
   await db.delete(userTokens).where(eq(userTokens.userId, userId));
   await db.delete(deviceCodes).where(eq(deviceCodes.userId, userId));

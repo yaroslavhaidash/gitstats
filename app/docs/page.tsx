@@ -156,8 +156,15 @@ export default async function Docs() {
             the site: your own numbers, the boards of your crews, and another member&apos;s summary only where their page is open to you. Repos
             counted without their name stay <span className="text-silver">private-&lt;hash&gt;</span>.
           </p>
+          <h3 className="font-sans font-bold text-base mb-2">claude.ai (web, desktop, mobile)</h3>
           <p className="font-mono text-xs text-dim leading-relaxed mb-4">
-            Create a token under <Link href="/dashboard/settings#assistants" className="text-silver underline hover:text-alert">settings → AI assistants</Link>{" "}
+            Add to claude.ai as a custom connector: Customize → Connectors → Add custom connector, name it gitstats, URL{" "}
+            <span className="text-silver">{MCP_URL}</span>, leave the OAuth client settings as they come, Add, then Connect. You sign in with GitHub
+            on a gitstats screen that asks whether to connect Claude; no token to copy. On Team and Enterprise an owner adds it under Organization
+            settings → Connectors first. Disconnect it any time in settings.
+          </p>
+          <p className="font-mono text-xs text-dim leading-relaxed mb-4">
+            For the others, create a token under <Link href="/dashboard/settings#assistants" className="text-silver underline hover:text-alert">settings → AI assistants</Link>{" "}
             (it is shown once), then:
           </p>
           <h3 className="font-sans font-bold text-base mb-2">Claude Code</h3>
@@ -182,8 +189,8 @@ export default async function Docs() {
             Tools: <span className="text-silver">my_summary</span>, <span className="text-silver">my_daily</span> (days a linked computer counted,
             kept apart from weekly figures laid over their days), <span className="text-silver">my_repos</span>, <span className="text-silver">my_crews</span>,{" "}
             <span className="text-silver">crew_board</span>, <span className="text-silver">member_summary</span>. Each takes a window (week, month, year, or
-            from/to dates) and lines or commits. 60 calls a minute per token. Revoke the token in settings and the next call fails. Not yet a
-            claude.ai connector: that needs OAuth.
+            from/to dates) and lines or commits. 60 calls a minute per token. Revoke the token or disconnect the app in settings and the next call
+            fails. Any client that speaks MCP OAuth can also connect without a token: point it at the URL and it will send you to the same sign-in.
           </p>
         </section>
 

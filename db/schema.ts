@@ -211,6 +211,62 @@ export const mcpTokens = pgTable("mcp_tokens", {
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
 }, (t) => [index("mcp_tokens_user_idx").on(t.userId)]);
 
+/**
+ * Apps that may ask a member to connect over OAuth: registered by the app itself (`dcr`, RFC 7591) or
+ * read from the metadata document its `client_id` URL points at (`cimd`). Holds no user data.
+ */
+export const oauthClients = pgTable("oauth_clients", {
+  id: serial("id").primaryKey(),
+  clientId: text("client_id").notNull().unique(),
+  kind: text("kind").$type<"dcr" | "cimd">().notNull(),
+  name: text("name").notNull(),
+  redirectUris: jsonb("redirect_uris").$type<string[]>().notNull(),
+  /** Only for a registered client that asked to authenticate with a secret; null for public clients. */
+  secretHash: text("secret_hash"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** When a `cimd` document was last read, so it is re-read after a day. */
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** An authorization code between the consent screen and the token endpoint: one use, ten minutes. */
+export const oauthCodes = pgTable("oauth_codes", {
+  id: serial("id").primaryKey(),
+  codeHash: text("code_hash").notNull().unique(),
+  clientId: text("client_id").notNull(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  redirectUri: text("redirect_uri").notNull(),
+  codeChallenge: text("code_challenge").notNull(),
+  scope: text("scope").notNull(),
+  resource: text("resource").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+/**
+ * One app a member connected over OAuth: the current access and refresh token (hashes only), both
+ * replaced on every refresh. Deleting the row is revoking the connection. The owner is the viewer,
+ * exactly like a personal MCP token.
+ */
+export const oauthGrants = pgTable("oauth_grants", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  clientId: text("client_id").notNull(),
+  /** The app's name and where it sent the member back to, as shown on the consent screen. */
+  clientName: text("client_name").notNull(),
+  redirectHost: text("redirect_host").notNull(),
+  scope: text("scope").notNull(),
+  resource: text("resource").notNull(),
+  accessHash: text("access_hash").notNull().unique(),
+  accessExpiresAt: timestamp("access_expires_at", { withTimezone: true }).notNull(),
+  refreshHash: text("refresh_hash").notNull().unique(),
+  refreshExpiresAt: timestamp("refresh_expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+}, (t) => [index("oauth_grants_user_idx").on(t.userId)]);
+
 /** One kudos from one member to another in one Monday-to-Sunday week; the key is what makes it one. */
 export const kudos = pgTable(
   "kudos",
@@ -298,6 +354,8 @@ export type ArchivedAccount = {
   mcpTokens?: Record<string, unknown>[];
   /** Kudos given and received. Absent from archives written before kudos existed. */
   kudos?: Record<string, unknown>[];
+  /** Apps connected over OAuth. Absent from archives written before OAuth existed. */
+  oauthGrants?: Record<string, unknown>[];
 };
 
 /** A deleted member, kept for 30 days so an accidental delete can be undone, then purged nightly. */

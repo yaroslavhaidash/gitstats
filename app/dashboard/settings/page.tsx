@@ -1,16 +1,16 @@
-import { eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { cliTokens, mcpTokens, userTokens, users } from "@/db/schema";
+import { cliTokens, mcpTokens, oauthGrants, userTokens, users } from "@/db/schema";
 import { BadgeCopy } from "@/components/BadgeCopy";
 import { Confirm } from "@/components/Confirm";
 import { McpTokenForm } from "@/components/McpTokenForm";
 import { SettingsForm } from "@/components/SettingsForm";
 import { VisibilityMatrix } from "@/components/VisibilityMatrix";
 import { SetupCommand } from "@/components/SetupCommand";
-import { addToken, deleteAccountAction, removeToken, revokeMachine, revokeMcpToken, updateStreakMode, updateWeeklyGoal } from "@/lib/actions";
+import { addToken, deleteAccountAction, removeToken, revokeMachine, revokeMcpToken, revokeOAuthGrant, updateStreakMode, updateWeeklyGoal } from "@/lib/actions";
 import { isOutdatedCli } from "@/lib/cli";
 import { fmtDateTime } from "@/lib/format";
 import { SITE_URL } from "@/lib/site";
@@ -33,12 +33,17 @@ export default async function Settings({ searchParams }: { searchParams: Promise
   const session = await auth();
   if (!session) redirect("/");
   const uid = session.user.id;
-  const [{ error, saved, removed, profile, revoked, streak, mcp, goal }, [me], tokens, machines, assistants] = await Promise.all([
+  const [{ error, saved, removed, profile, revoked, streak, mcp, goal }, [me], tokens, machines, assistants, apps] = await Promise.all([
     searchParams,
     db.select().from(users).where(eq(users.id, uid)),
     db.select({ id: userTokens.id, label: userTokens.label, lastError: userTokens.lastError, createdAt: userTokens.createdAt }).from(userTokens).where(eq(userTokens.userId, uid)).orderBy(userTokens.id),
     db.select().from(cliTokens).where(eq(cliTokens.userId, uid)).orderBy(cliTokens.id),
     db.select({ id: mcpTokens.id, label: mcpTokens.label, createdAt: mcpTokens.createdAt, lastUsedAt: mcpTokens.lastUsedAt }).from(mcpTokens).where(eq(mcpTokens.userId, uid)).orderBy(mcpTokens.id),
+    db
+      .select({ id: oauthGrants.id, clientName: oauthGrants.clientName, redirectHost: oauthGrants.redirectHost, createdAt: oauthGrants.createdAt, lastUsedAt: oauthGrants.lastUsedAt })
+      .from(oauthGrants)
+      .where(and(eq(oauthGrants.userId, uid), gt(oauthGrants.refreshExpiresAt, new Date())))
+      .orderBy(oauthGrants.id),
   ]);
   return (
     <div className="max-w-3xl mx-auto">
@@ -114,8 +119,31 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         <p className="font-mono text-xs text-dim mb-6 leading-relaxed">
           Ask Claude Code, Codex or Cursor &quot;how was my week&quot; or &quot;am I ahead of my crew&quot;. A token here lets an assistant read what you can see on this site, as
           you: your own numbers, your crews&apos; boards, and other members&apos; pages only where those are open to you. Read-only; it cannot change anything. Revoke it and the next call fails.
+          claude.ai and other apps that connect by signing in show up under connected apps instead.
         </p>
-        {mcp && <p className="font-mono text-xs text-dim mb-4">&gt; token revoked</p>}
+        {mcp && <p className="font-mono text-xs text-dim mb-4">&gt; {mcp === "disconnected" ? "app disconnected" : "token revoked"}</p>}
+        {apps.length > 0 && (
+          <>
+            <div className="font-mono text-xs text-faint uppercase tracking-wide mb-2">connected apps</div>
+            <ul className="divide-y divide-dark border-2 border-dark mb-6 font-mono text-sm">
+              {apps.map((a) => (
+                <li key={a.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                  <span className="min-w-0">
+                    <span className="text-white break-words">{a.clientName}</span>
+                    <span className="block text-xs text-faint mt-1 break-all">
+                      {a.redirectHost} · connected {fmtDateTime(a.createdAt)} · {a.lastUsedAt ? `last used ${fmtDateTime(a.lastUsedAt)}` : "never used"}
+                    </span>
+                  </span>
+                  <form action={revokeOAuthGrant}>
+                    <input type="hidden" name="id" value={a.id} />
+                    <button className="text-xs text-faint hover:text-alert cursor-pointer">DISCONNECT</button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+            <div className="font-mono text-xs text-faint uppercase tracking-wide mb-2">personal tokens</div>
+          </>
+        )}
         {assistants.length > 0 && (
           <ul className="divide-y divide-dark border-2 border-dark mb-6 font-mono text-sm">
             {assistants.map((t) => (

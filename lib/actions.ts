@@ -2,19 +2,21 @@
 
 import { randomInt } from "node:crypto";
 import { revalidatePath, updateTag } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { auth, signIn, signOut } from "@/auth";
 import { db } from "@/db";
 import { deleteAccount, restoreAccount } from "./account";
 import { logAdmin, requireAdmin, snapshotChainUrl, triggerSnapshotChain } from "./admin";
-import { cliTokens, crewMembers, crews, deviceCodes, mcpTokens, repoNameOverrides, userTokens, users, type GoalMetric, type RepoNames, type StreakMode } from "@/db/schema";
+import { cliTokens, crewMembers, crews, deviceCodes, mcpTokens, oauthGrants, repoNameOverrides, userTokens, users, type GoalMetric, type RepoNames, type StreakMode } from "@/db/schema";
 import { STATS_TAG } from "./cache";
 import { hashToken, newSecret } from "./cli";
 import { and, eq, isNull } from "drizzle-orm";
 import { encrypt } from "./crypto";
 import { countStep } from "./funnel";
 import { MCP_TOKEN_PREFIX } from "./mcp";
+import { checkAuthorize, issueCode, publicOrigin, withParams, type AuthorizeParams } from "./oauth";
 import { fetchTokenLogin, GitHubAuthError } from "./github";
 import { newShareNonce } from "./share";
 import { runSnapshot } from "./snapshot";
@@ -253,6 +255,47 @@ export async function createMcpToken(_prev: McpTokenState, formData: FormData): 
   await db.insert(mcpTokens).values({ userId: session.user.id, tokenHash: hashToken(token), label });
   revalidatePath("/dashboard/settings");
   return { token };
+}
+
+/** The authorization request travels through the consent form as its original query string and is checked again here. */
+async function authorizeRequest(formData: FormData) {
+  const raw = formData.get("request");
+  const query = new URLSearchParams(typeof raw === "string" ? raw : "");
+  const origin = publicOrigin(await headers());
+  const params: AuthorizeParams = Object.fromEntries(query);
+  return { query, origin, checked: await checkAuthorize(params, origin) };
+}
+
+export async function approveOAuth(formData: FormData): Promise<void> {
+  const session = await auth();
+  const { query, origin, checked } = await authorizeRequest(formData);
+  if (!session) redirect(`/oauth/authorize?${query}`);
+  if (!checked.ok) redirect("redirect" in checked ? checked.redirect : `/oauth/authorize?${query}`);
+  redirect(await issueCode(checked, session.user.id, origin));
+}
+
+export async function denyOAuth(formData: FormData): Promise<void> {
+  const { query, origin, checked } = await authorizeRequest(formData);
+  if (!checked.ok) redirect("redirect" in checked ? checked.redirect : `/oauth/authorize?${query}`);
+  redirect(withParams(checked.redirectUri, { error: "access_denied", error_description: "the member said no", state: checked.state, iss: origin }));
+}
+
+export async function signInThenAuthorize(query: string): Promise<void> {
+  await countStep("signin_start");
+  await signIn("github", { redirectTo: `/oauth/authorize?${query}` });
+}
+
+export async function signOutThenAuthorize(query: string): Promise<void> {
+  await signOut({ redirectTo: `/oauth/authorize?${query}` });
+}
+
+export async function revokeOAuthGrant(formData: FormData): Promise<void> {
+  const session = await auth();
+  if (!session) redirect("/");
+  const id = Number(formData.get("id"));
+  if (!Number.isInteger(id)) redirect("/dashboard/settings#assistants");
+  await db.delete(oauthGrants).where(and(eq(oauthGrants.id, id), eq(oauthGrants.userId, session.user.id)));
+  redirect("/dashboard/settings?mcp=disconnected#assistants");
 }
 
 export async function revokeMcpToken(formData: FormData): Promise<void> {
