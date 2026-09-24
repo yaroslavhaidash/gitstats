@@ -53,7 +53,7 @@ const SAFE = [
   ["numbers only", "The CLI sends a keyed hash of each remote URL, a guessed language, per-week and per-day commits / lines added / lines deleted for your commits. Repo names only if you turn them on. No paths, no diffs, no content."],
   ["your machine, your rules", "It runs as you, reads git history the way git log does, and re-runs daily in the background — a launchd job, a scheduled task or a systemd timer, depending on your OS. It also updates itself from npm once a day; sync --no-update skips that. gitstats pause stops the schedule, gitstats unlink removes it entirely. Revoke a computer on the settings page."],
   ["you decide what is shown", "Per profile: who can open it, whether private repos count in what others see, and whether repo names are shown or anonymised."],
-  ["auditable", "The CLI is open source, MIT: one file, under a thousand lines of TypeScript, with the compiled output committed next to it. Read it, or point a proxy at it. It shows you what it found and asks before the first upload."],
+  ["auditable", "The CLI and the server are both open source, MIT, so you can check what is sent and what is stored. The CLI is one file, under a thousand lines of TypeScript, with the compiled output committed next to it. Read it, or point a proxy at it. It shows you what it found and asks before the first upload."],
 ];
 
 const METRICS = [
@@ -336,7 +336,8 @@ export default async function Landing() {
         )}
         <Link href="/widget" className="hover:text-alert">readme widget</Link> ·{" "}
         <a href="/privacy" className="hover:text-alert">privacy</a> ·{" "}
-        <a href="https://github.com/yaroslavhaidash/gitstats-cli" className="hover:text-alert">cli source</a>
+        <a href="https://github.com/yaroslavhaidash/gitstats-cli" className="hover:text-alert">cli source</a> ·{" "}
+        <a href="https://github.com/yaroslavhaidash/gitstats" className="hover:text-alert">server source</a>
       </footer>
     </main>
   );
