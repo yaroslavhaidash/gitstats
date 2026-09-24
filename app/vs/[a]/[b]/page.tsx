@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { PublicShell } from "@/components/PublicShell";
+import { SignedOut } from "@/components/SiteNav";
 import { StatTile } from "@/components/StatTile";
 import { SignInButton } from "@/components/Tracked";
 import { WindowTabs } from "@/components/WindowTabs";
@@ -144,15 +145,17 @@ export default async function VsPage({ params, searchParams }: Props) {
         <Side side={r} withLines={withLines} label={label} />
       </div>
 
-      <section className="border-2 border-alert p-6 flex flex-wrap items-center justify-between gap-6">
-        <div className="min-w-0">
-          <h2 className="font-sans font-bold text-2xl mb-2">See your private repos and lines too: sign in.</h2>
-          <p className="font-mono text-xs text-dim">GitHub sign-in is identity only: no repo access, no token stored.</p>
-        </div>
-        <form action={signInWithGitHub}>
-          <SignInButton where="vs" className="btn-brutal px-8 py-4">SIGN IN WITH GITHUB_</SignInButton>
-        </form>
-      </section>
+      <SignedOut>
+        <section className="border-2 border-alert p-6 flex flex-wrap items-center justify-between gap-6">
+          <div className="min-w-0">
+            <h2 className="font-sans font-bold text-2xl mb-2">See your private repos and lines too: sign in.</h2>
+            <p className="font-mono text-xs text-dim">GitHub sign-in is identity only: no repo access, no token stored.</p>
+          </div>
+          <form action={signInWithGitHub}>
+            <SignInButton where="vs" className="btn-brutal px-8 py-4">SIGN IN WITH GITHUB_</SignInButton>
+          </form>
+        </section>
+      </SignedOut>
     </PublicShell>
   );
 }

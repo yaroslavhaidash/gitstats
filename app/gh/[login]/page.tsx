@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { CommitWeeks } from "@/components/CommitWeeks";
 import { CompareForm } from "@/components/CompareForm";
 import { PublicShell } from "@/components/PublicShell";
+import { SignedOut } from "@/components/SiteNav";
 import { SignInButton } from "@/components/Tracked";
 import { YearCalendar } from "@/components/YearCalendar";
 import { signInWithGitHub } from "@/lib/actions";
@@ -128,24 +129,26 @@ export default async function HandlePage({ params }: Props) {
         <CompareForm login={data.login} />
       </section>
 
-      <section className="border-2 border-alert p-6 flex flex-wrap items-center justify-between gap-6">
-        <div className="min-w-0">
-          <h2 className="font-sans font-bold text-2xl mb-2">Lines, private repos, and a crew need your sign-in.</h2>
-          <p className="font-mono text-xs text-dim">
-            {member ? (
-              <>
-                Already linked? Your full page is at{" "}
-                <Link href={`/dashboard/u/${member}`} className="text-silver underline hover:text-alert">/dashboard/u/{member}</Link>
-              </>
-            ) : (
-              "GitHub sign-in is identity only: no repo access, no token stored."
-            )}
-          </p>
-        </div>
-        <form action={signInWithGitHub}>
-          <SignInButton where="handle" className="btn-brutal px-8 py-4">SIGN IN WITH GITHUB_</SignInButton>
-        </form>
-      </section>
+      <SignedOut>
+        <section className="border-2 border-alert p-6 flex flex-wrap items-center justify-between gap-6">
+          <div className="min-w-0">
+            <h2 className="font-sans font-bold text-2xl mb-2">Lines, private repos, and a crew need your sign-in.</h2>
+            <p className="font-mono text-xs text-dim">
+              {member ? (
+                <>
+                  Already linked? Your full page is at{" "}
+                  <Link href={`/dashboard/u/${member}`} className="text-silver underline hover:text-alert">/dashboard/u/{member}</Link>
+                </>
+              ) : (
+                "GitHub sign-in is identity only: no repo access, no token stored."
+              )}
+            </p>
+          </div>
+          <form action={signInWithGitHub}>
+            <SignInButton where="handle" className="btn-brutal px-8 py-4">SIGN IN WITH GITHUB_</SignInButton>
+          </form>
+        </section>
+      </SignedOut>
     </PublicShell>
   );
 }

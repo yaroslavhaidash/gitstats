@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { auth } from "@/auth";
 import { BadgeTabs } from "@/components/BadgeTabs";
 import { CopyText } from "@/components/CopyText";
-import { Logo } from "@/components/Logo";
+import { SignedOut, SiteNav } from "@/components/SiteNav";
 import { SignInButton } from "@/components/Tracked";
 import { signInWithGitHub } from "@/lib/actions";
 import { demoBadgeStats, statsBadge } from "@/lib/badge";
@@ -29,17 +28,10 @@ export default async function Widget({ searchParams }: { searchParams: Promise<{
   const query = await searchParams;
   const window = badgeWindow(query.w);
   const metric = parseMetric(query.m);
-  const [session, demo] = await Promise.all([auth(), demoBadgeStats(window, metric)]);
+  const demo = await demoBadgeStats(window, metric);
   return (
     <main className="flex-1">
-      <nav className="sticky top-0 z-40 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Logo href={session ? "/dashboard" : "/"} />
-          <Link href={session ? "/dashboard" : "/"} className="font-mono text-xs border border-silver px-3 py-1 hover:bg-silver hover:text-void transition-colors">
-            {session ? "BOARD" : "HOME"}
-          </Link>
-        </div>
-      </nav>
+      <SiteNav where="widget_nav" />
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
         <div className="tag mb-4">WIDGET</div>
@@ -101,7 +93,7 @@ export default async function Widget({ searchParams }: { searchParams: Promise<{
           </p>
         </section>
 
-        {!session && (
+        <SignedOut>
           <section className="panel p-6">
             <h2 className="font-sans font-bold text-2xl mb-2">Get yours</h2>
             <p className="font-mono text-xs text-dim leading-relaxed mb-5">Sign in with GitHub and your badge works right away.</p>
@@ -111,7 +103,7 @@ export default async function Widget({ searchParams }: { searchParams: Promise<{
               </SignInButton>
             </form>
           </section>
-        )}
+        </SignedOut>
       </div>
     </main>
   );

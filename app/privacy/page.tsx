@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { auth } from "@/auth";
-import { Logo } from "@/components/Logo";
+import { SiteNav } from "@/components/SiteNav";
 import { openGraphFor } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -35,23 +34,19 @@ const NEVER: string[] = [
 ];
 
 export default async function Privacy() {
-  const session = await auth();
   return (
     <main className="flex-1">
-      <nav className="sticky top-0 z-40 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Logo href={session ? "/dashboard" : "/"} />
-          <div className="hidden md:flex gap-6 font-mono text-sm">
+      <SiteNav
+        where="privacy_nav"
+        links={
+          <>
             <a href="#stored" className="hover:text-alert transition-colors">[STORED]</a>
             <a href="#never" className="hover:text-alert transition-colors">[NEVER]</a>
             <a href="#seen" className="hover:text-alert transition-colors">[WHO SEES IT]</a>
             <a href="#yours" className="hover:text-alert transition-colors">[EXPORT / DELETE]</a>
-          </div>
-          <Link href={session ? "/dashboard" : "/"} className="font-mono text-xs border border-silver px-3 py-1 hover:bg-silver hover:text-void transition-colors">
-            {session ? "BOARD" : "HOME"}
-          </Link>
-        </div>
-      </nav>
+          </>
+        }
+      />
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
         <div className="tag mb-4">PRIVACY</div>

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { auth } from "@/auth";
-import { Logo } from "@/components/Logo";
+import { SiteNav } from "@/components/SiteNav";
 import { SetupCommand } from "@/components/SetupCommand";
 import { openGraphFor, SITE_URL } from "@/lib/site";
 
@@ -44,25 +43,21 @@ const SENT = [
 const NOT_SENT = ["file contents", "diffs", "file or folder names", "branch names", "commit messages", "other people's commits", "anything about repos you did not commit to"];
 
 export default async function Docs() {
-  const session = await auth();
   return (
     <main className="flex-1">
-      <nav className="sticky top-0 z-40 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Logo href={session ? "/dashboard" : "/"} />
-          <div className="hidden md:flex gap-6 font-mono text-sm">
+      <SiteNav
+        where="docs_nav"
+        links={
+          <>
             <a href="#setup" className="hover:text-alert transition-colors">[SETUP]</a>
             <a href="#commands" className="hover:text-alert transition-colors">[COMMANDS]</a>
             <a href="#data" className="hover:text-alert transition-colors">[DATA]</a>
             <a href="#faq" className="hover:text-alert transition-colors">[FAQ]</a>
             <Link href="/privacy" className="hover:text-alert transition-colors">[PRIVACY]</Link>
             <Link href="/widget" className="hover:text-alert transition-colors">[WIDGET]</Link>
-          </div>
-          <Link href={session ? "/dashboard" : "/"} className="font-mono text-xs border border-silver px-3 py-1 hover:bg-silver hover:text-void transition-colors">
-            {session ? "BOARD" : "HOME"}
-          </Link>
-        </div>
-      </nav>
+          </>
+        }
+      />
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
         <div className="tag mb-4">DOCS // CLI</div>
