@@ -30,6 +30,7 @@ Void `#050505`, alert red `#ff3333`, silver `#e0e2e5`, dark `#1a1a1a`; JetBrains
 - **Charts draw at their real width** (`components/useChartWidth.ts`), one viewBox unit per CSS pixel, so axis text keeps its size on a phone. Axis density comes from `components/dayTicks.ts`, never hand-tuned per chart.
 - **Lines is the primary metric** (additions + deletions); commits are the alternative behind `MetricTabs`. Whatever is selected orders the board too, so a table never disagrees with the charts beneath it.
 - **Per-day numbers have two sources and neither is complete.** A linked computer counts days exactly; a repo GitHub knows about but that is not cloned anywhere only has weekly figures, which `userDailyLines` lays over that week's days and returns separately in `spread*` so charts can hatch them. Never present a placed figure as a counted one.
+- **Copy:** no em dashes in UI text, no italics for emphasis, no cream or light backgrounds.
 
 ## Docs index
 - `docs/ARCHITECTURE.md` — data flow, tables, routes, file map, invariants.

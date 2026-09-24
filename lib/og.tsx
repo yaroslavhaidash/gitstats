@@ -8,7 +8,7 @@ import { join } from "node:path";
  * same capture the landing hero uses, resampled to 1200 wide. Static for every route — a per-user
  * card would put someone's numbers in front of anyone who can guess a URL.
  */
-export const alt = "gitstats — a crew board ranking four developers by lines of code over a year";
+export const alt = "gitstats: a crew board ranking four developers by lines of code over a year";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 

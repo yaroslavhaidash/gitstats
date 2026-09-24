@@ -11,7 +11,7 @@ import { FUNNEL_STEPS, funnelDays } from "@/lib/funnel";
 export const dynamic = "force-dynamic";
 
 const DONE: Record<string, string> = {
-  deleted: `member deleted — restorable from the archive below for ${ARCHIVE_DAYS} days`,
+  deleted: `member deleted, restorable from the archive below for ${ARCHIVE_DAYS} days`,
   restored: "member restored",
   revoked: "machine revoked",
   snapshot: "snapshot started for that member",

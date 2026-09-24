@@ -12,7 +12,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
         <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: "0 16px", textAlign: "center" }}>
           <div>
             <h1 style={{ fontSize: 28, margin: "0 0 12px" }}>That didn&apos;t load.</h1>
-            <p style={{ fontSize: 14, color: "#aab2bf", margin: "0 0 24px" }}>Try again — it normally works the second time.</p>
+            <p style={{ fontSize: 14, color: "#aab2bf", margin: "0 0 24px" }}>Try again, it normally works the second time.</p>
             <button
               type="button"
               onClick={reset}

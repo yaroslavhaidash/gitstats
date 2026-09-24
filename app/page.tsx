@@ -49,9 +49,9 @@ const STEPS = [
 ];
 
 const SAFE = [
-  ["no tokens", "The sign-in asks for read:user and user:email, nothing more — nothing on GitHub can read or write your code on our behalf. (If you would rather not run anything locally, settings takes an optional read-only fine-grained token instead, scoped to repos you pick. It is encrypted at rest and only the nightly job decrypts it.)"],
+  ["no tokens", "The sign-in asks for read:user and user:email, nothing more. Nothing on GitHub can read or write your code on our behalf. (If you would rather not run anything locally, settings takes an optional read-only fine-grained token instead, scoped to repos you pick. It is encrypted at rest and only the nightly job decrypts it.)"],
   ["numbers only", "The CLI sends a keyed hash of each remote URL, a guessed language, per-week and per-day commits / lines added / lines deleted for your commits. Repo names only if you turn them on. No paths, no diffs, no content."],
-  ["your machine, your rules", "It runs as you, reads git history the way git log does, and re-runs daily in the background — a launchd job, a scheduled task or a systemd timer, depending on your OS. It also updates itself from npm once a day; sync --no-update skips that. gitstats pause stops the schedule, gitstats unlink removes it entirely. Revoke a computer on the settings page."],
+  ["your machine, your rules", "It runs as you, reads git history the way git log does, and re-runs daily in the background: a launchd job, a scheduled task or a systemd timer, depending on your OS. It also updates itself from npm once a day; sync --no-update skips that. gitstats pause stops the schedule, gitstats unlink removes it entirely. Revoke a computer on the settings page."],
   ["you decide what is shown", "Per profile: who can open it, whether private repos count in what others see, and whether repo names are shown or anonymised."],
   ["auditable", "The CLI and the server are both open source, MIT, so you can check what is sent and what is stored. The CLI is one file, under a thousand lines of TypeScript, with the compiled output committed next to it. Read it, or point a proxy at it. It shows you what it found and asks before the first upload."],
 ];
@@ -86,7 +86,7 @@ const FAQ = [
 
 const VERSUS: [string, string, string][] = [
   ["what it counts", "Commits, issues, pull requests and reviews, as squares with no numbers on them.", "Commits and lines added and deleted, as numbers you can add up and sort by."],
-  ["private repos", "A green square, and only once you turn on private contributions. Never a number.", "Counted on your own machine and sent as numbers — no GitHub token, work repos included."],
+  ["private repos", "A green square, and only once you turn on private contributions. Never a number.", "Counted on your own machine and sent as numbers. No GitHub token, work repos included."],
   ["lines of code per day", "Not shown anywhere. GitHub publishes lines per week, per repo, to the repo's own graphs.", "Per day for every repo a linked computer counted, and per week for the rest, marked as such."],
   ["comparing people", "One profile at a time, in separate tabs.", "A leaderboard: your crew side by side over a week, a month, a year or any range you pick."],
   ["what it is for", "Showing your own year on your own profile.", "Settling who actually shipped this week, among friends."],

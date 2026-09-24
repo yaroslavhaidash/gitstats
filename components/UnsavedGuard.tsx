@@ -134,7 +134,7 @@ export function UnsavedModal({ onSave, onDiscard }: { onSave: () => void; onDisc
       <div className="panel border-silver w-full max-w-md p-6">
         <h2 className="font-sans font-bold text-xl mb-2">You have unsaved changes</h2>
         <p className="font-mono text-xs text-dim mb-6 leading-relaxed">
-          Save them before you go, or leave them behind — this page will not keep them.
+          Save them before you go, or leave them behind. This page will not keep them.
         </p>
         <div className="flex flex-wrap gap-3">
           <button type="button" onClick={onSave} className="btn-brutal">

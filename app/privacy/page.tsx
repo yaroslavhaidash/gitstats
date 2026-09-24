@@ -83,7 +83,7 @@ export default async function Privacy() {
             Signing in asks GitHub for <span className="text-silver">read:user</span> and{" "}
             <span className="text-silver">user:email</span>. The <span className="text-silver">repo</span> scope is never
             requested, so nothing here can read or write your code on GitHub. The access token GitHub hands back at
-            sign-in is read once to learn who you are and then dropped — it is never written to the database.
+            sign-in is read once to learn who you are and then dropped. It is never written to the database.
           </p>
         </section>
 
@@ -98,7 +98,7 @@ export default async function Privacy() {
           <ul className="font-mono text-xs text-dim leading-relaxed list-disc pl-5 space-y-2 mb-4">
             <li>whether they can open your page at all,</li>
             <li>whether private repos count in the numbers they see, or only public ones,</li>
-            <li>whether repo names are shown, public-only, or hidden — plus a per-repo switch on your own page that hides one name from everybody.</li>
+            <li>whether repo names are shown, public-only, or hidden, plus a per-repo switch on your own page that hides one name from everybody.</li>
           </ul>
           <p className="font-mono text-xs text-dim leading-relaxed mb-4">
             A new account starts open on the numbers and closed on the names: your page is open to everyone signed in,
@@ -109,7 +109,7 @@ export default async function Privacy() {
           <p className="font-mono text-xs text-dim leading-relaxed">
             <span className="text-silver">Anyone with the link.</span> There is one way out of that: the SHARE button on
             your own page mints a card at a long, unguessable address that opens without a sign-in. It is a third column,
-            and you write it yourself every time you press the button — you pick whether it carries the totals, the
+            and you write it yourself every time you press the button. You pick whether it carries the totals, the
             26-week grid and the names of your top three repos, and you see the card before you send it. Because you
             chose to publish it, the card shows your own numbers rather than the column a stranger would get; the only
             thing it will not do is name a repo you hid per repo on your own page. Nothing is stored for a card: the
@@ -137,7 +137,7 @@ export default async function Privacy() {
               <dd className="font-mono text-xs text-dim leading-relaxed">
                 Type your login to confirm and everything above leaves the live site right then: you are gone from
                 every board, every page and every export. One copy is held back, in a table only the site owner can
-                read, for 30 days — the undo for a delete pressed by mistake — and the nightly job drops it after
+                read, for 30 days (the undo for a delete pressed by mistake), and the nightly job drops it after
                 that. Nothing is mined from it and nothing else keeps a copy. A crew you started passes to whoever
                 joined first; if you were the last member it goes too. Run <span className="text-silver">gitstats
                 unlink</span> on each computer to clear the local config as well.
@@ -168,8 +168,8 @@ export default async function Privacy() {
             the numbers above. It shows you everything it found and asks before the first upload. It is open source at{" "}
             <a href="https://github.com/yaroslavhaidash/gitstats-cli" target="_blank" rel="noreferrer" className="text-silver underline hover:text-alert">
               github.com/yaroslavhaidash/gitstats-cli
-            </a>{" "}
-            — one file, under a thousand lines, MIT licensed, with the compiled output committed next to it. Read it, or watch its traffic
+            </a>
+            . One file, under a thousand lines, MIT licensed, with the compiled output committed next to it. Read it, or watch its traffic
             with any proxy. <Link href="/docs" className="text-silver underline hover:text-alert">The docs page</Link>{" "}
             lists every command, including the ones that stop it.
           </p>

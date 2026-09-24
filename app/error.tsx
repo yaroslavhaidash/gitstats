@@ -23,7 +23,7 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
         <div className="tag mb-4">SOMETHING BROKE</div>
         <h1 className="font-sans font-bold text-4xl mb-4">That didn&apos;t load.</h1>
         <p className="font-mono text-sm text-dim mb-8">
-          Usually a blip between here and the database. Try again — it normally works the second time.
+          Usually a blip between here and the database. Try again, it normally works the second time.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <button type="button" onClick={reset} className="btn-brutal">
