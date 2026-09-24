@@ -26,7 +26,6 @@ import {
   userRepos,
   weekdayAverages,
   weeklyTotals,
-  goalWeeks,
   userRecords,
   widerCommits,
   type BoardRow,
@@ -245,14 +244,6 @@ export async function memberRecords(userId: number, viewer: BoardViewer): Promis
   cacheLife("hours");
   cacheTag(STATS_TAG, userTag(userId));
   return userRecords(userId, viewer);
-}
-
-/** The weeks behind the owner's goal ring. Only the owner's page ever asks. */
-export async function ownGoalWeeks(userId: number): Promise<PeriodTotal[]> {
-  "use cache";
-  cacheLife("hours");
-  cacheTag(STATS_TAG, userTag(userId));
-  return goalWeeks(userId);
 }
 
 export type PublicMemberStats = { row: BoardRow; year: number[] };

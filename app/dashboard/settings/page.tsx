@@ -10,7 +10,7 @@ import { McpTokenForm } from "@/components/McpTokenForm";
 import { SettingsForm } from "@/components/SettingsForm";
 import { VisibilityMatrix } from "@/components/VisibilityMatrix";
 import { SetupCommand } from "@/components/SetupCommand";
-import { addToken, deleteAccountAction, removeToken, revokeMachine, revokeMcpToken, revokeOAuthGrant, updateStreakMode, updateWeeklyGoal } from "@/lib/actions";
+import { addToken, deleteAccountAction, removeToken, revokeMachine, revokeMcpToken, revokeOAuthGrant, updateStreakMode } from "@/lib/actions";
 import { isOutdatedCli } from "@/lib/cli";
 import { fmtDateTime } from "@/lib/format";
 import { SITE_URL } from "@/lib/site";
@@ -23,17 +23,16 @@ const ERRORS: Record<string, string> = {
   owner: "that token belongs to a different GitHub account",
   profile: "invalid profile settings",
   streak: "pick one of the two streak rules",
-  goal: "a goal is a whole number, or empty to turn it off",
   confirm: "type your login exactly to confirm the deletion",
 };
 
-type Params = { error?: string; saved?: string; removed?: string; profile?: string; revoked?: string; streak?: string; mcp?: string; goal?: string };
+type Params = { error?: string; saved?: string; removed?: string; profile?: string; revoked?: string; streak?: string; mcp?: string };
 
 export default async function Settings({ searchParams }: { searchParams: Promise<Params> }) {
   const session = await auth();
   if (!session) redirect("/");
   const uid = session.user.id;
-  const [{ error, saved, removed, profile, revoked, streak, mcp, goal }, [me], tokens, machines, assistants, apps] = await Promise.all([
+  const [{ error, saved, removed, profile, revoked, streak, mcp }, [me], tokens, machines, assistants, apps] = await Promise.all([
     searchParams,
     db.select().from(users).where(eq(users.id, uid)),
     db.select({ id: userTokens.id, label: userTokens.label, lastError: userTokens.lastError, createdAt: userTokens.createdAt }).from(userTokens).where(eq(userTokens.userId, uid)).orderBy(userTokens.id),
@@ -184,38 +183,6 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         </SettingsForm>
       </section>
 
-      <section id="weekly-goal" className="border-2 border-dark p-6 mb-8 scroll-mt-20">
-        <h2 className="font-sans font-bold text-xl mb-1">Weekly goal</h2>
-        <p className="font-mono text-xs text-dim mb-6">
-          A target for Monday to Sunday, shown as a ring on your own page with the last 8 weeks under it. Only you ever see it: not crewmates, not the boards, not the badge or your assistant. Leave the number empty to turn it off.
-        </p>
-        {goal && <p className="font-mono text-xs text-green mb-4">&gt; saved</p>}
-        {error === "goal" && <p className="font-mono text-xs text-alert mb-4">&gt; {ERRORS.goal}</p>}
-        <SettingsForm action={updateWeeklyGoal}>
-          <div className="flex flex-wrap items-center gap-6">
-            <input
-              name="goal"
-              type="number"
-              min={0}
-              step={1}
-              inputMode="numeric"
-              defaultValue={me.weeklyGoal ?? ""}
-              placeholder="off"
-              aria-label="weekly goal"
-              className="w-40 bg-void border-2 border-dark px-3 py-2 font-mono text-sm focus:border-silver outline-none"
-            />
-            <label className="flex items-center gap-2">
-              <input type="radio" name="goalMetric" value="lines" defaultChecked={me.weeklyGoalMetric !== "commits"} className="accent-[#ff3333]" />
-              <span>lines</span>
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="radio" name="goalMetric" value="commits" defaultChecked={me.weeklyGoalMetric === "commits"} className="accent-[#ff3333]" />
-              <span>commits</span>
-            </label>
-          </div>
-        </SettingsForm>
-      </section>
-
       <section id="token" className="border-2 border-dark p-6 mb-6 scroll-mt-20">
         <h2 className="font-sans font-bold text-xl mb-1">Alternative: a read-only GitHub token</h2>
         <p className="font-mono text-xs text-dim mb-4 leading-relaxed">
@@ -223,7 +190,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         </p>
         {saved && <p className="font-mono text-xs text-green mb-4">&gt; token saved · snapshot running, refresh your board in a minute</p>}
         {removed && <p className="font-mono text-xs text-dim mb-4">&gt; token deleted · private rows stay until the next snapshot overwrites them</p>}
-        {error && error !== "profile" && error !== "streak" && error !== "goal" && error !== "confirm" && <p className="font-mono text-xs text-alert mb-4">&gt; {ERRORS[error] ?? error}</p>}
+        {error && error !== "profile" && error !== "streak" && error !== "confirm" && <p className="font-mono text-xs text-alert mb-4">&gt; {ERRORS[error] ?? error}</p>}
         {tokens.length > 0 && (
           <ul className="divide-y divide-dark border-2 border-dark mb-6 font-mono text-sm">
             {tokens.map((t) => (

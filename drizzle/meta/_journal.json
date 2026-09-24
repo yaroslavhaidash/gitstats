@@ -204,6 +204,13 @@
       "when": 1790264326254,
       "tag": "0028_oauth",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790268811250,
+      "tag": "0029_drop_weekly_goal",
+      "breakpoints": true
     }
   ]
 }

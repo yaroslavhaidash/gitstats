@@ -25,7 +25,6 @@ Right now you can look at your friends' numbers. Next is reacting to them.
 
 - **Dashboard personalisation:** pick, order and hide the charts on your page.
 - **New views:** time of day and day of week patterns, language trends over time, per-repo deep dives and focus (how spread across repos a week was).
-- **Goals:** set a weekly target and see progress against it.
 - **Comparisons:** you vs. your own last month or last year, side by side.
 
 ## 4. Open source and self-hosting

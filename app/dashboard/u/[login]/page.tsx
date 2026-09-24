@@ -7,7 +7,6 @@ import { CompareForm } from "@/components/CompareForm";
 import { CopyText } from "@/components/CopyText";
 import { DailyLines } from "@/components/DailyLines";
 import { EmptyNote } from "@/components/EmptyNote";
-import { GoalRing } from "@/components/GoalRing";
 import { InvitePanel } from "@/components/InvitePanel";
 import { KudosBar } from "@/components/KudosBar";
 import { LanguageShare } from "@/components/LanguageShare";
@@ -32,7 +31,7 @@ import { WindowTabs } from "@/components/WindowTabs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { cliTokens, users } from "@/db/schema";
-import { memberRecords, ownGoalWeeks, recapStats, userStats } from "@/lib/cached";
+import { memberRecords, recapStats, userStats } from "@/lib/cached";
 import { mintShareToken, type ShareOptions } from "@/lib/share";
 import { SITE_URL } from "@/lib/site";
 import { behindLatestCli, RELINK_COMMAND } from "@/lib/cli";
@@ -91,16 +90,13 @@ async function Stats({
   const showRecap = isOwner && (share === "recap" || RECAP_DAYS.includes(new Date().getUTCDay()));
   const crews = showRecap ? await userCrews(user.id) : [];
   const recapCrewId = (crews.find((c) => String(c.id) === recapCrew) ?? crews[0])?.id ?? null;
-  const goal = isOwner && user.weeklyGoal !== null && user.weeklyGoalMetric !== null ? { metric: user.weeklyGoalMetric, target: user.weeklyGoal } : null;
   const [
     { row, before, weeks, chartWeeks, chartEnd, repoRows, dailyLines, languages, year, weekdays, weekdayLines, span, nearest, hiddenNames, repoWeeks, mixWeeks, mixEnd },
     records,
-    goalWeeks,
     recap,
   ] = await Promise.all([
     userStats(user.id, window, isOwner, includePrivate, viewer),
     memberRecords(user.id, isOwner ? "own" : viewer),
-    goal ? ownGoalWeeks(user.id) : null,
     showRecap ? recapStats(user.id, lastWeek, metric, recapCrewId) : null,
   ]);
   const mode = dayChartMode(window);
@@ -190,7 +186,6 @@ async function Stats({
           crewId={recapCrewId}
         />
       )}
-      {goal && goalWeeks && <GoalRing metric={goal.metric} goal={goal.target} weeks={goalWeeks} />}
       {newMilestone && <StreakBanner text={`${milestone}-day streak`} shareHref={`/dashboard/u/${user.githubLogin}?${viewQuery(window, metric)}&share=streak#share`} />}
 
       {isOwner && (

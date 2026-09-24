@@ -870,16 +870,6 @@ export async function userRecords(userId: number, viewer: BoardViewer, now = new
   };
 }
 
-/** The owner's weekly goal: this week so far and the eight whole weeks before it, oldest first. */
-export async function goalWeeks(userId: number, now = new Date()): Promise<PeriodTotal[]> {
-  const today = daysAgo(0, now);
-  const thisWeek = mondayOf(today);
-  const starts = Array.from({ length: 9 }, (_, i) => shiftDate(thisWeek, (i - 8) * DAYS_IN_WEEK));
-  const { days } = await placedDays([userId], starts[0], today, sql`true`, now);
-  const totals = new Map(bucket(days, mondayOf).map((w) => [w.start, w]));
-  return starts.map((start) => totals.get(start) ?? { start, lines: 0, commits: 0 });
-}
-
 export async function repoDailyLines(userId: number, repoNodeId: string, from: string, to: string): Promise<DailyLineRow[]> {
   const rows = await db
     .select(dailyLineCols)
