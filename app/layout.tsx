@@ -11,7 +11,7 @@ const sans = Space_Grotesk({ variable: "--font-grotesk", subsets: ["latin"], wei
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "gitstats — git stats for friends",
+    default: "gitstats - git stats for friends",
     template: "%s · gitstats",
   },
   description: SITE_DESCRIPTION,
