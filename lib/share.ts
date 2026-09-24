@@ -18,9 +18,11 @@ export type ShareOptions = {
   grid: boolean;
   /** Top three repos by lines, minus any the owner hides per repo. Off by default. */
   names: boolean;
+  /** The current streak as the headline instead of the metric: the card a streak milestone opens. Off by default. */
+  streak: boolean;
 };
 
-export const DEFAULT_SHARE: ShareOptions = { totals: true, grid: true, names: false };
+export const DEFAULT_SHARE: ShareOptions = { totals: true, grid: true, names: false, streak: false };
 
 export type SharePayload = { userId: number; window: Window; metric: Metric; options: ShareOptions };
 
@@ -48,12 +50,12 @@ function decodeWindow(text: string): Window | null {
 }
 
 function encodeFlags(o: ShareOptions): string {
-  return `${o.totals ? "t" : ""}${o.grid ? "g" : ""}${o.names ? "n" : ""}` || "-";
+  return `${o.totals ? "t" : ""}${o.grid ? "g" : ""}${o.names ? "n" : ""}${o.streak ? "s" : ""}` || "-";
 }
 
 function decodeFlags(text: string): ShareOptions | null {
-  if (!/^(-|t?g?n?)$/.test(text) || text === "") return null;
-  return { totals: text.includes("t"), grid: text.includes("g"), names: text.includes("n") };
+  if (!/^(-|t?g?n?s?)$/.test(text) || text === "") return null;
+  return { totals: text.includes("t"), grid: text.includes("g"), names: text.includes("n"), streak: text.includes("s") };
 }
 
 function body({ userId, window, metric, options }: SharePayload): string {

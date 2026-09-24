@@ -10,13 +10,15 @@ import { rotateShareLink } from "@/lib/actions";
  * each of the eight switch positions and this picks one. No round trip per toggle, and the URL in
  * the box is always the URL the reader will open.
  */
-export function SharePanel({ tokens, origin, view, defaultOpen, empty, login }: {
+export function SharePanel({ tokens, origin, view, defaultOpen, defaultStreak, empty, login }: {
   tokens: Record<string, string>;
   /** This member's login, for the README badge. */
   login: string;
   origin: string;
   view: string;
   defaultOpen: boolean;
+  /** Opened from a streak milestone: the streak is the headline, and the switch for it is offered. */
+  defaultStreak: boolean;
   /** Nothing has been counted for this account yet, so a card would only advertise an empty grid. */
   empty: boolean;
 }) {
@@ -24,12 +26,14 @@ export function SharePanel({ tokens, origin, view, defaultOpen, empty, login }: 
   const [totals, setTotals] = useState(true);
   const [grid, setGrid] = useState(true);
   const [names, setNames] = useState(false);
-  const flags = `${totals ? "t" : ""}${grid ? "g" : ""}${names ? "n" : ""}` || "-";
+  const [streak, setStreak] = useState(defaultStreak);
+  const flags = `${totals ? "t" : ""}${grid ? "g" : ""}${names ? "n" : ""}${streak ? "s" : ""}` || "-";
   const url = `${origin}/s/${tokens[flags]}`;
   const boxes: [string, string, boolean, (on: boolean) => void][] = [
     ["totals", "commits, +/−, streak", totals, setTotals],
     ["26-week grid", "one cell per day", grid, setGrid],
     ["repo names", "your top 3 by lines · hidden repos stay hidden", names, setNames],
+    ...(defaultStreak ? [["streak headline", "the day count up top, big", streak, setStreak] as (typeof boxes)[number]] : []),
   ];
   return (
     <div className="mb-8" id="share">
@@ -57,7 +61,7 @@ export function SharePanel({ tokens, origin, view, defaultOpen, empty, login }: 
               [CLOSE]
             </button>
           </div>
-          <div className="grid sm:grid-cols-3 gap-3 mb-5">
+          <div className={`grid gap-3 mb-5 ${defaultStreak ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}>
             {boxes.map(([label, hint, on, set]) => (
               <label key={label} className="flex items-start gap-2 font-mono text-xs cursor-pointer">
                 <input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} className="mt-[2px] accent-alert cursor-pointer" />

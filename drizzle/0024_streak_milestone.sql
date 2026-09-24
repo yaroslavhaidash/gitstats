@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "last_streak_milestone" integer DEFAULT 0 NOT NULL;

@@ -37,6 +37,8 @@ export const users = pgTable("users", {
   sharePrivateGlobal: boolean("share_private_global").notNull().default(true),
   /** Whether the streak counts every day or only Mon–Fri, so a Friday→Monday run stays unbroken. */
   streakMode: text("streak_mode").$type<StreakMode>().notNull().default("all_days"),
+  /** The highest streak milestone (7, 30, 100, 365) whose banner this member has been shown; 0 for none. */
+  lastStreakMilestone: integer("last_streak_milestone").notNull().default(0),
   /** When the nightly job last finished this user. The queue is ordered by it, oldest (and never) first. */
   lastSnapshotAt: timestamp("last_snapshot_at", { withTimezone: true }),
   /**

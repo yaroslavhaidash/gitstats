@@ -33,7 +33,7 @@ GitHub (public)                    your computers (private + public)
 
 | Table | Key | Purpose |
 |---|---|---|
-| `users` | `id` | GitHub identity + the visibility matrix: `profile_visibility` (crew\|everyone), `repo_names`/`repo_names_global` (all\|public_only\|none), `share_private`/`share_private_global` (crewmates column, then everyone), plus `hash_salt`, `github_id`, `last_snapshot_at` (the snapshot queue's order), `share_nonce` (mixed into every share-card signature; rotating it is the revoke), `is_demo` (the seeded `/demo` crew) |
+| `users` | `id` | GitHub identity + the visibility matrix: `profile_visibility` (crew\|everyone), `repo_names`/`repo_names_global` (all\|public_only\|none), `share_private`/`share_private_global` (crewmates column, then everyone), plus `hash_salt`, `github_id`, `last_snapshot_at` (the snapshot queue's order), `share_nonce` (mixed into every share-card signature; rotating it is the revoke), `last_streak_milestone` (the highest of 7/30/100/365 whose one-time banner the member has seen), `is_demo` (the seeded `/demo` crew) |
 | `repos` | `github_node_id` (or `local:<hmac>`) | name, `is_private`, `is_fork`, language, stars, `stats_pending`, `pushed_at`, `stats_fetched_for` |
 | `weekly_stats` | `(user_id, repo_node_id, week_start)` | additions/deletions/commits, `source` github\|local |
 | `daily_contributions` | `(user_id, date)` | GitHub public calendar counts |

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
+import { after } from "next/server";
 import { auth } from "@/auth";
 import { BackLink } from "@/components/BackLink";
 import { CopyText } from "@/components/CopyText";
@@ -20,11 +21,12 @@ import { SkeletonStats } from "@/components/Skeleton";
 import { WeekdayProfile } from "@/components/WeekdayProfile";
 import { YearCalendar } from "@/components/YearCalendar";
 import { StatTile } from "@/components/StatTile";
+import { StreakBanner } from "@/components/StreakBanner";
 import { WeeklyBars } from "@/components/WeeklyBars";
 import { WindowTabs } from "@/components/WindowTabs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { cliTokens } from "@/db/schema";
+import { cliTokens, users } from "@/db/schema";
 import { userStats } from "@/lib/cached";
 import { mintShareToken, type ShareOptions } from "@/lib/share";
 import { SITE_URL } from "@/lib/site";
@@ -35,11 +37,13 @@ import { backTarget, inviteTarget, sharesCrew, userByLogin } from "@/lib/crews";
 import { fmt, pctDelta } from "@/lib/format";
 import { dayChartMode, parseMetric, parseWindow, rangeDays, viewQuery, windowLabel, windowQuery, windowRange, type Metric, type Window } from "@/lib/window";
 
-const flagsOf = (o: ShareOptions) => `${o.totals ? "t" : ""}${o.grid ? "g" : ""}${o.names ? "n" : ""}` || "-";
+const flagsOf = (o: ShareOptions) => `${o.totals ? "t" : ""}${o.grid ? "g" : ""}${o.names ? "n" : ""}${o.streak ? "s" : ""}` || "-";
 /** Every switch position on the share panel, so the page can mint a token for each one. */
 const SHARE_FLAGS: ShareOptions[] = [false, true].flatMap((totals) =>
-  [false, true].flatMap((grid) => [false, true].map((names) => ({ totals, grid, names }))),
+  [false, true].flatMap((grid) => [false, true].flatMap((names) => [false, true].map((streak) => ({ totals, grid, names, streak })))),
 );
+/** Streak lengths that earn a one-time banner on the member's own page. */
+const STREAK_MILESTONES = [7, 30, 100, 365];
 
 type User = NonNullable<Awaited<ReturnType<typeof userByLogin>>>;
 
@@ -62,13 +66,20 @@ async function Stats({
   includePrivate: boolean;
   viewer: BoardViewer;
   repoNames: User["repoNames"];
-  share: boolean;
+  share: "open" | "streak" | undefined;
   src: string | undefined;
 }) {
   const label = windowLabel(window);
   const { row, before, weeks, chartWeeks, chartEnd, repoRows, dailyLines, languages, year, weekdays, weekdayLines, span, nearest, hiddenNames, repoWeeks, mixWeeks, mixEnd } =
     await userStats(user.id, window, isOwner, includePrivate, viewer);
   const mode = dayChartMode(window);
+  // The highest milestone the current streak has reached. Recording it as it is shown makes the banner
+  // once per milestone; recording a lower one after a broken streak lets the next run earn them again.
+  const milestone = STREAK_MILESTONES.filter((m) => row.streak >= m).at(-1) ?? 0;
+  const newMilestone = isOwner && milestone > user.lastStreakMilestone;
+  if (isOwner && milestone !== user.lastStreakMilestone) {
+    after(() => db.update(users).set({ lastStreakMilestone: milestone }).where(eq(users.id, user.id)));
+  }
   // Unmerged-branch work, only worth a line when the CLI actually found some.
   const pending = (n: number) => (n > 0 ? `+${fmt(n)} pending` : undefined);
   const hidden = new Set(hiddenNames);
@@ -112,7 +123,19 @@ async function Stats({
         </div>
       )}
 
-      {isOwner && <SharePanel tokens={shareTokens} origin={SITE_URL} view={viewQuery(window, metric)} defaultOpen={share} empty={!hasAnything} login={user.githubLogin} />}
+      {newMilestone && <StreakBanner days={milestone} shareHref={`/dashboard/u/${user.githubLogin}?${viewQuery(window, metric)}&share=streak#share`} />}
+
+      {isOwner && (
+        <SharePanel
+          tokens={shareTokens}
+          origin={SITE_URL}
+          view={viewQuery(window, metric)}
+          defaultOpen={share !== undefined}
+          defaultStreak={share === "streak"}
+          empty={!hasAnything}
+          login={user.githubLogin}
+        />
+      )}
 
       {row.commits === 0 &&
         (nearest ? (
@@ -303,7 +326,7 @@ export default async function UserPage({
           includePrivate={includePrivate}
           viewer={viewer}
           repoNames={repoNames}
-          share={query.share === "1"}
+          share={query.share === "1" ? "open" : query.share === "streak" ? "streak" : undefined}
           src={query.src}
         />
       </Section>

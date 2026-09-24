@@ -22,8 +22,9 @@ export default async function ShareCard({ params }: { params: Promise<{ token: s
   const { options, metric } = payload;
   const label = windowLabel(payload.window);
   const lines = row.additions + row.deletions;
-  const headline = metric === "lines" ? fmtRank(lines) : fmt(row.commits);
-  const unit = metric === "lines" ? "lines" : "commits";
+  // The milestone variant leads with the streak; everything under it is the ordinary card.
+  const headline = options.streak ? fmt(row.streak) : metric === "lines" ? fmtRank(lines) : fmt(row.commits);
+  const unit = options.streak ? "day streak" : metric === "lines" ? "lines" : "commits";
   return (
     <main className="flex-1 flex flex-col items-center justify-center px-4 py-14">
       <div className="w-full max-w-2xl">
@@ -38,7 +39,7 @@ export default async function ShareCard({ params }: { params: Promise<{ token: s
 
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 mb-2">
             <span className="font-sans font-bold text-5xl text-white">{headline}</span>
-            <span className="font-mono text-sm text-silver">{unit} {label}</span>
+            <span className="font-mono text-sm text-silver">{options.streak ? unit : `${unit} ${label}`}</span>
           </div>
           {standing && (
             <p className="font-mono text-xs text-faint mb-6">

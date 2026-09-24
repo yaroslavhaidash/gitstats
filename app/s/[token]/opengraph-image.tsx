@@ -32,8 +32,9 @@ export default async function shareOgImage({ params }: { params: Promise<{ token
   const { row, standing } = await shareStats(payload.userId, payload.window, payload.metric);
   const { options, metric } = payload;
   const label = windowLabel(payload.window);
-  const headline = metric === "lines" ? fmtRank(row.additions + row.deletions) : fmt(row.commits);
-  const unit = metric === "lines" ? "lines" : "commits";
+  // The milestone variant leads with the streak; everything under it is the ordinary card.
+  const headline = options.streak ? fmt(row.streak) : metric === "lines" ? fmtRank(row.additions + row.deletions) : fmt(row.commits);
+  const unit = options.streak ? "day streak" : metric === "lines" ? "lines" : "commits";
   const [monoBold, monoRegular, groteskBold] = await Promise.all([
     asset("JetBrainsMono-Bold.ttf"),
     asset("JetBrainsMono-Regular.ttf"),
@@ -72,7 +73,7 @@ export default async function shareOgImage({ params }: { params: Promise<{ token
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 20 }}>
             <span style={{ fontFamily: "Space Grotesk", fontSize: 92, color: "#ffffff" }}>{headline}</span>
-            <span style={{ fontSize: 28, color: "#e0e2e5" }}>{unit} {label}</span>
+            <span style={{ fontSize: 28, color: "#e0e2e5" }}>{options.streak ? unit : `${unit} ${label}`}</span>
           </div>
           {standing && (
             <span style={{ fontSize: 24, color: "#8b93a4" }}>

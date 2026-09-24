@@ -169,6 +169,13 @@
       "when": 1790156948192,
       "tag": "0023_funnel_daily",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790240607231,
+      "tag": "0024_streak_milestone",
+      "breakpoints": true
     }
   ]
 }
