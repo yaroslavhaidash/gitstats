@@ -25,6 +25,8 @@ import {
   userRepos,
   weekdayAverages,
   weeklyTotals,
+  goalWeeks,
+  userRecords,
   widerCommits,
   type BoardRow,
   type BoardViewer,
@@ -33,6 +35,8 @@ import {
   type MemberDayRow,
   type MemberWeekRow,
   type OverlapRow,
+  type PeriodTotal,
+  type Records,
   type RepoInfo,
   type RepoMemberRow,
   type RepoRow,
@@ -91,6 +95,8 @@ export type ShareStats = {
   standing: Standing | null;
   /** Top three repos by lines over the window, minus the ones the owner hides per repo. */
   topRepos: { nameWithOwner: string; lines: number }[];
+  /** The best week or month ever for the card's metric, when the window is a week or a month: the record card's headline. */
+  record: { kind: "week" | "month"; best: PeriodTotal } | null;
 };
 
 const SHARE_REPOS = 3;
@@ -105,19 +111,22 @@ export async function shareStats(userId: number, window: Window, metric: Metric)
   "use cache";
   cacheLife("hours");
   cacheTag(STATS_TAG, GLOBAL_TAG, userTag(userId));
-  const [[row], board, repoRows, hidden] = await Promise.all([
+  const kind = window.kind === "preset" && (window.value === "week" || window.value === "month") ? window.value : null;
+  const [[row], board, repoRows, hidden, records] = await Promise.all([
     boardRows([userId], window, "own", new Date(), SHARE_HEATMAP_DAYS),
     ranked(null, window, "global"),
     userRepos(userId, window, true),
     hiddenRepoNames(userId),
+    kind ? userRecords(userId, "own") : null,
   ]);
+  const best = kind && records ? records[kind][metric] : null;
   const hide = new Set(hidden);
   const topRepos = repoRows
     .filter((r) => !hide.has(r.nodeId))
     .map((r) => ({ nameWithOwner: r.nameWithOwner, lines: r.additions + r.deletions }))
     .sort((a, b) => b.lines - a.lines)
     .slice(0, SHARE_REPOS);
-  return { row, standing: standing(board, metric, userId), topRepos };
+  return { row, standing: standing(board, metric, userId), topRepos, record: kind && best ? { kind, best } : null };
 }
 
 export type Totals = { commits: number; additions: number; deletions: number; activeRepos: number };
@@ -199,6 +208,22 @@ export async function userStats(userId: number, window: Window, isOwner: boolean
     span,
     nearest: row.commits === 0 ? await nearestWindow(userId, window, isOwner || includePrivate) : null,
   };
+}
+
+/** All-time bests; the member's own page reads them as `own`, everyone else in their matrix column. */
+export async function memberRecords(userId: number, viewer: BoardViewer): Promise<Records> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(STATS_TAG, userTag(userId));
+  return userRecords(userId, viewer);
+}
+
+/** The weeks behind the owner's goal ring. Only the owner's page ever asks. */
+export async function ownGoalWeeks(userId: number): Promise<PeriodTotal[]> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(STATS_TAG, userTag(userId));
+  return goalWeeks(userId);
 }
 
 export type PublicMemberStats = { row: BoardRow; year: number[] };

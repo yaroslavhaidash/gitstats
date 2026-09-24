@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 export type ProfileVisibility = "crew" | "everyone";
+export type GoalMetric = "lines" | "commits";
 export type RepoNames = "all" | "public_only" | "none";
 export type StreakMode = "all_days" | "weekdays";
 
@@ -39,6 +40,13 @@ export const users = pgTable("users", {
   streakMode: text("streak_mode").$type<StreakMode>().notNull().default("all_days"),
   /** The highest streak milestone (7, 30, 100, 365) whose banner this member has been shown; 0 for none. */
   lastStreakMilestone: integer("last_streak_milestone").notNull().default(0),
+  /** The owner's own weekly target, never shown to anyone else: what it counts, and how many. Null when unset. */
+  weeklyGoalMetric: text("weekly_goal_metric").$type<GoalMetric>(),
+  weeklyGoal: integer("weekly_goal"),
+  /** The Monday, month start and streak start of the last record banner the owner was shown, one per kind. */
+  lastRecordWeek: date("last_record_week", { mode: "string" }),
+  lastRecordMonth: date("last_record_month", { mode: "string" }),
+  lastRecordStreak: date("last_record_streak", { mode: "string" }),
   /** When the nightly job last finished this user. The queue is ordered by it, oldest (and never) first. */
   lastSnapshotAt: timestamp("last_snapshot_at", { withTimezone: true }),
   /**

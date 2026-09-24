@@ -2,7 +2,9 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
+import type { ShareStats } from "./cached";
 import { requireEnv } from "./env";
+import { fmt, fmtRank } from "./format";
 import { PRESETS, type Metric, type Preset, type Window } from "./window";
 
 /**
@@ -20,9 +22,11 @@ export type ShareOptions = {
   names: boolean;
   /** The current streak as the headline instead of the metric: the card a streak milestone opens. Off by default. */
   streak: boolean;
+  /** The member's best week or month (by the card's window and metric) as the headline: the card a record banner opens. Off by default. */
+  record: boolean;
 };
 
-export const DEFAULT_SHARE: ShareOptions = { totals: true, grid: true, names: false, streak: false };
+export const DEFAULT_SHARE: ShareOptions = { totals: true, grid: true, names: false, streak: false, record: false };
 
 export type SharePayload = { userId: number; window: Window; metric: Metric; options: ShareOptions };
 
@@ -50,12 +54,12 @@ function decodeWindow(text: string): Window | null {
 }
 
 function encodeFlags(o: ShareOptions): string {
-  return `${o.totals ? "t" : ""}${o.grid ? "g" : ""}${o.names ? "n" : ""}${o.streak ? "s" : ""}` || "-";
+  return `${o.totals ? "t" : ""}${o.grid ? "g" : ""}${o.names ? "n" : ""}${o.streak ? "s" : ""}${o.record ? "r" : ""}` || "-";
 }
 
 function decodeFlags(text: string): ShareOptions | null {
-  if (!/^(-|t?g?n?s?)$/.test(text) || text === "") return null;
-  return { totals: text.includes("t"), grid: text.includes("g"), names: text.includes("n"), streak: text.includes("s") };
+  if (!/^(-|t?g?n?s?r?)$/.test(text) || text === "") return null;
+  return { totals: text.includes("t"), grid: text.includes("g"), names: text.includes("n"), streak: text.includes("s"), record: text.includes("r") };
 }
 
 function body({ userId, window, metric, options }: SharePayload): string {
@@ -116,4 +120,18 @@ export async function resolveShareToken(token: string): Promise<SharePayload | n
   if (!owner) return null;
   const payload = readShareToken(token, owner.shareNonce);
   return payload && payload.userId === owner.id ? payload : null;
+}
+
+/**
+ * The big number on a card and the words after it. The milestone variant leads with the streak, the
+ * record variant with the best week or month ever; everything under the headline is the ordinary card.
+ */
+export function shareHeadline(row: ShareStats["row"], metric: Metric, options: ShareOptions, record: ShareStats["record"], label: string): { headline: string; unit: string } {
+  const amount = (n: number) => (metric === "lines" ? fmtRank(n) : fmt(n));
+  if (options.streak) return { headline: fmt(row.streak), unit: "day streak" };
+  if (options.record && record) {
+    const when = new Date(`${record.best.start}T00:00:00Z`).toLocaleDateString("en-GB", { day: record.kind === "week" ? "2-digit" : undefined, month: "short", year: "numeric", timeZone: "UTC" });
+    return { headline: amount(record.best[metric]), unit: `${metric} · best ${record.kind} ever · ${record.kind === "week" ? `week of ${when}` : when}` };
+  }
+  return { headline: amount(metric === "lines" ? row.additions + row.deletions : row.commits), unit: `${metric} ${label}` };
 }

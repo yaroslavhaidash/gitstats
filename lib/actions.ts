@@ -8,7 +8,7 @@ import { auth, signIn, signOut } from "@/auth";
 import { db } from "@/db";
 import { deleteAccount, restoreAccount } from "./account";
 import { logAdmin, requireAdmin, snapshotChainUrl, triggerSnapshotChain } from "./admin";
-import { cliTokens, crewMembers, crews, deviceCodes, mcpTokens, repoNameOverrides, userTokens, users, type RepoNames, type StreakMode } from "@/db/schema";
+import { cliTokens, crewMembers, crews, deviceCodes, mcpTokens, repoNameOverrides, userTokens, users, type GoalMetric, type RepoNames, type StreakMode } from "@/db/schema";
 import { STATS_TAG } from "./cache";
 import { hashToken, newSecret } from "./cli";
 import { and, eq, isNull } from "drizzle-orm";
@@ -166,6 +166,25 @@ export async function updateStreakMode(formData: FormData): Promise<void> {
   await db.update(users).set({ streakMode }).where(eq(users.id, session.user.id));
   updateTag(STATS_TAG);
   redirect("/dashboard/settings?streak=1#streak-rule");
+}
+
+const GOAL_METRICS: GoalMetric[] = ["lines", "commits"];
+/** Past this a weekly target means nothing; it also keeps the value inside a Postgres integer. */
+const MAX_GOAL = 100_000_000;
+
+/** The owner's weekly target. An empty or zero number clears it. Nobody else ever reads it, so no re-tag. */
+export async function updateWeeklyGoal(formData: FormData): Promise<void> {
+  const session = await auth();
+  if (!session) redirect("/");
+  const metric = pick(GOAL_METRICS, formData.get("goalMetric"));
+  const raw = String(formData.get("goal") ?? "").trim();
+  const target = raw === "" ? 0 : Number(raw);
+  if (!metric || !Number.isInteger(target) || target < 0 || target > MAX_GOAL) redirect("/dashboard/settings?error=goal#weekly-goal");
+  await db
+    .update(users)
+    .set(target === 0 ? { weeklyGoal: null, weeklyGoalMetric: null } : { weeklyGoal: target, weeklyGoalMetric: metric })
+    .where(eq(users.id, session.user.id));
+  redirect("/dashboard/settings?goal=1#weekly-goal");
 }
 
 export async function signInThenLink(code: string): Promise<void> {

@@ -3,10 +3,10 @@ import { notFound } from "next/navigation";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { shareStats } from "@/lib/cached";
-import { fmt, fmtRank } from "@/lib/format";
+import { fmt } from "@/lib/format";
 import { heatColor } from "@/lib/palette";
 import { PERCENTILE_FROM } from "@/lib/stats";
-import { resolveShareToken } from "@/lib/share";
+import { resolveShareToken, shareHeadline } from "@/lib/share";
 import { windowLabel } from "@/lib/window";
 
 /**
@@ -29,12 +29,10 @@ export default async function shareOgImage({ params }: { params: Promise<{ token
   const { token } = await params;
   const payload = await resolveShareToken(token);
   if (!payload) notFound();
-  const { row, standing } = await shareStats(payload.userId, payload.window, payload.metric);
+  const { row, standing, record } = await shareStats(payload.userId, payload.window, payload.metric);
   const { options, metric } = payload;
   const label = windowLabel(payload.window);
-  // The milestone variant leads with the streak; everything under it is the ordinary card.
-  const headline = options.streak ? fmt(row.streak) : metric === "lines" ? fmtRank(row.additions + row.deletions) : fmt(row.commits);
-  const unit = options.streak ? "day streak" : metric === "lines" ? "lines" : "commits";
+  const { headline, unit } = shareHeadline(row, metric, options, record, label);
   const [monoBold, monoRegular, groteskBold] = await Promise.all([
     asset("JetBrainsMono-Bold.ttf"),
     asset("JetBrainsMono-Regular.ttf"),
@@ -73,7 +71,7 @@ export default async function shareOgImage({ params }: { params: Promise<{ token
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 20 }}>
             <span style={{ fontFamily: "Space Grotesk", fontSize: 92, color: "#ffffff" }}>{headline}</span>
-            <span style={{ fontSize: 28, color: "#e0e2e5" }}>{options.streak ? unit : `${unit} ${label}`}</span>
+            <span style={{ fontSize: 28, color: "#e0e2e5" }}>{unit}</span>
           </div>
           {standing && (
             <span style={{ fontSize: 24, color: "#8b93a4" }}>

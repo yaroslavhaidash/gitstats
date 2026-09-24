@@ -41,6 +41,8 @@ export async function exportAccount(userId: number) {
         sharePrivate: users.sharePrivate,
         sharePrivateGlobal: users.sharePrivateGlobal,
         streakMode: users.streakMode,
+        weeklyGoalMetric: users.weeklyGoalMetric,
+        weeklyGoal: users.weeklyGoal,
         createdAt: users.createdAt,
       })
       .from(users)

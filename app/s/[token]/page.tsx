@@ -7,7 +7,7 @@ import { Logo } from "@/components/Logo";
 import { shareStats } from "@/lib/cached";
 import { fmt, fmtRank } from "@/lib/format";
 import { PERCENTILE_FROM } from "@/lib/stats";
-import { resolveShareToken } from "@/lib/share";
+import { resolveShareToken, shareHeadline } from "@/lib/share";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { windowLabel } from "@/lib/window";
 
@@ -18,13 +18,10 @@ export default async function ShareCard({ params }: { params: Promise<{ token: s
   const { token } = await params;
   const payload = await resolveShareToken(token);
   if (!payload) notFound();
-  const { row, standing, topRepos } = await shareStats(payload.userId, payload.window, payload.metric);
+  const { row, standing, topRepos, record } = await shareStats(payload.userId, payload.window, payload.metric);
   const { options, metric } = payload;
   const label = windowLabel(payload.window);
-  const lines = row.additions + row.deletions;
-  // The milestone variant leads with the streak; everything under it is the ordinary card.
-  const headline = options.streak ? fmt(row.streak) : metric === "lines" ? fmtRank(lines) : fmt(row.commits);
-  const unit = options.streak ? "day streak" : metric === "lines" ? "lines" : "commits";
+  const { headline, unit } = shareHeadline(row, metric, options, record, label);
   return (
     <main className="flex-1 flex flex-col items-center justify-center px-4 py-14">
       <div className="w-full max-w-2xl">
@@ -39,7 +36,7 @@ export default async function ShareCard({ params }: { params: Promise<{ token: s
 
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 mb-2">
             <span className="font-sans font-bold text-5xl text-white">{headline}</span>
-            <span className="font-mono text-sm text-silver">{options.streak ? unit : `${unit} ${label}`}</span>
+            <span className="font-mono text-sm text-silver">{unit}</span>
           </div>
           {standing && (
             <p className="font-mono text-xs text-faint mb-6">

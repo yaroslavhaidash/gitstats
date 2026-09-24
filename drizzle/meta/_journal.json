@@ -183,6 +183,13 @@
       "when": 1790245902803,
       "tag": "0025_mcp_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790258366162,
+      "tag": "0026_weekly_goal_records",
+      "breakpoints": true
     }
   ]
 }

@@ -715,6 +715,112 @@ export async function rangeTotals(userIds: number[] | null, range: Range, viewer
   return totals;
 }
 
+/** One total a record is about: the period's first day and its lines and commits. */
+export type PeriodTotal = { start: string; lines: number; commits: number };
+
+export type Records = {
+  /** Best Monday-to-Sunday week and best calendar month, each by lines and by commits (the two can differ). */
+  week: { lines: PeriodTotal | null; commits: PeriodTotal | null };
+  month: { lines: PeriodTotal | null; commits: PeriodTotal | null };
+  /** Longest run ever under the member's streak rule, with its first and last day. */
+  streak: { days: number; from: string; to: string } | null;
+  /** Records set by the period in progress, beating an earlier non-zero best: what the owner's banner announces. */
+  fresh: { week: string | null; month: string | null; streak: string | null };
+};
+
+/** Monday of `date`'s week, the week every period total on the site uses. */
+function mondayOf(date: string): string {
+  return shiftDate(date, -((new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7));
+}
+
+/** Sum days into periods keyed by their first day. */
+function bucket(days: UserDay[], key: (date: string) => string): PeriodTotal[] {
+  const out = new Map<string, PeriodTotal>();
+  for (const d of days) {
+    const start = key(d.date);
+    const t = out.get(start) ?? { start, lines: 0, commits: 0 };
+    t.lines += d.additions + d.deletions;
+    t.commits += d.commits;
+    out.set(start, t);
+  }
+  return [...out.values()];
+}
+
+/** The biggest period for a metric (earliest wins a tie), and whether the current one set it just now. */
+function best(periods: PeriodTotal[], metric: "lines" | "commits", current: string): { top: PeriodTotal | null; fresh: boolean } {
+  const top = periods.reduce<PeriodTotal | null>((a, p) => (p[metric] > 0 && (!a || p[metric] > a[metric] || (p[metric] === a[metric] && p.start < a.start)) ? p : a), null);
+  const before = Math.max(0, ...periods.filter((p) => p.start !== current).map((p) => p[metric]));
+  return { top, fresh: top !== null && top.start === current && before > 0 };
+}
+
+/** The two longest runs ever, longest first, and whether the first one is still going. */
+async function longestStreaks(userId: number, viewer: BoardViewer): Promise<{ days: number; from: string; to: string; alive: boolean }[]> {
+  const today = sql`(now() at time zone 'utc')::date`;
+  const rows = await db.execute<{ len: number; from_d: string; to_d: string; alive: boolean }>(sql`
+    with active as (
+      select ${dailyContributions.date} as date
+      from ${dailyContributions}
+      where ${dailyContributions.userId} = ${userId} and ${dailyContributions.contributionCount} > 0
+      union
+      select ${dailyLocal.date} as date
+      from ${dailyLocal}
+      join ${repos} on ${repos.githubNodeId} = ${dailyLocal.repoNodeId} and ${repos.isPrivate}
+      join ${users} on ${users.id} = ${dailyLocal.userId} and ${sharedRepo(viewer)}
+      where ${dailyLocal.userId} = ${userId} and ${dailyLocal.commits} > 0
+    ),
+    placed as (
+      select a.date, ${timelinePosition(sql`a.date`)} as pos, ${timelinePosition(today)} as now_pos
+      from active a
+      join ${users} u on u.id = ${userId}
+      where a.date <= ${today} and (u.streak_mode <> 'weekdays' or extract(isodow from a.date) < 6)
+    ),
+    ranked as (select date, pos, now_pos, pos - row_number() over (order by pos) as run from placed)
+    select count(*)::int as len, min(date)::text as from_d, max(date)::text as to_d, max(pos) >= min(now_pos) - 1 as alive
+    from ranked group by run
+    order by len desc, max(date) desc
+    limit 2
+  `);
+  return rows.rows.map((r) => ({ days: Number(r.len), from: r.from_d, to: r.to_d, alive: Boolean(r.alive) }));
+}
+
+/**
+ * All-time bests for one member as `viewer` may see them. Weeks and months are sums of the same days
+ * every period total uses (`placedDays`), so the best week is the number the WEEK tile showed then.
+ */
+export async function userRecords(userId: number, viewer: BoardViewer, now = new Date()): Promise<Records> {
+  const today = daysAgo(0, now);
+  const [first] = await db.select({ week: sql<string | null>`min(${weeklyStats.weekStart})::text` }).from(weeklyStats).where(eq(weeklyStats.userId, userId));
+  const [{ days }, runs] = await Promise.all([
+    first?.week ? placedDays([userId], first.week, today, sharedRepo(viewer), now) : Promise.resolve({ days: [] as UserDay[] }),
+    longestStreaks(userId, viewer),
+  ]);
+  const weeks = bucket(days, mondayOf);
+  const months = bucket(days, (d) => `${d.slice(0, 7)}-01`);
+  const [thisWeek, thisMonth] = [mondayOf(today), `${today.slice(0, 7)}-01`];
+  const [wl, wc, ml, mc] = [best(weeks, "lines", thisWeek), best(weeks, "commits", thisWeek), best(months, "lines", thisMonth), best(months, "commits", thisMonth)];
+  const [longest, runnerUp] = runs;
+  return {
+    week: { lines: wl.top, commits: wc.top },
+    month: { lines: ml.top, commits: mc.top },
+    streak: longest ? { days: longest.days, from: longest.from, to: longest.to } : null,
+    fresh: {
+      week: wl.fresh || wc.fresh ? thisWeek : null,
+      month: ml.fresh || mc.fresh ? thisMonth : null,
+      streak: longest?.alive && runnerUp && longest.days > runnerUp.days ? longest.from : null,
+    },
+  };
+}
+
+/** The owner's weekly goal: this week so far and the eight whole weeks before it, oldest first. */
+export async function goalWeeks(userId: number, now = new Date()): Promise<PeriodTotal[]> {
+  const today = daysAgo(0, now);
+  const thisWeek = mondayOf(today);
+  const starts = Array.from({ length: 9 }, (_, i) => shiftDate(thisWeek, (i - 8) * DAYS_IN_WEEK));
+  const { days } = await placedDays([userId], starts[0], today, sql`true`, now);
+  const totals = new Map(bucket(days, mondayOf).map((w) => [w.start, w]));
+  return starts.map((start) => totals.get(start) ?? { start, lines: 0, commits: 0 });
+}
+
 export async function repoDailyLines(userId: number, repoNodeId: string, from: string, to: string): Promise<DailyLineRow[]> {
   const rows = await db
     .select(dailyLineCols)

@@ -7,12 +7,14 @@ import { CompareForm } from "@/components/CompareForm";
 import { CopyText } from "@/components/CopyText";
 import { DailyLines } from "@/components/DailyLines";
 import { EmptyNote } from "@/components/EmptyNote";
+import { GoalRing } from "@/components/GoalRing";
 import { InvitePanel } from "@/components/InvitePanel";
 import { LanguageShare } from "@/components/LanguageShare";
 import { LinkComputerNudge } from "@/components/LinkComputerNudge";
 import { MetricTabs } from "@/components/MetricTabs";
 import { MonthBlocks } from "@/components/MonthBlocks";
 import { RangePicker } from "@/components/RangePicker";
+import { RecordsPanel } from "@/components/RecordsPanel";
 import { RepoList } from "@/components/RepoList";
 import { RepoMix } from "@/components/RepoMix";
 import { RepoShare } from "@/components/RepoShare";
@@ -28,7 +30,7 @@ import { WindowTabs } from "@/components/WindowTabs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { cliTokens, users } from "@/db/schema";
-import { userStats } from "@/lib/cached";
+import { memberRecords, ownGoalWeeks, userStats } from "@/lib/cached";
 import { mintShareToken, type ShareOptions } from "@/lib/share";
 import { SITE_URL } from "@/lib/site";
 import { behindLatestCli, RELINK_COMMAND } from "@/lib/cli";
@@ -38,10 +40,12 @@ import { backTarget, inviteTarget, sharesCrew, userByLogin } from "@/lib/crews";
 import { fmt, pctDelta } from "@/lib/format";
 import { dayChartMode, parseMetric, parseWindow, rangeDays, viewQuery, windowLabel, windowQuery, windowRange, type Metric, type Window } from "@/lib/window";
 
-const flagsOf = (o: ShareOptions) => `${o.totals ? "t" : ""}${o.grid ? "g" : ""}${o.names ? "n" : ""}${o.streak ? "s" : ""}` || "-";
+const flagsOf = (o: ShareOptions) => `${o.totals ? "t" : ""}${o.grid ? "g" : ""}${o.names ? "n" : ""}${o.streak ? "s" : ""}${o.record ? "r" : ""}` || "-";
 /** Every switch position on the share panel, so the page can mint a token for each one. */
 const SHARE_FLAGS: ShareOptions[] = [false, true].flatMap((totals) =>
-  [false, true].flatMap((grid) => [false, true].flatMap((names) => [false, true].map((streak) => ({ totals, grid, names, streak })))),
+  [false, true].flatMap((grid) =>
+    [false, true].flatMap((names) => [false, true].flatMap((streak) => [false, true].map((record) => ({ totals, grid, names, streak, record })))),
+  ),
 );
 /** Streak lengths that earn a one-time banner on the member's own page. */
 const STREAK_MILESTONES = [7, 30, 100, 365];
@@ -67,12 +71,20 @@ async function Stats({
   includePrivate: boolean;
   viewer: BoardViewer;
   repoNames: User["repoNames"];
-  share: "open" | "streak" | undefined;
+  share: "open" | "streak" | "record" | undefined;
   src: string | undefined;
 }) {
   const label = windowLabel(window);
-  const { row, before, weeks, chartWeeks, chartEnd, repoRows, dailyLines, languages, year, weekdays, weekdayLines, span, nearest, hiddenNames, repoWeeks, mixWeeks, mixEnd } =
-    await userStats(user.id, window, isOwner, includePrivate, viewer);
+  const goal = isOwner && user.weeklyGoal !== null && user.weeklyGoalMetric !== null ? { metric: user.weeklyGoalMetric, target: user.weeklyGoal } : null;
+  const [
+    { row, before, weeks, chartWeeks, chartEnd, repoRows, dailyLines, languages, year, weekdays, weekdayLines, span, nearest, hiddenNames, repoWeeks, mixWeeks, mixEnd },
+    records,
+    goalWeeks,
+  ] = await Promise.all([
+    userStats(user.id, window, isOwner, includePrivate, viewer),
+    memberRecords(user.id, isOwner ? "own" : viewer),
+    goal ? ownGoalWeeks(user.id) : null,
+  ]);
   const mode = dayChartMode(window);
   // The highest milestone the current streak has reached. Recording it as it is shown makes the banner
   // once per milestone; recording a lower one after a broken streak lets the next run earn them again.
@@ -80,6 +92,18 @@ async function Stats({
   const newMilestone = isOwner && milestone > user.lastStreakMilestone;
   if (isOwner && milestone !== user.lastStreakMilestone) {
     after(() => db.update(users).set({ lastStreakMilestone: milestone }).where(eq(users.id, user.id)));
+  }
+  // A record the period in progress has just set, once per period (or per streak run), like the milestones.
+  const freshRecords = isOwner
+    ? ([
+        ["week", records.fresh.week, user.lastRecordWeek, "new record: best week", `?w=week&m=${metric}&share=record#share`],
+        ["month", records.fresh.month, user.lastRecordMonth, "new record: best month", `?w=month&m=${metric}&share=record#share`],
+        ["streak", records.fresh.streak, user.lastRecordStreak, "new record: longest streak", `?${viewQuery(window, metric)}&share=streak#share`],
+      ] as const).filter(([, fresh, seen]) => fresh !== null && fresh !== seen)
+    : [];
+  if (freshRecords.length > 0) {
+    const seen = Object.fromEntries(freshRecords.map(([kind, fresh]) => [kind === "week" ? "lastRecordWeek" : kind === "month" ? "lastRecordMonth" : "lastRecordStreak", fresh]));
+    after(() => db.update(users).set(seen).where(eq(users.id, user.id)));
   }
   // Unmerged-branch work, only worth a line when the CLI actually found some.
   const pending = (n: number) => (n > 0 ? `+${fmt(n)} pending` : undefined);
@@ -124,15 +148,22 @@ async function Stats({
         </div>
       )}
 
-      {newMilestone && <StreakBanner days={milestone} shareHref={`/dashboard/u/${user.githubLogin}?${viewQuery(window, metric)}&share=streak#share`} />}
+      {freshRecords.map(([kind, , , text, query]) => (
+        <StreakBanner key={kind} text={text} shareHref={`/dashboard/u/${user.githubLogin}${query}`} />
+      ))}
+      {goal && goalWeeks && <GoalRing metric={goal.metric} goal={goal.target} weeks={goalWeeks} />}
+      {newMilestone && <StreakBanner text={`${milestone}-day streak`} shareHref={`/dashboard/u/${user.githubLogin}?${viewQuery(window, metric)}&share=streak#share`} />}
 
       {isOwner && (
         <SharePanel
+          // A banner's SHARE_ is a soft navigation to the same page, so remount to pick up the new defaults.
+          key={share ?? "closed"}
           tokens={shareTokens}
           origin={SITE_URL}
           view={viewQuery(window, metric)}
           defaultOpen={share !== undefined}
           defaultStreak={share === "streak"}
+          defaultRecord={share === "record"}
           empty={!hasAnything}
           login={user.githubLogin}
         />
@@ -226,6 +257,8 @@ async function Stats({
           )}
         </section>
       </div>
+
+      <RecordsPanel records={records} />
 
       <section id="repos" className="panel scroll-mt-20">
         <div className="flex justify-between items-center px-4 py-3 border-b-2 border-dark">
@@ -332,7 +365,7 @@ export default async function UserPage({
           includePrivate={includePrivate}
           viewer={viewer}
           repoNames={repoNames}
-          share={query.share === "1" ? "open" : query.share === "streak" ? "streak" : undefined}
+          share={query.share === "1" ? "open" : query.share === "streak" || query.share === "record" ? query.share : undefined}
           src={query.src}
         />
       </Section>
