@@ -32,8 +32,8 @@ export const LIMITS = {
   oauthRegister: { capacity: 30, windowMs: 3_600_000 },
   /** OAuth code exchanges and refreshes per address. */
   oauthToken: { capacity: 120, windowMs: 60_000 },
-  /** Kudos given or taken back, per giver. */
-  kudos: { capacity: 60, windowMs: 3_600_000 },
+  /** Props given or taken back, per giver. */
+  props: { capacity: 60, windowMs: 3_600_000 },
 } as const satisfies Record<string, Limit>;
 
 export type LimitName = keyof typeof LIMITS;

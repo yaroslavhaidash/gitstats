@@ -18,7 +18,7 @@ const STORED: [string, string][] = [
   ["hashed repo identities", "A linked computer never sends a repo's URL. It sends an HMAC-SHA256 of the normalised remote, keyed with a secret unique to your account, so the same repo from two of your machines counts once. The key is stored here, which means the server can confirm a guess about one specific URL; it cannot turn a hash back into a URL or list your repos."],
   ["repo names, only if you ask", "Names are off until you run gitstats names on. Public repos are matched by hash to names GitHub already publishes."],
   ["your crews and your machines", "Crew membership and invite codes; per linked computer its name, the CLI version, when it last synced and what went wrong if it did."],
-  ["kudos", "Who gave kudos to whom, and in which week. Only the member who got them sees who gave; anyone else who can open that page sees the count."],
+  ["props", "Who gave props to whom, and in which week. Only the member who got them sees who gave; anyone else who can open that page sees the count."],
   ["read-only tokens, if you add one", "A fine-grained GitHub token is optional. It is encrypted with AES-256-GCM and decrypted only inside the nightly job."],
 ];
 

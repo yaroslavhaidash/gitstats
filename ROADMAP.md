@@ -17,7 +17,7 @@ gitstats is only as fun as the crew you compare with, so the first job is making
 Right now you can look at your friends' numbers. Next is reacting to them.
 
 - **Friends:** follow people outside your crews and see them on one board.
-- **Reactions and kudos** on a streak, a big week or a new personal best.
+- **Reactions and props** on a streak, a big week or a new personal best.
 - **Friendly challenges:** "most lines this week", "longest streak this month", opt-in and just for fun.
 - **Messages:** short comments or a crew chat, if the lighter options above turn out not to be enough.
 

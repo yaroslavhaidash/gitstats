@@ -8,7 +8,7 @@ import { CopyText } from "@/components/CopyText";
 import { DailyLines } from "@/components/DailyLines";
 import { EmptyNote } from "@/components/EmptyNote";
 import { InvitePanel } from "@/components/InvitePanel";
-import { KudosBar } from "@/components/KudosBar";
+import { PropsBar } from "@/components/PropsBar";
 import { LanguageShare } from "@/components/LanguageShare";
 import { LinkComputerNudge } from "@/components/LinkComputerNudge";
 import { MetricTabs } from "@/components/MetricTabs";
@@ -35,7 +35,7 @@ import { memberRecords, recapStats, userStats } from "@/lib/cached";
 import { mintShareToken, type ShareOptions } from "@/lib/share";
 import { SITE_URL } from "@/lib/site";
 import { behindLatestCli, RELINK_COMMAND } from "@/lib/cli";
-import { kudosView } from "@/lib/kudos";
+import { propsView } from "@/lib/props";
 import { firstSnapshotRunning } from "@/lib/snapshot";
 import { nameVisible, type BoardViewer } from "@/lib/stats";
 import { backTarget, inviteTarget, sharesCrew, userByLogin, userCrews } from "@/lib/crews";
@@ -353,11 +353,11 @@ export default async function UserPage({
   const window = parseWindow(query);
   const metric = parseMetric(query.m);
   const suffix = metric === "lines" ? "" : `&m=${metric}`;
-  const [back, machines, invite, kudos] = await Promise.all([
+  const [back, machines, invite, props] = await Promise.all([
     backTarget(session.user.id, query.src, viewQuery(window, metric)),
     isOwner ? db.select({ cliVersion: cliTokens.cliVersion }).from(cliTokens).where(eq(cliTokens.userId, user.id)) : [],
     isOwner ? inviteTarget(user.id) : null,
-    kudosView(user.id, session.user.id),
+    propsView(user.id, session.user.id),
   ]);
   const behind = [...new Set(machines.filter((m) => behindLatestCli(m.cliVersion)).map((m) => m.cliVersion ?? "an old version"))];
   return (
@@ -386,7 +386,7 @@ export default async function UserPage({
           <RangePicker current={window} basePath={`/dashboard/u/${user.githubLogin}`} query={suffix} />
         </div>
       </div>
-      <KudosBar login={user.githubLogin} view={kudos} canGive={!isOwner} />
+      <PropsBar login={user.githubLogin} view={props} canGive={!isOwner} />
       {!isOwner && (
         <div className="mb-8">
           <CompareForm login={user.githubLogin} visitor={session.user.login} />

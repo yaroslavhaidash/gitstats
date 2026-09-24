@@ -21,7 +21,7 @@ import { fetchTokenLogin, GitHubAuthError } from "./github";
 import { newShareNonce } from "./share";
 import { runSnapshot } from "./snapshot";
 import { crewByCode, leaveCrew, regenerateCode, removeMember, renameCrew, userByLogin, type AdminResult } from "./crews";
-import { canViewProfile, toggleKudos } from "./kudos";
+import { canViewProfile, toggleProps } from "./props";
 import { rateLimit } from "./ratelimit";
 import { parseWindow, windowQuery } from "./window";
 
@@ -173,16 +173,16 @@ export async function updateStreakMode(formData: FormData): Promise<void> {
 }
 
 /**
- * One kudos a week from the signed-in member to someone whose page they can open, never themselves;
+ * Props once a week from the signed-in member to someone whose page they can open, never themselves;
  * pressing it again takes this week's back. The gate is re-checked here, not trusted from the page.
  */
-export async function giveKudos(formData: FormData): Promise<void> {
+export async function giveProps(formData: FormData): Promise<void> {
   const session = await auth();
   if (!session) redirect("/");
   const user = await userByLogin(String(formData.get("login") ?? ""));
   if (!user || user.id === session.user.id || !(await canViewProfile(session.user.id, user))) return;
-  if (!rateLimit("kudos", String(session.user.id)).ok) return;
-  if (await toggleKudos(session.user.id, user.id)) await countStep("kudos_give");
+  if (!rateLimit("props", String(session.user.id)).ok) return;
+  if (await toggleProps(session.user.id, user.id)) await countStep("props_give");
   revalidatePath(`/dashboard/u/${user.githubLogin}`);
 }
 

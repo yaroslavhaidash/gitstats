@@ -16,7 +16,7 @@ import {
   weeklyStats,
   deletedUsersArchive,
   mcpTokens,
-  kudos,
+  props,
   oauthCodes,
   oauthGrants,
   type ArchivedAccount,
@@ -32,7 +32,7 @@ import { handOffCrews } from "./crews";
 export async function exportAccount(userId: number) {
   const giver = alias(users, "giver");
   const receiver = alias(users, "receiver");
-  const [[user], memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, kudosRows, apps] = await Promise.all([
+  const [[user], memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, propsRows, apps] = await Promise.all([
     db
       .select({
         id: users.id,
@@ -125,12 +125,12 @@ export async function exportAccount(userId: number) {
       .where(eq(mcpTokens.userId, userId))
       .orderBy(mcpTokens.id),
     db
-      .select({ from: giver.githubLogin, to: receiver.githubLogin, weekStart: kudos.weekStart, createdAt: kudos.createdAt })
-      .from(kudos)
-      .innerJoin(giver, eq(giver.id, kudos.giverId))
-      .innerJoin(receiver, eq(receiver.id, kudos.receiverId))
-      .where(or(eq(kudos.giverId, userId), eq(kudos.receiverId, userId)))
-      .orderBy(desc(kudos.createdAt)),
+      .select({ from: giver.githubLogin, to: receiver.githubLogin, weekStart: props.weekStart, createdAt: props.createdAt })
+      .from(props)
+      .innerJoin(giver, eq(giver.id, props.giverId))
+      .innerJoin(receiver, eq(receiver.id, props.receiverId))
+      .where(or(eq(props.giverId, userId), eq(props.receiverId, userId)))
+      .orderBy(desc(props.createdAt)),
     db
       .select({ app: oauthGrants.clientName, redirectHost: oauthGrants.redirectHost, scope: oauthGrants.scope, createdAt: oauthGrants.createdAt, lastUsedAt: oauthGrants.lastUsedAt })
       .from(oauthGrants)
@@ -149,7 +149,7 @@ export async function exportAccount(userId: number) {
     dailyLocal: local,
     repoNameOverrides: nameOverrides,
     mcpTokens: assistants,
-    kudos: kudosRows,
+    props: propsRows,
     oauthApps: apps,
   };
 }
@@ -176,7 +176,7 @@ export async function archiveAccount(userId: number): Promise<void> {
   const found = await db.execute<{ row: Record<string, unknown> }>(sql`select to_jsonb(t) as row from ${users} t where t.id = ${userId}`);
   const user = found.rows[0]?.row;
   if (!user) return;
-  const [memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, kudosRows, apps] = await Promise.all([
+  const [memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, propsRows, apps] = await Promise.all([
     rowsAsJson(crewMembers, userId),
     rowsAsJson(cliTokens, userId),
     rowsAsJson(userTokens, userId),
@@ -185,10 +185,10 @@ export async function archiveAccount(userId: number): Promise<void> {
     rowsAsJson(dailyLocal, userId),
     rowsAsJson(repoNameOverrides, userId),
     rowsAsJson(mcpTokens, userId),
-    // Kudos carry two user ids, not one, so they are read both ways here instead of by `user_id`.
+    // Props carry two user ids, not one, so they are read both ways here instead of by `user_id`.
     db
       .execute<{ rows: Record<string, unknown>[] }>(
-        sql`select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) as rows from ${kudos} t where t.giver_id = ${userId} or t.receiver_id = ${userId}`,
+        sql`select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) as rows from ${props} t where t.giver_id = ${userId} or t.receiver_id = ${userId}`,
       )
       .then((res) => res.rows[0].rows),
     rowsAsJson(oauthGrants, userId),
@@ -203,7 +203,7 @@ export async function archiveAccount(userId: number): Promise<void> {
     dailyLocal: local,
     repoNameOverrides: nameOverrides,
     mcpTokens: assistants,
-    kudos: kudosRows,
+    props: propsRows,
     oauthGrants: apps,
   };
   await db.insert(deletedUsersArchive).values({ userId, login: String(user.github_login), data });
@@ -243,11 +243,11 @@ export async function restoreAccount(archiveId: number): Promise<string | null> 
   await restoreRows(repoNameOverrides, data.repoNameOverrides);
   await restoreRows(mcpTokens, data.mcpTokens ?? []);
   await restoreRows(oauthGrants, data.oauthGrants ?? []);
-  // Only kudos whose other member is still here can come back.
-  if (data.kudos && data.kudos.length > 0) {
+  // Only props whose other member is still here can come back.
+  if (data.props && data.props.length > 0) {
     await db.execute(sql`
-      insert into ${kudos}
-      select r.* from jsonb_populate_recordset(null::${kudos}, ${JSON.stringify(data.kudos)}::jsonb) r
+      insert into ${props}
+      select r.* from jsonb_populate_recordset(null::${props}, ${JSON.stringify(data.props)}::jsonb) r
       where exists (select 1 from ${users} u where u.id = r.giver_id) and exists (select 1 from ${users} u where u.id = r.receiver_id)
       on conflict do nothing
     `);
@@ -281,7 +281,7 @@ export async function deleteAccount(userId: number): Promise<void> {
   await db.delete(mcpTokens).where(eq(mcpTokens.userId, userId));
   await db.delete(oauthGrants).where(eq(oauthGrants.userId, userId));
   await db.delete(oauthCodes).where(eq(oauthCodes.userId, userId));
-  await db.delete(kudos).where(or(eq(kudos.giverId, userId), eq(kudos.receiverId, userId)));
+  await db.delete(props).where(or(eq(props.giverId, userId), eq(props.receiverId, userId)));
   await db.delete(userTokens).where(eq(userTokens.userId, userId));
   await db.delete(deviceCodes).where(eq(deviceCodes.userId, userId));
   await handOffCrews(userId);

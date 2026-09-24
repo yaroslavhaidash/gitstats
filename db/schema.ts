@@ -263,9 +263,9 @@ export const oauthGrants = pgTable("oauth_grants", {
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
 }, (t) => [index("oauth_grants_user_idx").on(t.userId)]);
 
-/** One kudos from one member to another in one Monday-to-Sunday week; the key is what makes it one. */
-export const kudos = pgTable(
-  "kudos",
+/** Props from one member to another, once per Monday-to-Sunday week; the primary key is that rule. */
+export const props = pgTable(
+  "props",
   {
     giverId: integer("giver_id")
       .notNull()
@@ -277,7 +277,7 @@ export const kudos = pgTable(
     weekStart: date("week_start", { mode: "string" }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.giverId, t.receiverId, t.weekStart] }), index("kudos_receiver_idx").on(t.receiverId)],
+  (t) => [primaryKey({ columns: [t.giverId, t.receiverId, t.weekStart] }), index("props_receiver_idx").on(t.receiverId)],
 );
 
 /** Per-day commit counts uploaded by the CLI. Only private repos' rows feed the calendar; public activity comes from GitHub. */
@@ -348,8 +348,8 @@ export type ArchivedAccount = {
   repoNameOverrides: Record<string, unknown>[];
   /** Absent from archives written before MCP tokens existed. */
   mcpTokens?: Record<string, unknown>[];
-  /** Kudos given and received. Absent from archives written before kudos existed. */
-  kudos?: Record<string, unknown>[];
+  /** Props given and received. Absent from archives written before props existed. */
+  props?: Record<string, unknown>[];
   /** Apps connected over OAuth. Absent from archives written before OAuth existed. */
   oauthGrants?: Record<string, unknown>[];
 };

@@ -46,7 +46,7 @@ GitHub (public)                    your computers (private + public)
 | `oauth_clients` | `id` (`client_id` unique) | apps allowed to start OAuth: registered (`dcr`, RFC 7591) or read from their Client ID Metadata Document URL (`cimd`, re-read after a day); names and redirect URIs only |
 | `oauth_codes` | `id` (`code_hash` unique) | authorization codes between consent and token exchange: client, user, redirect URI, PKCE challenge, resource; one use (deleted on redeem), 10 minutes |
 | `oauth_grants` | `id` | one connected app per row: user, client name, redirect host, sha256 of the current access token (1 hour) and refresh token (90 days, replaced on every refresh); deleting the row is disconnecting |
-| `kudos` | `(giver_id, receiver_id, week_start)` | one kudos per giver per member per Monday week; the key is the rule. `lib/kudos.ts`: `giveKudos` re-checks that the giver can open the page (`canViewProfile`), 60/hour per giver; everyone who can open the page sees the counts, only the receiver sees who gave. Exported, archived and deleted in both directions (`lib/account.ts`) |
+| `props` | `(giver_id, receiver_id, week_start)` | props once per giver per member per Monday week; the key is the rule. `lib/props.ts`: `giveProps` re-checks that the giver can open the page (`canViewProfile`), 60/hour per giver; everyone who can open the page sees the counts, only the receiver sees who gave. Exported, archived and deleted in both directions (`lib/account.ts`) |
 | `repo_name_overrides` | `(user_id, repo_node_id)` | per-repo exception to the repo-names row; only ever hides more than the matrix |
 | `device_codes` | `code` | pairing in flight; purged on expiry |
 | `admin_log` | `id` | every mutation made from `/admin`: `who`, `action`, `target`, `at` |
