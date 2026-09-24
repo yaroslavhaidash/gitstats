@@ -95,7 +95,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
       <section id="badge" className="border-2 border-dark p-6 mb-8 scroll-mt-20">
         <h2 className="font-sans font-bold text-xl mb-1">README badge</h2>
         <p className="font-mono text-xs text-dim mb-6">
-          For your GitHub profile README: your lines over the last year, this month or this week, your streak and top language, linking to your public GitHub page here. It shows what
+          For your GitHub profile README: your lines or commits over the last year, this month or this week, your streak and top language, linking to your public GitHub page here. It shows what
           everyone else sees, so with your page closed to everyone it is a plain gitstats badge with no numbers. GitHub caches images, so it updates
           about once an hour at best.
         </p>

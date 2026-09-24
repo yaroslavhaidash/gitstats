@@ -4,7 +4,7 @@ import { users } from "@/db/schema";
 import { demoMembers } from "./demo";
 import { fmt } from "./format";
 import { boardRows } from "./stats";
-import type { Preset } from "./window";
+import type { Metric, Preset } from "./window";
 
 /**
  * The profile README badge. It reads Postgres like every page and shows what a stranger opening the
@@ -12,29 +12,38 @@ import type { Preset } from "./window";
  * all when that page is not open to everyone.
  */
 
-export type BadgeStats = { login: string; window: Preset; additions: number; deletions: number; streak: number; topLanguage: string | null };
+export type BadgeStats = {
+  login: string;
+  window: Preset;
+  metric: Metric;
+  additions: number;
+  deletions: number;
+  commits: number;
+  streak: number;
+  topLanguage: string | null;
+};
 
-export async function badgeStats(login: string, window: Preset): Promise<BadgeStats | null> {
+export async function badgeStats(login: string, window: Preset, metric: Metric): Promise<BadgeStats | null> {
   const [user] = await db
     .select({ id: users.id, login: users.githubLogin, visibility: users.profileVisibility })
     .from(users)
     .where(and(sql`lower(${users.githubLogin}) = ${login.toLowerCase()}`, eq(users.isDemo, false)))
     .limit(1);
   if (!user || user.visibility !== "everyone") return null;
-  return windowStats(user.id, user.login, window);
+  return windowStats(user.id, user.login, window, metric);
 }
 
 /** The first demo member's numbers, drawn inline on /widget. `/badge/<login>` never serves a demo
  *  member: the seeded logins may belong to real GitHub accounts, and the badge links to theirs. */
-export async function demoBadgeStats(window: Preset): Promise<BadgeStats | null> {
+export async function demoBadgeStats(window: Preset, metric: Metric): Promise<BadgeStats | null> {
   const [first] = await demoMembers();
-  return first ? windowStats(first.id, first.login, window) : null;
+  return first ? windowStats(first.id, first.login, window, metric) : null;
 }
 
-async function windowStats(id: number, login: string, window: Preset): Promise<BadgeStats | null> {
+async function windowStats(id: number, login: string, window: Preset, metric: Metric): Promise<BadgeStats | null> {
   const [row] = await boardRows([id], { kind: "preset", value: window }, "global");
   if (!row) return null;
-  return { login, window, additions: row.additions, deletions: row.deletions, streak: row.streak, topLanguage: row.topLanguage };
+  return { login, window, metric, additions: row.additions, deletions: row.deletions, commits: row.commits, streak: row.streak, topLanguage: row.topLanguage };
 }
 
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -68,16 +77,22 @@ export function neutralBadge(): string {
 export function statsBadge(s: BadgeStats): string {
   const add = `+${fmt(s.additions)}`;
   const del = `−${fmt(s.deletions)}`;
-  const label = `${s.login} on gitstats: ${add} ${del} lines this ${s.window}, ${s.streak} day streak${s.topLanguage ? `, top language ${s.topLanguage}` : ""}`;
+  const commits = fmt(s.commits);
+  const headlineLabel = s.metric === "commits" ? `${commits} commits` : `${add} ${del} lines`;
+  const label = `${s.login} on gitstats: ${headlineLabel} this ${s.window}, ${s.streak} day streak${s.topLanguage ? `, top language ${s.topLanguage}` : ""}`;
   // Mono glyphs are 0.6em wide, so the deletions start right after the additions whatever their length.
   const delX = 18 + (add.length + 1) * 0.6 * 22;
+  const headline =
+    s.metric === "commits"
+      ? `<text x="18" y="84" font-family="${MONO}" font-size="22" font-weight="700" fill="#d95926">${escape(commits)}</text>`
+      : `<text x="18" y="84" font-family="${MONO}" font-size="22" font-weight="700" fill="#22c55e">${escape(add)}</text>
+<text x="${delX}" y="84" font-family="${MONO}" font-size="22" font-weight="700" fill="#ff3333">${escape(del)}</text>`;
   return frame(
     label,
     `<text x="60" y="38" font-family="${MONO}" font-size="16" font-weight="700" fill="#e0e2e5">${escape(s.login)}</text>
 <text x="${W - 18}" y="38" text-anchor="end" font-family="${MONO}" font-size="11" fill="#8b93a4">gitstats.org</text>
-<text x="18" y="84" font-family="${MONO}" font-size="22" font-weight="700" fill="#22c55e">${escape(add)}</text>
-<text x="${delX}" y="84" font-family="${MONO}" font-size="22" font-weight="700" fill="#ff3333">${escape(del)}</text>
-<text x="${W - 18}" y="84" text-anchor="end" font-family="${MONO}" font-size="12" fill="#8b93a4">lines this ${s.window}</text>
+${headline}
+<text x="${W - 18}" y="84" text-anchor="end" font-family="${MONO}" font-size="12" fill="#8b93a4">${s.metric} this ${s.window}</text>
 <text x="18" y="104" font-family="${MONO}" font-size="12" fill="#e0e2e5">${s.streak}d streak${s.topLanguage ? ` · ${escape(s.topLanguage)}` : ""}</text>`,
   );
 }

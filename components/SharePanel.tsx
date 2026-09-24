@@ -86,7 +86,7 @@ export function SharePanel({ tokens, origin, view, defaultOpen, defaultStreak, e
             <span className="font-mono text-xs text-faint">&gt; a new link kills every link you shared before it</span>
           </div>
           <div className="tag mt-6 mb-2">README BADGE</div>
-          <p className="font-mono text-xs text-dim mb-3">For your GitHub profile: lines over the window you pick, streak and top language, as everyone else sees them.</p>
+          <p className="font-mono text-xs text-dim mb-3">For your GitHub profile: lines or commits over the window you pick, streak and top language, as everyone else sees them.</p>
           <BadgeCopy login={login} where="share_menu" />
         </div>
       )}

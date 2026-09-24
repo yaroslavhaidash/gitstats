@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@/auth";
-import { BadgeWindowTabs } from "@/components/BadgeWindowTabs";
+import { BadgeTabs } from "@/components/BadgeTabs";
 import { CopyText } from "@/components/CopyText";
 import { Logo } from "@/components/Logo";
 import { SignInButton } from "@/components/Tracked";
 import { signInWithGitHub } from "@/lib/actions";
 import { demoBadgeStats, statsBadge } from "@/lib/badge";
-import { badgeMarkdown, badgeWindow } from "@/lib/badgeMarkdown";
+import { badgeMarkdown, badgeQuery, badgeWindow } from "@/lib/badgeMarkdown";
 import { openGraphFor } from "@/lib/site";
+import { METRICS, parseMetric, PRESETS } from "@/lib/window";
 
 export const metadata: Metadata = {
   title: "GitHub stats widget for your README",
@@ -19,14 +20,16 @@ export const metadata: Metadata = {
 };
 
 const SHOWS: [string, string][] = [
-  ["lines this year", "Lines added in green and deleted in red over the last 365 days, or this month or this week if you pick one."],
+  ["lines or commits this year", "Lines added in green and deleted in red, or your commit count, over the last 365 days, or this month or this week if you pick one."],
   ["streak", "How many days in a row you have committed."],
   ["top language", "The main language of the repos you committed to most in that window."],
 ];
 
-export default async function Widget({ searchParams }: { searchParams: Promise<{ w?: string }> }) {
-  const window = badgeWindow((await searchParams).w);
-  const [session, demo] = await Promise.all([auth(), demoBadgeStats(window)]);
+export default async function Widget({ searchParams }: { searchParams: Promise<{ w?: string; m?: string }> }) {
+  const query = await searchParams;
+  const window = badgeWindow(query.w);
+  const metric = parseMetric(query.m);
+  const [session, demo] = await Promise.all([auth(), demoBadgeStats(window, metric)]);
   return (
     <main className="flex-1">
       <nav className="sticky top-0 z-40 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
@@ -42,11 +45,14 @@ export default async function Widget({ searchParams }: { searchParams: Promise<{
         <div className="tag mb-4">WIDGET</div>
         <h1 className="font-sans font-bold text-4xl mb-3">GitHub stats widget for your README</h1>
         <p className="font-mono text-sm text-dim leading-relaxed mb-10">
-          One image in your GitHub profile README with your lines over the last year, this month or this week, your
+          One image in your GitHub profile README with your lines or commits over the last year, this month or this week, your
           streak and your top language. It links to your public page on gitstats.
         </p>
 
-        <BadgeWindowTabs current={window} basePath="/widget" />
+        <div className="flex flex-wrap gap-3">
+          <BadgeTabs options={METRICS} current={metric} href={(m) => `/widget${badgeQuery(window, m)}`} />
+          <BadgeTabs options={PRESETS} current={window} href={(w) => `/widget${badgeQuery(w, metric)}`} />
+        </div>
         {demo && (
           <figure className="mt-4 mb-12">
             {/* Our own SVG from statsBadge, every string in it escaped; scaled down to fit a phone. */}
@@ -62,7 +68,7 @@ export default async function Widget({ searchParams }: { searchParams: Promise<{
             says YOUR-LOGIN. Signed in, the README badge card in settings has it filled in.
           </p>
           <div className="border-2 border-dark px-4 py-3 overflow-x-auto">
-            <CopyText text={badgeMarkdown("YOUR-LOGIN", window)} className="text-silver text-xs whitespace-nowrap" />
+            <CopyText text={badgeMarkdown("YOUR-LOGIN", window, metric)} className="text-silver text-xs whitespace-nowrap" />
           </div>
         </section>
 
