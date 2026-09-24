@@ -24,6 +24,10 @@ export const LIMITS = {
   handle: { capacity: 30, windowMs: 3_600_000 },
   /** The same across everyone, keyed by one constant, so a crawl cannot spend the server token's hour. */
   handleGlobal: { capacity: 300, windowMs: 3_600_000 },
+  /** MCP requests per personal token. */
+  mcp: { capacity: 60, windowMs: 60_000 },
+  /** MCP requests per address, spent before the token lookup, for the same reason as `cliIp`. */
+  mcpIp: { capacity: 300, windowMs: 60_000 },
 } as const satisfies Record<string, Limit>;
 
 export type LimitName = keyof typeof LIMITS;

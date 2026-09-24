@@ -176,6 +176,13 @@
       "when": 1790240607231,
       "tag": "0024_streak_milestone",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790245902803,
+      "tag": "0025_mcp_tokens",
+      "breakpoints": true
     }
   ]
 }

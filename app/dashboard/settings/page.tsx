@@ -3,15 +3,17 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { cliTokens, userTokens, users } from "@/db/schema";
+import { cliTokens, mcpTokens, userTokens, users } from "@/db/schema";
 import { BadgeCopy } from "@/components/BadgeCopy";
 import { Confirm } from "@/components/Confirm";
+import { McpTokenForm } from "@/components/McpTokenForm";
 import { SettingsForm } from "@/components/SettingsForm";
 import { VisibilityMatrix } from "@/components/VisibilityMatrix";
 import { SetupCommand } from "@/components/SetupCommand";
-import { addToken, deleteAccountAction, removeToken, revokeMachine, updateStreakMode } from "@/lib/actions";
+import { addToken, deleteAccountAction, removeToken, revokeMachine, revokeMcpToken, updateStreakMode } from "@/lib/actions";
 import { isOutdatedCli } from "@/lib/cli";
 import { fmtDateTime } from "@/lib/format";
+import { SITE_URL } from "@/lib/site";
 
 const ERRORS: Record<string, string> = {
   label: "give the token a label (e.g. personal)",
@@ -24,17 +26,18 @@ const ERRORS: Record<string, string> = {
   confirm: "type your login exactly to confirm the deletion",
 };
 
-type Params = { error?: string; saved?: string; removed?: string; profile?: string; revoked?: string; streak?: string };
+type Params = { error?: string; saved?: string; removed?: string; profile?: string; revoked?: string; streak?: string; mcp?: string };
 
 export default async function Settings({ searchParams }: { searchParams: Promise<Params> }) {
   const session = await auth();
   if (!session) redirect("/");
   const uid = session.user.id;
-  const [{ error, saved, removed, profile, revoked, streak }, [me], tokens, machines] = await Promise.all([
+  const [{ error, saved, removed, profile, revoked, streak, mcp }, [me], tokens, machines, assistants] = await Promise.all([
     searchParams,
     db.select().from(users).where(eq(users.id, uid)),
     db.select({ id: userTokens.id, label: userTokens.label, lastError: userTokens.lastError, createdAt: userTokens.createdAt }).from(userTokens).where(eq(userTokens.userId, uid)).orderBy(userTokens.id),
     db.select().from(cliTokens).where(eq(cliTokens.userId, uid)).orderBy(cliTokens.id),
+    db.select({ id: mcpTokens.id, label: mcpTokens.label, createdAt: mcpTokens.createdAt, lastUsedAt: mcpTokens.lastUsedAt }).from(mcpTokens).where(eq(mcpTokens.userId, uid)).orderBy(mcpTokens.id),
   ]);
   return (
     <div className="max-w-3xl mx-auto">
@@ -100,6 +103,37 @@ export default async function Settings({ searchParams }: { searchParams: Promise
           about once an hour at best.
         </p>
         <BadgeCopy login={me.githubLogin} where="settings" preview />
+      </section>
+
+      <section id="assistants" className="border-2 border-dark p-6 mb-8 scroll-mt-20">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="font-sans font-bold text-xl">AI assistants (MCP)</h2>
+          <Link href="/docs#mcp" className="font-mono text-xs text-faint hover:text-alert">[SETUP]</Link>
+        </div>
+        <p className="font-mono text-xs text-dim mb-6 leading-relaxed">
+          Ask Claude Code, Codex or Cursor &quot;how was my week&quot; or &quot;am I ahead of my crew&quot;. A token here lets an assistant read what you can see on this site, as
+          you: your own numbers, your crews&apos; boards, and other members&apos; pages only where those are open to you. Read-only; it cannot change anything. Revoke it and the next call fails.
+        </p>
+        {mcp && <p className="font-mono text-xs text-dim mb-4">&gt; token revoked</p>}
+        {assistants.length > 0 && (
+          <ul className="divide-y divide-dark border-2 border-dark mb-6 font-mono text-sm">
+            {assistants.map((t) => (
+              <li key={t.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                <span>
+                  <span className="text-white">{t.label}</span>
+                  <span className="block text-xs text-faint mt-1">
+                    created {fmtDateTime(t.createdAt)} · {t.lastUsedAt ? `last used ${fmtDateTime(t.lastUsedAt)}` : "never used"}
+                  </span>
+                </span>
+                <form action={revokeMcpToken}>
+                  <input type="hidden" name="id" value={t.id} />
+                  <button className="text-xs text-faint hover:text-alert">REVOKE</button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <McpTokenForm endpoint={`${SITE_URL}/api/mcp`} />
       </section>
 
       <section id="streak-rule" className="border-2 border-dark p-6 mb-8 scroll-mt-20">

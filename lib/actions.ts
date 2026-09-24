@@ -8,12 +8,13 @@ import { auth, signIn, signOut } from "@/auth";
 import { db } from "@/db";
 import { deleteAccount, restoreAccount } from "./account";
 import { logAdmin, requireAdmin, snapshotChainUrl, triggerSnapshotChain } from "./admin";
-import { cliTokens, crewMembers, crews, deviceCodes, repoNameOverrides, userTokens, users, type RepoNames, type StreakMode } from "@/db/schema";
+import { cliTokens, crewMembers, crews, deviceCodes, mcpTokens, repoNameOverrides, userTokens, users, type RepoNames, type StreakMode } from "@/db/schema";
 import { STATS_TAG } from "./cache";
 import { hashToken, newSecret } from "./cli";
 import { and, eq, isNull } from "drizzle-orm";
 import { encrypt } from "./crypto";
 import { countStep } from "./funnel";
+import { MCP_TOKEN_PREFIX } from "./mcp";
 import { fetchTokenLogin, GitHubAuthError } from "./github";
 import { newShareNonce } from "./share";
 import { runSnapshot } from "./snapshot";
@@ -201,6 +202,31 @@ export async function revokeMachine(formData: FormData): Promise<void> {
   if (!Number.isInteger(id)) redirect("/dashboard/settings");
   await db.delete(cliTokens).where(and(eq(cliTokens.id, id), eq(cliTokens.userId, session.user.id)));
   redirect("/dashboard/settings?revoked=1#computers");
+}
+
+/** What the MCP token form shows after a submit: the new token, once, or why there is none. */
+export type McpTokenState = { token?: string; error?: string };
+
+/** A personal MCP token. Only its hash is stored, so the raw value is returned to the form this one time. */
+export async function createMcpToken(_prev: McpTokenState, formData: FormData): Promise<McpTokenState> {
+  const session = await auth();
+  if (!session) redirect("/");
+  const rawLabel = formData.get("label");
+  const label = typeof rawLabel === "string" ? rawLabel.trim().slice(0, 40) : "";
+  if (!label) return { error: "give the token a label (e.g. claude code on my laptop)" };
+  const token = `${MCP_TOKEN_PREFIX}${newSecret()}`;
+  await db.insert(mcpTokens).values({ userId: session.user.id, tokenHash: hashToken(token), label });
+  revalidatePath("/dashboard/settings");
+  return { token };
+}
+
+export async function revokeMcpToken(formData: FormData): Promise<void> {
+  const session = await auth();
+  if (!session) redirect("/");
+  const id = Number(formData.get("id"));
+  if (!Number.isInteger(id)) redirect("/dashboard/settings#assistants");
+  await db.delete(mcpTokens).where(and(eq(mcpTokens.id, id), eq(mcpTokens.userId, session.user.id)));
+  redirect("/dashboard/settings?mcp=revoked#assistants");
 }
 
 /** Crew admin. The mutations and their ownership checks live in `lib/crews.ts`; these resolve the session and redirect. */

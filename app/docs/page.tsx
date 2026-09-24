@@ -3,7 +3,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { Logo } from "@/components/Logo";
 import { SetupCommand } from "@/components/SetupCommand";
-import { openGraphFor } from "@/lib/site";
+import { openGraphFor, SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Docs",
@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 };
 
 const NPX = "npx @yaroslavhaidash/gitstats-cli@latest";
+const MCP_URL = `${SITE_URL}/api/mcp`;
 
 const COMMANDS: [string, string][] = [
   ["stats", "Count this machine and print the table, without pairing with anything. No account, no upload, no config file, no network call at all. It reads git and exits. Run it first if you want to see the numbers before you decide. Options: --root <dir> and --email <addr> (both repeatable), --fetch (refresh each repo from its origin first)."],
@@ -144,6 +145,45 @@ export default async function Docs() {
             Three switches decide what travels with it: the totals, the 26-week day grid, and your top three repos by lines. Repo names are off
             by default, and a repo you hid on your own page stays hidden whatever you pick. The link is signed, so it cannot be edited into someone
             else&apos;s numbers, and <span className="text-silver">new link</span> on the same panel makes every card you minted before it a 404.
+          </p>
+        </section>
+
+        <section id="mcp" className="mb-14">
+          <h2 className="font-sans font-bold text-2xl mb-3">Use gitstats from Claude Code, Codex, Cursor</h2>
+          <p className="font-mono text-xs text-dim leading-relaxed mb-3">
+            gitstats is a remote MCP server at <span className="text-silver">{MCP_URL}</span>, so an assistant can answer &quot;how was my week&quot;,
+            &quot;which repo took most of my time this month&quot; or &quot;am I ahead of my crew&quot;. It is read-only and sees exactly what you see on
+            the site: your own numbers, the boards of your crews, and another member&apos;s summary only where their page is open to you. Repos
+            counted without their name stay <span className="text-silver">private-&lt;hash&gt;</span>.
+          </p>
+          <p className="font-mono text-xs text-dim leading-relaxed mb-4">
+            Create a token under <Link href="/dashboard/settings#assistants" className="text-silver underline hover:text-alert">settings → AI assistants</Link>{" "}
+            (it is shown once), then:
+          </p>
+          <h3 className="font-sans font-bold text-base mb-2">Claude Code</h3>
+          <pre className="panel p-4 mb-4 font-mono text-xs text-silver overflow-x-auto">{`claude mcp add --transport http gitstats ${MCP_URL} --header "Authorization: Bearer <token>"`}</pre>
+          <h3 className="font-sans font-bold text-base mb-2">Codex</h3>
+          <pre className="panel p-4 mb-2 font-mono text-xs text-silver overflow-x-auto">{`export GITSTATS_MCP_TOKEN=<token>\ncodex mcp add gitstats --url ${MCP_URL} --bearer-token-env-var GITSTATS_MCP_TOKEN`}</pre>
+          <p className="font-mono text-xs text-faint mb-4">Codex reads the token from that variable on every start, so export it in your shell profile.</p>
+          <h3 className="font-sans font-bold text-base mb-2">Cursor</h3>
+          <p className="font-mono text-xs text-dim leading-relaxed mb-2">
+            In <span className="text-silver">~/.cursor/mcp.json</span> (or <span className="text-silver">.cursor/mcp.json</span> in one project), with{" "}
+            <span className="text-silver">GITSTATS_MCP_TOKEN</span> set in your environment:
+          </p>
+          <pre className="panel p-4 mb-4 font-mono text-xs text-silver overflow-x-auto">{`{
+  "mcpServers": {
+    "gitstats": {
+      "url": "${MCP_URL}",
+      "headers": { "Authorization": "Bearer \${env:GITSTATS_MCP_TOKEN}" }
+    }
+  }
+}`}</pre>
+          <p className="font-mono text-xs text-dim leading-relaxed">
+            Tools: <span className="text-silver">my_summary</span>, <span className="text-silver">my_daily</span> (days a linked computer counted,
+            kept apart from weekly figures laid over their days), <span className="text-silver">my_repos</span>, <span className="text-silver">my_crews</span>,{" "}
+            <span className="text-silver">crew_board</span>, <span className="text-silver">member_summary</span>. Each takes a window (week, month, year, or
+            from/to dates) and lines or commits. 60 calls a minute per token. Revoke the token in settings and the next call fails. Not yet a
+            claude.ai connector: that needs OAuth.
           </p>
         </section>
 

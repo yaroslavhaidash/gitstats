@@ -191,7 +191,8 @@ export async function adminOverview(): Promise<AdminOverview> {
         a.data.weeklyStats.length +
         a.data.dailyContributions.length +
         a.data.dailyLocal.length +
-        a.data.repoNameOverrides.length,
+        a.data.repoNameOverrides.length +
+        (a.data.mcpTokens?.length ?? 0),
     })),
     log: logRows,
   };

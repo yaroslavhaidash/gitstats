@@ -191,6 +191,18 @@ export const cliTokens = pgTable("cli_tokens", {
   cliVersion: text("cli_version"),
 }, (t) => [index("cli_tokens_user_idx").on(t.userId)]);
 
+/** Personal tokens for the read-only MCP endpoint; the owner is the viewer, so tools see what their pages show. */
+export const mcpTokens = pgTable("mcp_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  tokenHash: text("token_hash").notNull().unique(),
+  label: text("label").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+}, (t) => [index("mcp_tokens_user_idx").on(t.userId)]);
+
 /** Per-day commit counts uploaded by the CLI. Only private repos' rows feed the calendar; public activity comes from GitHub. */
 export const dailyLocal = pgTable(
   "daily_local",
@@ -257,6 +269,8 @@ export type ArchivedAccount = {
   dailyContributions: Record<string, unknown>[];
   dailyLocal: Record<string, unknown>[];
   repoNameOverrides: Record<string, unknown>[];
+  /** Absent from archives written before MCP tokens existed. */
+  mcpTokens?: Record<string, unknown>[];
 };
 
 /** A deleted member, kept for 30 days so an accidental delete can be undone, then purged nightly. */

@@ -14,6 +14,7 @@ import {
   users,
   weeklyStats,
   deletedUsersArchive,
+  mcpTokens,
   type ArchivedAccount,
 } from "@/db/schema";
 import { handOffCrews } from "./crews";
@@ -21,11 +22,11 @@ import { handOffCrews } from "./crews";
 /**
  * Everything the server holds about one member, for the settings export: every table that carries
  * their user id, every column of it. Left out on purpose, and only these: the secrets themselves —
- * `users.hash_salt`, `cli_tokens.token_hash`, the encrypted PATs in `user_tokens.token` — and
+ * `users.hash_salt`, `cli_tokens.token_hash`, `mcp_tokens.token_hash`, the encrypted PATs in `user_tokens.token` — and
  * `device_codes`, a pairing in flight that is nothing but secrets and expires in ten minutes.
  */
 export async function exportAccount(userId: number) {
-  const [[user], memberships, machines, tokens, weeks, github, local, nameOverrides] = await Promise.all([
+  const [[user], memberships, machines, tokens, weeks, github, local, nameOverrides, assistants] = await Promise.all([
     db
       .select({
         id: users.id,
@@ -112,6 +113,11 @@ export async function exportAccount(userId: number) {
       .innerJoin(repos, eq(repos.githubNodeId, repoNameOverrides.repoNodeId))
       .where(eq(repoNameOverrides.userId, userId))
       .orderBy(repoNameOverrides.repoNodeId),
+    db
+      .select({ label: mcpTokens.label, createdAt: mcpTokens.createdAt, lastUsedAt: mcpTokens.lastUsedAt })
+      .from(mcpTokens)
+      .where(eq(mcpTokens.userId, userId))
+      .orderBy(mcpTokens.id),
   ]);
   if (!user) return null;
   return {
@@ -124,6 +130,7 @@ export async function exportAccount(userId: number) {
     dailyContributions: github,
     dailyLocal: local,
     repoNameOverrides: nameOverrides,
+    mcpTokens: assistants,
   };
 }
 
@@ -149,7 +156,7 @@ export async function archiveAccount(userId: number): Promise<void> {
   const found = await db.execute<{ row: Record<string, unknown> }>(sql`select to_jsonb(t) as row from ${users} t where t.id = ${userId}`);
   const user = found.rows[0]?.row;
   if (!user) return;
-  const [memberships, machines, tokens, weeks, github, local, nameOverrides] = await Promise.all([
+  const [memberships, machines, tokens, weeks, github, local, nameOverrides, assistants] = await Promise.all([
     rowsAsJson(crewMembers, userId),
     rowsAsJson(cliTokens, userId),
     rowsAsJson(userTokens, userId),
@@ -157,6 +164,7 @@ export async function archiveAccount(userId: number): Promise<void> {
     rowsAsJson(dailyContributions, userId),
     rowsAsJson(dailyLocal, userId),
     rowsAsJson(repoNameOverrides, userId),
+    rowsAsJson(mcpTokens, userId),
   ]);
   const data: ArchivedAccount = {
     user,
@@ -167,6 +175,7 @@ export async function archiveAccount(userId: number): Promise<void> {
     dailyContributions: github,
     dailyLocal: local,
     repoNameOverrides: nameOverrides,
+    mcpTokens: assistants,
   };
   await db.insert(deletedUsersArchive).values({ userId, login: String(user.github_login), data });
 }
@@ -203,6 +212,7 @@ export async function restoreAccount(archiveId: number): Promise<string | null> 
   await restoreRows(dailyContributions, data.dailyContributions);
   await restoreRows(dailyLocal, data.dailyLocal);
   await restoreRows(repoNameOverrides, data.repoNameOverrides);
+  await restoreRows(mcpTokens, data.mcpTokens ?? []);
   await db.delete(deletedUsersArchive).where(eq(deletedUsersArchive.id, archiveId));
   return row.login;
 }
@@ -229,6 +239,7 @@ export async function deleteAccount(userId: number): Promise<void> {
   await db.delete(dailyContributions).where(eq(dailyContributions.userId, userId));
   await db.delete(repoNameOverrides).where(eq(repoNameOverrides.userId, userId));
   await db.delete(cliTokens).where(eq(cliTokens.userId, userId));
+  await db.delete(mcpTokens).where(eq(mcpTokens.userId, userId));
   await db.delete(userTokens).where(eq(userTokens.userId, userId));
   await db.delete(deviceCodes).where(eq(deviceCodes.userId, userId));
   await handOffCrews(userId);
