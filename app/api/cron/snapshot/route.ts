@@ -5,7 +5,6 @@ import { seedDemo } from "@/lib/seed";
 import { runSnapshot } from "@/lib/snapshot";
 
 export const maxDuration = 300;
-export const dynamic = "force-dynamic";
 
 const TIME_BUDGET_MS = 240_000;
 /** A cap, not a target: 20 × 240s covers far more users than a night has, and stops a runaway loop. */

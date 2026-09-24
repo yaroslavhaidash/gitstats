@@ -6,6 +6,9 @@ import { SignInButton } from "@/components/Tracked";
 import { joinCrew, signInThenJoin } from "@/lib/actions";
 import { crewByCode, crewMemberIds } from "@/lib/crews";
 
+/** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 // Generic text; the unfurl image (opengraph-image.tsx) names the inviter and the crew, never a number.
 export const metadata: Metadata = {
   title: "Join a crew",

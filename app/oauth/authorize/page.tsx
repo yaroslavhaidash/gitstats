@@ -7,6 +7,9 @@ import { SignInButton } from "@/components/Tracked";
 import { approveOAuth, denyOAuth, signInThenAuthorize, signOutThenAuthorize } from "@/lib/actions";
 import { checkAuthorize, publicOrigin, type AuthorizeParams } from "@/lib/oauth";
 
+/** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 export const metadata: Metadata = { title: "Connect an app", robots: { index: false } };
 
 /**

@@ -23,6 +23,9 @@ import { openGraphFor, SITE_URL } from "@/lib/site";
 import { nameVisible } from "@/lib/stats";
 import { dayChartMode, parseMetric, parseWindow, rangeDays, windowLabel, windowQuery, windowRange } from "@/lib/window";
 
+/** Per request: reads the URL. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 export async function generateMetadata({ params }: { params: Promise<{ login: string }> }): Promise<Metadata> {
   const { login } = await params;
   return {

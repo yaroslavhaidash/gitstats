@@ -14,6 +14,9 @@ import { signInWithGitHub } from "@/lib/actions";
 import { posts } from "@/lib/blog";
 import { openGraphFor, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
+/** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   alternates: { canonical: "/" },

@@ -10,6 +10,9 @@ import { badgeMarkdown, badgeQuery, badgeWindow } from "@/lib/badgeMarkdown";
 import { openGraphFor } from "@/lib/site";
 import { METRICS, parseMetric, PRESETS } from "@/lib/window";
 
+/** Per request: reads the URL. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 export const metadata: Metadata = {
   title: "GitHub stats widget for your README",
   description:

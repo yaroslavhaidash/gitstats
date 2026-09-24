@@ -17,6 +17,9 @@ import { openGraphFor, SITE_URL } from "@/lib/site";
 import { rankBy } from "@/lib/stats";
 import { daySeriesMode, parseMetric, parseWindow, previousLabel, windowLabel, windowQuery } from "@/lib/window";
 
+/** Per request: reads the URL. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 export const metadata: Metadata = {
   title: "Demo board",
   description:

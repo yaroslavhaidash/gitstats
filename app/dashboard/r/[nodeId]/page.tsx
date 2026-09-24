@@ -11,6 +11,9 @@ import { backTarget, crewmateIds } from "@/lib/crews";
 import { fmt, fmtDate } from "@/lib/format";
 import { parseWindow, windowLabel, windowQuery } from "@/lib/window";
 
+/** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 /**
  * Next hands a dynamic segment with its reserved characters still percent-encoded, so a CLI repo's
  * `local:<hmac>` arrives as `local%3A<hmac>` and never matches a row. A malformed `%` sequence

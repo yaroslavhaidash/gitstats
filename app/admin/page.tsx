@@ -9,7 +9,8 @@ import { adminDeleteUser, adminRestoreUser, adminRevokeMachine, adminSnapshotCha
 import { fmt, fmtDateTime } from "@/lib/format";
 import { FUNNEL_STEPS, funnelDays } from "@/lib/funnel";
 
-export const dynamic = "force-dynamic";
+/** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
 
 const DONE: Record<string, string> = {
   deleted: `member deleted, restorable from the archive below for ${ARCHIVE_DAYS} days`,

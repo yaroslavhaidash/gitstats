@@ -1,5 +1,8 @@
 import { CrewForms } from "@/components/CrewForms";
 
+/** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 export default async function NewCrew({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
   return (

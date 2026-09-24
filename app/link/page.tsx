@@ -7,6 +7,9 @@ import { Logo } from "@/components/Logo";
 import { SignInButton } from "@/components/Tracked";
 import { confirmDevice, signInThenLink, signOutThenLink } from "@/lib/actions";
 
+/** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 export default async function LinkPage({ searchParams }: { searchParams: Promise<{ code?: string; done?: string }> }) {
   const { code = "", done } = await searchParams;
   const session = await auth();

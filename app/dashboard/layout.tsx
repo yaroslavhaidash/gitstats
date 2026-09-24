@@ -14,6 +14,9 @@ import { claimFirstSnapshot, runFirstSnapshot } from "@/lib/snapshot";
 import { countStep } from "@/lib/funnel";
 import { syncWarnings } from "@/lib/stats";
 
+/** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const session = await auth();
   if (!session) redirect("/");

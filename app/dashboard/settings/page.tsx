@@ -15,6 +15,9 @@ import { isOutdatedCli } from "@/lib/cli";
 import { fmtDateTime } from "@/lib/format";
 import { SITE_URL } from "@/lib/site";
 
+/** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 const ERRORS: Record<string, string> = {
   label: "give the token a label (e.g. personal)",
   format: "that is not a fine-grained token (they start with github_pat_)",

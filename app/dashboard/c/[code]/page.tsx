@@ -28,6 +28,9 @@ import { crewByCode, crewMemberIds, isMember } from "@/lib/crews";
 import { HUES, hue } from "@/lib/palette";
 import { daySeriesMode, parseMetric, parseWindow, previousLabel, viewQuery, windowLabel, windowQuery, type Metric, type Window } from "@/lib/window";
 
+/** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 /** Post-action confirmations on the manage panel, in the order they are checked. */
 const NOTICES = [
   ["renamed", "crew renamed"],

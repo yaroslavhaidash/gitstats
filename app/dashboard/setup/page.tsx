@@ -9,6 +9,9 @@ import { SetupCommand } from "@/components/SetupCommand";
 import { crewByCode } from "@/lib/crews";
 import { fmtDateTime } from "@/lib/format";
 
+/** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 const STEPS = [
   { tag: "01_SIGNED_IN", title: "GitHub sign-in", body: "Done. That only tells us who you are. Your calendar and your public repos are already here. The lines for them arrive tonight, in the 03:00 UTC snapshot. Link your computer for them now." },
   { tag: "02_LINK", title: "Run one command on your computer", body: "It opens a page where you confirm the link, scans your home folder for git repos, counts your commits for the last year, shows you exactly what it found, and uploads only after you say yes. Then it schedules itself to re-run daily. Node.js is the only requirement." },

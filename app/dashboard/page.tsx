@@ -3,6 +3,9 @@ import { auth } from "@/auth";
 import { CrewForms } from "@/components/CrewForms";
 import { userCrews } from "@/lib/crews";
 
+/** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 export default async function DashboardIndex({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const session = await auth();
   if (!session) redirect("/");

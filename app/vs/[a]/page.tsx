@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { CompareForm } from "@/components/CompareForm";
 import { PublicShell } from "@/components/PublicShell";
 
+/** Per request: reads the URL. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 type Props = { params: Promise<{ a: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

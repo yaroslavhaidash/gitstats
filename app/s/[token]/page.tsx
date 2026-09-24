@@ -8,6 +8,9 @@ import { fmt, fmtRank } from "@/lib/format";
 import { resolveShareToken, shareCard } from "@/lib/share";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
+/** Per request: reads the URL. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 /** A link is unguessable, so a crawler must never hold on to one. */
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 

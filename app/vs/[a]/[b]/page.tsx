@@ -17,6 +17,9 @@ import { openGraphFor } from "@/lib/site";
 import { vsSide, type VsSide } from "@/lib/vs";
 import { PRESETS, windowLabel, type Preset, type Window } from "@/lib/window";
 
+/** Per request: reads the URL. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 type Props = { params: Promise<{ a: string; b: string }>; searchParams: Promise<{ w?: string }> };
 
 async function visitorIp(): Promise<string> {

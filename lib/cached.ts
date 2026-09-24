@@ -69,7 +69,7 @@ async function ranked(userIds: number[] | null, window: Window, viewer: BoardVie
 }
 
 export async function globalBoard(window: Window): Promise<RankedRow[]> {
-  "use cache";
+  "use cache: remote";
   cacheLife("hours");
   cacheTag(STATS_TAG, GLOBAL_TAG);
   return ranked(null, window, "global");
@@ -77,14 +77,14 @@ export async function globalBoard(window: Window): Promise<RankedRow[]> {
 
 /** The dashboard footer's live counts; invalidated with everything else on the `stats` tag. */
 export async function footerCounts(): Promise<SiteCounts> {
-  "use cache";
+  "use cache: remote";
   cacheLife("hours");
   cacheTag(STATS_TAG, GLOBAL_TAG);
   return siteCounts();
 }
 
 export async function crewBoard(crewId: number, window: Window): Promise<RankedRow[]> {
-  "use cache";
+  "use cache: remote";
   cacheLife("hours");
   cacheTag(STATS_TAG, crewTag(crewId));
   return ranked(await crewMemberIds(crewId), window, "crew");
@@ -108,7 +108,7 @@ const SHARE_REPOS = 3;
  * one switch that means "not this one, ever".
  */
 export async function shareStats(userId: number, window: Window, metric: Metric): Promise<ShareStats> {
-  "use cache";
+  "use cache: remote";
   cacheLife("hours");
   cacheTag(STATS_TAG, GLOBAL_TAG, userTag(userId));
   const kind = window.kind === "preset" && (window.value === "week" || window.value === "month") ? window.value : null;
@@ -142,7 +142,7 @@ export type RecapStats = {
  * board's ranking for that same range, so the card's place is the place the board showed.
  */
 export async function recapStats(userId: number, range: Range, metric: Metric, crewId: number | null): Promise<RecapStats> {
-  "use cache";
+  "use cache: remote";
   cacheLife("hours");
   cacheTag(STATS_TAG, GLOBAL_TAG, userTag(userId), ...(crewId === null ? [] : [crewTag(crewId)]));
   const window: Window = { kind: "range", ...range };
@@ -197,7 +197,7 @@ async function nearestWindow(userId: number, window: Window, includePrivate: boo
 }
 
 export async function userStats(userId: number, window: Window, isOwner: boolean, includePrivate: boolean, viewer: BoardViewer): Promise<UserStats> {
-  "use cache";
+  "use cache: remote";
   cacheLife("hours");
   cacheTag(STATS_TAG, userTag(userId));
   const { current: span, previous } = periodBounds(window);
@@ -240,7 +240,7 @@ export async function userStats(userId: number, window: Window, isOwner: boolean
 
 /** All-time bests; the member's own page reads them as `own`, everyone else in their matrix column. */
 export async function memberRecords(userId: number, viewer: BoardViewer): Promise<Records> {
-  "use cache";
+  "use cache: remote";
   cacheLife("hours");
   cacheTag(STATS_TAG, userTag(userId));
   return userRecords(userId, viewer);
@@ -253,7 +253,7 @@ export type PublicMemberStats = { row: BoardRow; year: number[] };
  * only count when the member shares them with everyone. The page checks the profile is open first.
  */
 export async function publicMemberStats(userId: number, window: Window): Promise<PublicMemberStats> {
-  "use cache";
+  "use cache: remote";
   cacheLife("hours");
   cacheTag(STATS_TAG, userTag(userId));
   const [[row], calendar] = await Promise.all([boardRows([userId], window, "global"), userDailyCounts(userId, daysAgo(YEAR_DAYS), "global")]);
@@ -273,7 +273,7 @@ export type RepoStats = {
  * the viewer shows its name — the page turns that into a 404, so a masked repo stays unguessable.
  */
 export async function repoStats(viewerId: number, nodeId: string, scopeIds: number[], window: Window): Promise<RepoStats | null> {
-  "use cache";
+  "use cache: remote";
   cacheLife("hours");
   // Any member of the repo can change this page, and who that is is not known until it is read.
   cacheTag(STATS_TAG, GLOBAL_TAG);
@@ -309,7 +309,7 @@ export type CrewTimelines = {
 
 /** Both member timelines and the race, on one pass. Private repos follow each member's crew setting. */
 export async function crewTimelines(crewId: number, window: Window): Promise<CrewTimelines> {
-  "use cache";
+  "use cache: remote";
   cacheLife("hours");
   cacheTag(STATS_TAG, crewTag(crewId));
   const ids = await crewMemberIds(crewId);
@@ -341,7 +341,7 @@ export async function crewTimelines(crewId: number, window: Window): Promise<Cre
 }
 
 export async function crewOverlaps(crewId: number, window: Window): Promise<OverlapRow[]> {
-  "use cache";
+  "use cache: remote";
   cacheLife("hours");
   cacheTag(STATS_TAG, crewTag(crewId));
   return repoOverlaps(await crewMemberIds(crewId), window, "crew");

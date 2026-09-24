@@ -12,9 +12,9 @@ const nextConfig: NextConfig = {
     "/blog/[slug]": ["./docs/blog/*.md"],
     "/blog/feed.xml": ["./docs/blog/*.md"],
   },
-  // Boards and user pages are session-gated, so the whole route can never be prerendered; the
-  // `use cache` directive lets the Postgres reads behind them be cached and tagged anyway.
-  experimental: { useCache: true },
+  // Boards and user pages are session-gated, so those routes render per request; the stats reads
+  // behind them are `use cache: remote` (lib/cached.ts), one cache shared by every instance.
+  cacheComponents: true,
 };
 
 export default nextConfig;

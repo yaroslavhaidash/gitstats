@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 import { FEED_ALTERNATE, post, stamp } from "@/lib/blog";
 import { openGraphFor } from "@/lib/site";
 
+/** Per request: reads the URL. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

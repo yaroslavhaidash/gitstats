@@ -13,6 +13,9 @@ import { globalBoard } from "@/lib/cached";
 import { accountCreatedAt, rankBy, standing } from "@/lib/stats";
 import { parseMetric, parseWindow, previousLabel, previousPeriodEnd, viewQuery, windowLabel, windowQuery, type Metric, type Window } from "@/lib/window";
 
+/** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 /** Below this many members the flat table is the whole point: everyone can see everyone. */
 const FLAT_UNDER = 50;
 /** The head of the board, and how far either side of the reader the neighbourhood reaches. */

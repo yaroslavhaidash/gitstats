@@ -2,6 +2,9 @@ import { redirect } from "next/navigation";
 import { countStep } from "@/lib/funnel";
 import { currentVisitor, recordTypedHandle } from "@/lib/visits";
 
+/** Per request: a redirect that records the typed handle. */
+export const instant = false;
+
 const clean = (login: string | undefined) => (login ?? "").trim().replace(/^@/, "");
 
 /** The "compare with me" boxes submit here as a plain GET form; a filled pair counts as one `vs_create`. */

@@ -15,6 +15,9 @@ import { fmt } from "@/lib/format";
 import { getHandle, markMemberViewed, memberLogin } from "@/lib/handle";
 import { openGraphFor } from "@/lib/site";
 
+/** Per request: reads the URL. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 type Props = { params: Promise<{ login: string }> };
 
 async function visitorIp(): Promise<string> {

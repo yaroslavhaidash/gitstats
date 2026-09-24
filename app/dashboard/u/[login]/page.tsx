@@ -42,6 +42,9 @@ import { backTarget, inviteTarget, sharesCrew, userByLogin, userCrews } from "@/
 import { fmt, pctDelta } from "@/lib/format";
 import { dayChartMode, lastWeekRange, parseMetric, parseWindow, rangeDays, viewQuery, windowLabel, windowQuery, windowRange, type Metric, type Window } from "@/lib/window";
 
+/** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
+export const instant = false;
+
 const flagsOf = (o: ShareOptions) => `${o.totals ? "t" : ""}${o.grid ? "g" : ""}${o.names ? "n" : ""}${o.streak ? "s" : ""}${o.record ? "r" : ""}${o.recap ? "w" : ""}` || "-";
 /** Every switch position on the share panel, so the page can mint a token for each one. */
 const SHARE_FLAGS: ShareOptions[] = [false, true].flatMap((totals) =>
