@@ -18,7 +18,7 @@ Live: https://gitstats.org · CLI: github.com/yaroslavhaidash/gitstats-cli (publ
 
 ## Commands
 ```bash
-npm run dev                 # local, needs .env.local (see README → Run it locally)
+npm run dev                 # local, needs .env.local (see docs/SELF-HOSTING.md → Run it locally)
 npx tsc --noEmit && npx eslint . && npx next build
 npm run db:generate && npm run db:migrate                 # schema change; never add+drop a column in one migration
 npx tsx --env-file=.env.local scripts/seed-demo.ts        # fake demo crew for /demo
@@ -38,7 +38,8 @@ Void `#050505`, alert red `#ff3333`, silver `#e0e2e5`, dark `#1a1a1a`; JetBrains
 - `docs/SECURITY-REVIEW-CLI.md` — the review that shaped the CLI path and how each finding was resolved.
 - `docs/CHANGELOG.md` — what shipped; rendered at `/changelog`.
 - `ROADMAP.md` — public direction, no dates.
-- `README.md` — env vars, local run, self-hosting, limitations.
+- `README.md` — what it is, privacy in brief, the short local run.
+- `docs/SELF-HOSTING.md` — env vars, full local run, self-hosting, data sources, limitations.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
