@@ -3,12 +3,10 @@ import { crewTag, GLOBAL_TAG, STATS_TAG, userTag } from "./cache";
 import { crewMemberIds } from "./crews";
 import {
   boardRows,
-  periodTotalsByUser,
   hiddenRepoNames,
   standing,
   languageLines,
   lastDays,
-  ownTotals,
   repoById,
   memberDailyTotals,
   memberWeeklyTotals,
@@ -21,7 +19,9 @@ import {
   siteCounts,
   userDailyCounts,
   userDailyLines,
+  rangeTotals,
   repoOverlaps,
+  NO_TOTALS,
   userRepos,
   weekdayAverages,
   weeklyTotals,
@@ -43,7 +43,7 @@ import {
   type Standing,
   type WeekRow,
 } from "./stats";
-import { chartWeeks, daysAgo, previousPeriod, raceWeeks, shiftDate, windowRange, yearChart, type Metric, type Preset, type Range, type Window } from "./window";
+import { chartWeeks, daysAgo, periodBounds, raceWeeks, shiftDate, windowRange, yearChart, type Metric, type Preset, type Range, type Window } from "./window";
 
 /**
  * Every Postgres read behind a board or a user page goes through this file. The session lookup
@@ -57,9 +57,11 @@ const MIX_WEEKS = 26;
 
 /** A board plus each member's commits in the period before it, which the momentum arrow compares against. */
 async function ranked(userIds: number[] | null, window: Window, viewer: BoardViewer): Promise<RankedRow[]> {
-  const prev = previousPeriod(window);
-  const [rows, before] = await Promise.all([boardRows(userIds, window, viewer), periodTotalsByUser(userIds, prev.window, viewer, prev.now)]);
-  return rows.map((r) => ({ ...r, prevCommits: before.get(r.userId)?.commits ?? 0, prevLines: before.get(r.userId)?.lines ?? 0 }));
+  const [rows, before] = await Promise.all([boardRows(userIds, window, viewer), rangeTotals(userIds, periodBounds(window).previous, viewer)]);
+  return rows.map((r) => {
+    const was = before.get(r.userId) ?? NO_TOTALS;
+    return { ...r, prevCommits: was.commits, prevLines: was.additions + was.deletions };
+  });
 }
 
 export async function globalBoard(window: Window): Promise<RankedRow[]> {
@@ -160,27 +162,24 @@ export async function userStats(userId: number, window: Window, isOwner: boolean
   "use cache";
   cacheLife("hours");
   cacheTag(STATS_TAG, userTag(userId));
-  const prev = previousPeriod(window);
-  const span = windowRange(window);
+  const { current: span, previous } = periodBounds(window);
   const chart = yearChart();
   // The member's own page is never gated by the matrix; everyone else reads their column of it.
   const reader: BoardViewer = isOwner ? "own" : viewer;
   // One merged-calendar fetch feeds both the year strip and the weekday profile's commits mode.
   const calendarFrom = span.from < daysAgo(YEAR_DAYS) ? span.from : daysAgo(YEAR_DAYS);
   const mixFrom = shiftDate(chart.endSunday, -(MIX_WEEKS - 1) * 7);
-  const [[shared], own, weeks, repoRows, calendar, before, dailyLines, languages, hiddenNames, repoWeeks] = await Promise.all([
+  const [[row], weeks, repoRows, calendar, before, dailyLines, languages, hiddenNames, repoWeeks] = await Promise.all([
     boardRows([userId], window, reader),
-    isOwner ? ownTotals(userId, window) : null,
     weeklyTotals(userId, shiftDate(chart.endSunday, -(chart.weeks - 1) * 7), chart.endSunday, includePrivate),
     userRepos(userId, window, includePrivate),
     userDailyCounts(userId, calendarFrom, reader),
-    isOwner ? ownTotals(userId, prev.window, prev.now) : boardRows([userId], prev.window, reader, prev.now).then((r) => r[0]),
+    rangeTotals([userId], previous, reader).then((t) => t.get(userId) ?? NO_TOTALS),
     userDailyLines(userId, span.from, span.to, includePrivate),
     languageLines(userId, window, includePrivate),
     hiddenRepoNames(userId),
     repoWeeklyTotals(userId, mixFrom, chart.endSunday, includePrivate),
   ]);
-  const row = own ? { ...shared, ...own } : shared;
   return {
     row,
     before,

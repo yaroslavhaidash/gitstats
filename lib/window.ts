@@ -91,6 +91,16 @@ export function previousPeriod(window: Window, now = new Date()): { window: Wind
   return { window: { kind: "range", from: shiftDate(window.from, -len), to: shiftDate(window.to, -len) }, now };
 }
 
+/**
+ * The days this window covers and the days of the period it is compared against, cut at the same
+ * point: Monday to today against last Monday to the same weekday. Every total and every delta reads
+ * these two ranges, so no surface can compare a partial week against a whole one.
+ */
+export function periodBounds(window: Window, now = new Date()): { current: Range; previous: Range } {
+  const prev = previousPeriod(window, now);
+  return { current: windowRange(window, now), previous: windowRange(prev.window, prev.now) };
+}
+
 /** The last instant the previous period covers: what an account must predate to have a place there. */
 export function previousPeriodEnd(window: Window, now = new Date()): Date {
   const prev = previousPeriod(window, now);

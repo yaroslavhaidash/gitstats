@@ -103,7 +103,7 @@ export function registerTools(server: McpServer, ownerOf: (clientId: string | un
     {
       title: "My summary",
       description:
-        "Your own totals for a window: commits, lines added/deleted, active repos, streak, stars, top language, your place on the global board, and the change against the same-length period before.",
+        "Your own totals for a window: commits, lines added/deleted, active repos, streak, stars, top language, your place on the global board, and the change against the same stretch of the period before, cut at the same point: Monday to today against last Monday to the same weekday, the 1st to today against the 1st to the same day last month.",
       inputSchema: z.object({ ...windowArgs, ...metricArg }),
       annotations: readOnly,
     },
