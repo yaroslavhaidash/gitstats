@@ -88,6 +88,7 @@ function shape(user: NonNullable<NonNullable<HandleResponse["data"]>["user"]>, n
     new Date(new Date(`${thisSunday}T00:00:00Z`).getTime() - (WEEKS - 1 - i) * 7 * 86_400_000).toISOString().slice(0, 10),
   );
   const perWeek = new Map(weekStarts.map((w) => [w, 0]));
+  const commitDays: Record<string, number> = {};
   const languages = new Map<string, number>();
   const repos: HandleData["repos"] = [];
   let weeksPartial = false;
@@ -98,7 +99,9 @@ function shape(user: NonNullable<NonNullable<HandleResponse["data"]>["user"]>, n
     let listed = 0;
     for (const node of contributions.nodes) {
       listed += node.commitCount;
-      const week = sundayOf(node.occurredAt.slice(0, 10));
+      const day = node.occurredAt.slice(0, 10);
+      commitDays[day] = (commitDays[day] ?? 0) + node.commitCount;
+      const week = sundayOf(day);
       if (perWeek.has(week)) perWeek.set(week, (perWeek.get(week) ?? 0) + node.commitCount);
     }
     if (listed < commits) weeksPartial = true;
@@ -120,6 +123,7 @@ function shape(user: NonNullable<NonNullable<HandleResponse["data"]>["user"]>, n
     totalCommits: c.totalCommitContributions,
     weeksPartial,
     repos: repos.slice(0, TOP_REPOS),
+    commitDays,
   };
 }
 
@@ -165,7 +169,9 @@ export const getHandle = cache(async (rawLogin: string, ip: string): Promise<Han
   const [cached] = await db.select().from(handleCache).where(eq(handleCache.login, login)).limit(1);
   const now = new Date();
   const served = (row: typeof cached): HandleResult => (row.data ? { status: "ok", data: row.data, memberViewed: row.memberViewed } : { status: "missing" });
-  if (cached && now.getTime() - cached.fetchedAt.getTime() < TTL_MS) {
+  // A row cached before per-day commits were stored is refetched like a stale one.
+  const complete = cached && (cached.data === null || cached.data.commitDays !== undefined);
+  if (cached && complete && now.getTime() - cached.fetchedAt.getTime() < TTL_MS) {
     console.log(`[handle] cache hit ${login}`);
     return served(cached);
   }

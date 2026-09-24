@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { after } from "next/server";
 import { auth } from "@/auth";
 import { BackLink } from "@/components/BackLink";
+import { CompareForm } from "@/components/CompareForm";
 import { CopyText } from "@/components/CopyText";
 import { DailyLines } from "@/components/DailyLines";
 import { EmptyNote } from "@/components/EmptyNote";
@@ -316,6 +317,11 @@ export default async function UserPage({
           <RangePicker current={window} basePath={`/dashboard/u/${user.githubLogin}`} query={suffix} />
         </div>
       </div>
+      {!isOwner && (
+        <div className="mb-8">
+          <CompareForm login={user.githubLogin} visitor={session.user.login} />
+        </div>
+      )}
       {invite && <InvitePanel link={invite.code ? `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/join/${invite.code}` : null} />}
       <Section fallback={<SkeletonStats />}>
         <Stats

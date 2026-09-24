@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { CommitWeeks } from "@/components/CommitWeeks";
-import { Logo } from "@/components/Logo";
+import { CompareForm } from "@/components/CompareForm";
+import { PublicShell } from "@/components/PublicShell";
 import { SignInButton } from "@/components/Tracked";
 import { YearCalendar } from "@/components/YearCalendar";
 import { signInWithGitHub } from "@/lib/actions";
@@ -35,38 +35,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-function Shell({ children }: { children: ReactNode }) {
-  return (
-    <main className="flex-1">
-      <nav className="sticky top-0 z-40 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Logo />
-          <div className="hidden md:flex gap-6 font-mono text-sm">
-            <Link href="/demo" className="hover:text-alert transition-colors">[DEMO]</Link>
-            <Link href="/docs" className="hover:text-alert transition-colors">[DOCS]</Link>
-          </div>
-          <form action={signInWithGitHub}>
-            <SignInButton where="handle_nav" className="font-mono text-xs border border-silver px-3 py-1 hover:bg-silver hover:text-void transition-colors">
-              SIGN_IN
-            </SignInButton>
-          </form>
-        </div>
-      </nav>
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">{children}</div>
-    </main>
-  );
-}
-
 function Notice({ tag, title, body }: { tag: string; title: string; body: string }) {
   return (
-    <Shell>
+    <PublicShell where="handle_nav">
       <div className="max-w-xl mx-auto text-center py-16">
         <div className="tag mb-4">{tag}</div>
         <h1 className="font-sans font-bold text-3xl mb-3">{title}</h1>
         <p className="font-mono text-sm text-dim mb-8">{body}</p>
         <Link href="/" className="btn-ghost px-6 py-3">TRY ANOTHER HANDLE_</Link>
       </div>
-    </Shell>
+    </PublicShell>
   );
 }
 
@@ -86,7 +64,7 @@ export default async function HandlePage({ params }: Props) {
   if (session) await markMemberViewed(login);
   const { data } = handle;
   return (
-    <Shell>
+    <PublicShell where="handle_nav">
       <div className="flex items-center gap-5 mb-8">
         <Image src={data.avatarUrl} alt="" width={64} height={64} className="border-2 border-silver" unoptimized />
         <div className="min-w-0">
@@ -144,6 +122,12 @@ export default async function HandlePage({ params }: Props) {
         </section>
       </div>
 
+      <section className="panel p-6 mb-8">
+        <h2 className="font-sans font-bold text-lg mb-1">Compare with {data.login}</h2>
+        <p className="font-mono text-xs text-faint mb-4">&gt; type your handle for a side-by-side, no sign-in</p>
+        <CompareForm login={data.login} />
+      </section>
+
       <section className="border-2 border-alert p-6 flex flex-wrap items-center justify-between gap-6">
         <div className="min-w-0">
           <h2 className="font-sans font-bold text-2xl mb-2">Lines, private repos, and a crew need your sign-in.</h2>
@@ -162,6 +146,6 @@ export default async function HandlePage({ params }: Props) {
           <SignInButton where="handle" className="btn-brutal px-8 py-4">SIGN IN WITH GITHUB_</SignInButton>
         </form>
       </section>
-    </Shell>
+    </PublicShell>
   );
 }

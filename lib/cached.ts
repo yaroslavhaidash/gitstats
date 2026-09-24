@@ -201,6 +201,20 @@ export async function userStats(userId: number, window: Window, isOwner: boolean
   };
 }
 
+export type PublicMemberStats = { row: BoardRow; year: number[] };
+
+/**
+ * A member as a stranger sees them, for `/vs`: the global column of the matrix, so private repos
+ * only count when the member shares them with everyone. The page checks the profile is open first.
+ */
+export async function publicMemberStats(userId: number, window: Window): Promise<PublicMemberStats> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(STATS_TAG, userTag(userId));
+  const [[row], calendar] = await Promise.all([boardRows([userId], window, "global"), userDailyCounts(userId, daysAgo(YEAR_DAYS), "global")]);
+  return { row, year: lastDays(calendar, YEAR_DAYS) };
+}
+
 export type RepoStats = {
   repo: RepoInfo;
   members: RepoMemberRow[];

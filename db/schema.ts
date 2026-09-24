@@ -299,6 +299,8 @@ export type HandleData = {
   weeksPartial: boolean;
   /** Top public repos by commits in the year. */
   repos: { nameWithOwner: string; commits: number; stars: number; language: string | null }[];
+  /** Public commits per UTC date (`YYYY-MM-DD`), from each repo's newest 100 active days; rows cached before `/vs` lack it. */
+  commitDays?: Record<string, number>;
 };
 
 /**
