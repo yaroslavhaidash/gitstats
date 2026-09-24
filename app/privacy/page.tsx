@@ -174,6 +174,18 @@ export default async function Privacy() {
             lists every command, including the ones that stop it.
           </p>
         </section>
+
+        <section id="mcp" className="mb-14">
+          <h2 className="font-sans font-bold text-2xl mb-4">AI assistants (MCP)</h2>
+          <p className="font-mono text-xs text-dim leading-relaxed">
+            An MCP token lets Claude Code, Codex or Cursor ask gitstats about your numbers. It reads only what you can
+            already see on the site when signed in as yourself, through the same visibility settings, and it is
+            read-only: nothing sent with it can change anything. The token is shown once when you create it and stored
+            only as a sha256 hash. Each one records when it was last used, and you can revoke it any time under{" "}
+            <Link href="/dashboard/settings#assistants" className="text-silver underline hover:text-alert">settings</Link>.
+            The server also counts how many MCP calls were made each day, as one number with no user attached.
+          </p>
+        </section>
       </div>
     </main>
   );
