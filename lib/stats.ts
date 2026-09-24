@@ -55,30 +55,6 @@ async function starsByUser(userIds: number[] | null, viewer: BoardViewer): Promi
   return new Map(rows.map((r) => [r.userId, r.stars]));
 }
 
-async function topLanguageByUser(userIds: number[] | null, weeks: Range, viewer: BoardViewer): Promise<Map<number, string>> {
-  const rows = await db
-    .select({
-      userId: weeklyStats.userId,
-      language: repos.primaryLanguage,
-      commits: sql<number>`sum(${weeklyStats.commits})::int`,
-    })
-    .from(weeklyStats)
-    .innerJoin(repos, eq(repos.githubNodeId, weeklyStats.repoNodeId))
-    .innerJoin(users, and(eq(users.id, weeklyStats.userId), sharedRepo(viewer)))
-    .where(
-      and(
-        between(weeklyStats.weekStart, weeks.from, weeks.to),
-        sql`${repos.primaryLanguage} is not null`,
-        userIds === null ? undefined : inArray(weeklyStats.userId, userIds),
-      ),
-    )
-    .groupBy(weeklyStats.userId, repos.primaryLanguage)
-    .orderBy(desc(sql`sum(${weeklyStats.commits})`));
-  const top = new Map<number, string>();
-  for (const r of rows) if (r.language && !top.has(r.userId)) top.set(r.userId, r.language);
-  return top;
-}
-
 type DailyRow = { userId: number; date: string; count: number };
 
 /**
@@ -208,12 +184,10 @@ function sharedRepo(viewer: BoardViewer) {
 }
 
 export async function boardRows(userIds: number[] | null, window: Window, viewer: BoardViewer, now = new Date(), heatmapDays = HEATMAP_DAYS): Promise<BoardRow[]> {
-  const weeks = weekRange(window, now);
-  const [members, totals, stars, languages, daily, streaks] = await Promise.all([
+  const [members, totals, stars, daily, streaks] = await Promise.all([
     db.select({ userId: users.id, login: users.githubLogin, avatarUrl: users.avatarUrl, name: users.name }).from(users).where(scope(userIds)),
     rangeTotals(userIds, periodBounds(window, now).current, viewer, now),
     starsByUser(userIds, viewer),
-    topLanguageByUser(userIds, weeks, viewer),
     dailyByUser(userIds, daysAgo(heatmapDays), viewer),
     streakByUser(userIds, viewer),
   ]);
@@ -225,7 +199,6 @@ export async function boardRows(userIds: number[] | null, window: Window, viewer
         ...t,
         ...(totals.get(t.userId) ?? NO_TOTALS),
         stars: stars.get(t.userId) ?? 0,
-        topLanguage: languages.get(t.userId) ?? null,
         streak: streaks.get(t.userId) ?? 0,
         days: lastDays(days, heatmapDays),
       };
@@ -330,9 +303,13 @@ export type RepoRow = {
   deletions: number;
 };
 
-export async function userRepos(userId: number, window: Window, includePrivate: boolean): Promise<RepoRow[]> {
-  const weeks = weekRange(window);
-  return db
+/** Per-repo totals over the window's days, summed like the tiles (`placedDays`), so they add up to them. */
+export async function userRepos(userId: number, window: Window, includePrivate: boolean, now = new Date()): Promise<RepoRow[]> {
+  const { current } = periodBounds(window, now);
+  const { repos: repoTotals } = await placedDays([userId], current.from, current.to, includePrivate ? sql`true` : eq(repos.isPrivate, false), now);
+  const totals = repoTotals.get(userId) ?? [];
+  if (totals.length === 0) return [];
+  const meta = await db
     .select({
       nodeId: repos.githubNodeId,
       nameWithOwner: repos.nameWithOwner,
@@ -341,15 +318,16 @@ export async function userRepos(userId: number, window: Window, includePrivate: 
       isFork: repos.isFork,
       isPrivate: repos.isPrivate,
       statsPending: repos.statsPending,
-      commits: sql<number>`sum(${weeklyStats.commits})::int`,
-      additions: sql<number>`sum(${weeklyStats.additions})::int`,
-      deletions: sql<number>`sum(${weeklyStats.deletions})::int`,
     })
-    .from(weeklyStats)
-    .innerJoin(repos, eq(repos.githubNodeId, weeklyStats.repoNodeId))
-    .where(and(eq(weeklyStats.userId, userId), between(weeklyStats.weekStart, weeks.from, weeks.to), includePrivate ? undefined : eq(repos.isPrivate, false)))
-    .groupBy(repos.githubNodeId)
-    .orderBy(desc(sql`sum(${weeklyStats.commits})`));
+    .from(repos)
+    .where(inArray(repos.githubNodeId, totals.map((t) => t.nodeId)));
+  const byId = new Map(meta.map((m) => [m.nodeId, m]));
+  return totals
+    .flatMap((t) => {
+      const m = byId.get(t.nodeId);
+      return m ? [{ ...m, commits: t.commits, additions: t.additions, deletions: t.deletions }] : [];
+    })
+    .sort((a, b) => b.commits - a.commits || b.additions + b.deletions - (a.additions + a.deletions));
 }
 
 /** The merged calendar for one user from `since` to today, as a date -> contributions map. */
@@ -360,27 +338,17 @@ export async function userDailyCounts(userId: number, since: string, viewer: Boa
 
 export type LanguageRow = { language: string | null; lines: number; additions: number; deletions: number };
 
-/** Lines touched (added + deleted) per repo language over the window, biggest first. */
-export async function languageLines(userId: number, window: Window, includePrivate: boolean): Promise<LanguageRow[]> {
-  const weeks = weekRange(window);
-  return db
-    .select({
-      language: repos.primaryLanguage,
-      lines: sql<number>`sum(${weeklyStats.additions} + ${weeklyStats.deletions})::int`,
-      additions: sql<number>`sum(${weeklyStats.additions})::int`,
-      deletions: sql<number>`sum(${weeklyStats.deletions})::int`,
-    })
-    .from(weeklyStats)
-    .innerJoin(repos, eq(repos.githubNodeId, weeklyStats.repoNodeId))
-    .where(
-      and(
-        eq(weeklyStats.userId, userId),
-        between(weeklyStats.weekStart, weeks.from, weeks.to),
-        includePrivate ? undefined : eq(repos.isPrivate, false),
-      ),
-    )
-    .groupBy(repos.primaryLanguage)
-    .orderBy(desc(sql`sum(${weeklyStats.additions} + ${weeklyStats.deletions})`));
+/** Lines touched (added + deleted) per repo language, from the window's repo totals, biggest first. */
+export function languageLines(repoRows: RepoRow[]): LanguageRow[] {
+  const byLanguage = new Map<string | null, LanguageRow>();
+  for (const r of repoRows) {
+    const t = byLanguage.get(r.primaryLanguage) ?? { language: r.primaryLanguage, lines: 0, additions: 0, deletions: 0 };
+    t.additions += r.additions;
+    t.deletions += r.deletions;
+    t.lines += r.additions + r.deletions;
+    byLanguage.set(r.primaryLanguage, t);
+  }
+  return [...byLanguage.values()].sort((a, b) => b.lines - a.lines);
 }
 
 export type MemberWeekRow = { weekStart: string; userId: number; commits: number; lines: number };
@@ -564,6 +532,31 @@ const zero = (): Amounts => ({ commits: 0, additions: 0, deletions: 0, pendingCo
 
 type UserDay = DailyLineRow & { userId: number; pendingCommits: number; pendingAdditions: number; pendingDeletions: number };
 
+/** One repo's share of a member's period total, from the same days the total is summed from. */
+export type RepoTotal = { nodeId: string; language: string | null; commits: number; additions: number; deletions: number };
+
+const REPO_AMOUNTS = ["commits", "additions", "deletions"] as const;
+type RepoAmounts = Record<(typeof REPO_AMOUNTS)[number], number>;
+
+/**
+ * Split an integer total over parts in proportion to `raw`, largest remainder first, so the parts
+ * add up to exactly `total`. That is how a repo's placed share keeps the per-repo list equal to the
+ * tile: the tile rounds each day, and the repos have to add up to what it printed.
+ */
+function apportion(total: number, raw: number[]): number[] {
+  const sum = raw.reduce((a, b) => a + b, 0);
+  if (sum <= 0 || total <= 0) return raw.map(() => 0);
+  const scaled = raw.map((r) => (r * total) / sum);
+  const out = scaled.map(Math.floor);
+  let left = total - out.reduce((a, b) => a + b, 0);
+  for (const i of raw.map((_, i) => i).sort((a, b) => scaled[b] - out[b] - (scaled[a] - out[a]))) {
+    if (left <= 0) break;
+    out[i] += 1;
+    left -= 1;
+  }
+  return out;
+}
+
 /**
  * Per member, per day, across their repos, from the two sources that know anything about days.
  *
@@ -578,7 +571,13 @@ type UserDay = DailyLineRow & { userId: number; pendingCommits: number; pendingA
  * Every period total is a sum of these days, so a week is Monday to today on both sides of a
  * comparison and a total always equals the day chart under it. `gate` decides which repos count.
  */
-async function placedDays(userIds: number[] | null, from: string, to: string, gate: SQL, now: Date): Promise<{ days: UserDay[]; activeRepos: Map<number, number> }> {
+async function placedDays(
+  userIds: number[] | null,
+  from: string,
+  to: string,
+  gate: SQL,
+  now: Date,
+): Promise<{ days: UserDay[]; activeRepos: Map<number, number>; repos: Map<number, RepoTotal[]> }> {
   const today = daysAgo(0, now);
   // A week bucket overlaps the window when it starts up to six days before `from`; the last such
   // bucket runs six days past `to`. Coverage has to be judged over that whole span.
@@ -592,6 +591,7 @@ async function placedDays(userIds: number[] | null, from: string, to: string, ga
       .select({
         userId: dailyLocal.userId,
         repoNodeId: dailyLocal.repoNodeId,
+        language: repos.primaryLanguage,
         date: dailyLocal.date,
         commits: dailyLocal.commits,
         additions: dailyLocal.additions,
@@ -609,6 +609,7 @@ async function placedDays(userIds: number[] | null, from: string, to: string, ga
       .select({
         userId: weeklyStats.userId,
         repoNodeId: weeklyStats.repoNodeId,
+        language: repos.primaryLanguage,
         weekStart: weeklyStats.weekStart,
         commits: weeklyStats.commits,
         additions: weeklyStats.additions,
@@ -637,6 +638,14 @@ async function placedDays(userIds: number[] | null, from: string, to: string, ga
   };
   const active = new Map<number, Set<string>>();
   const touch = (userId: number, repo: string) => active.set(userId, (active.get(userId) ?? new Set()).add(repo));
+  const perRepo = new Map<number, Map<string, { language: string | null; counted: RepoAmounts; spread: RepoAmounts }>>();
+  const repoAt = (userId: number, nodeId: string, language: string | null) => {
+    const mine = perRepo.get(userId) ?? new Map();
+    perRepo.set(userId, mine);
+    const repo = mine.get(nodeId) ?? { language, counted: { commits: 0, additions: 0, deletions: 0 }, spread: { commits: 0, additions: 0, deletions: 0 } };
+    mine.set(nodeId, repo);
+    return repo;
+  };
 
   /** Repo weeks a machine already counted for a member, which must not also be placed from their total. */
   const covered = new Set<string>();
@@ -646,6 +655,10 @@ async function placedDays(userIds: number[] | null, from: string, to: string, ga
     const day = at(r.userId, r.date);
     for (const k of AMOUNTS) day.counted[k] += r[k];
     if (r.commits > 0) touch(r.userId, r.repoNodeId);
+    if (r.commits + r.additions + r.deletions > 0) {
+      const repo = repoAt(r.userId, r.repoNodeId, r.language);
+      for (const k of REPO_AMOUNTS) repo.counted[k] += r[k];
+    }
   }
 
   const shapes = new Map<number, Map<string, number>>();
@@ -658,6 +671,11 @@ async function placedDays(userIds: number[] | null, from: string, to: string, ga
       for (const k of AMOUNTS) day.spread[k] += w[k] * share;
     }
     if (w.commits > 0 && shares.length > 0) touch(w.userId, w.repoNodeId);
+    const part = shares.reduce((sum, [, share]) => sum + share, 0);
+    if (part > 0 && w.commits + w.additions + w.deletions > 0) {
+      const repo = repoAt(w.userId, w.repoNodeId, w.language);
+      for (const k of REPO_AMOUNTS) repo.spread[k] += w[k] * part;
+    }
   }
 
   const rows = [...days.values()].map(({ userId, date, counted, spread }): UserDay => {
@@ -676,7 +694,35 @@ async function placedDays(userIds: number[] | null, from: string, to: string, ga
       pendingDeletions: counted.pendingDeletions + Math.round(spread.pendingDeletions),
     };
   });
-  return { days: rows, activeRepos: new Map([...active].map(([userId, set]) => [userId, set.size])) };
+
+  // Each repo gets its counted days plus its part of the placed amounts the day totals printed.
+  const placedTotal = new Map<number, RepoAmounts>();
+  for (const r of rows) {
+    const t = placedTotal.get(r.userId) ?? { commits: 0, additions: 0, deletions: 0 };
+    t.commits += r.spreadCommits;
+    t.additions += r.spreadAdditions;
+    t.deletions += r.spreadDeletions;
+    placedTotal.set(r.userId, t);
+  }
+  const repoTotals = new Map<number, RepoTotal[]>();
+  for (const [userId, mine] of perRepo) {
+    const entries = [...mine];
+    const placed = placedTotal.get(userId) ?? { commits: 0, additions: 0, deletions: 0 };
+    const shares = Object.fromEntries(REPO_AMOUNTS.map((k) => [k, apportion(placed[k], entries.map(([, r]) => r.spread[k]))])) as Record<keyof RepoAmounts, number[]>;
+    repoTotals.set(
+      userId,
+      entries
+        .map(([nodeId, r], i) => ({
+          nodeId,
+          language: r.language,
+          commits: r.counted.commits + shares.commits[i],
+          additions: r.counted.additions + shares.additions[i],
+          deletions: r.counted.deletions + shares.deletions[i],
+        }))
+        .filter((r) => r.commits + r.additions + r.deletions > 0),
+    );
+  }
+  return { days: rows, activeRepos: new Map([...active].map(([userId, set]) => [userId, set.size])), repos: repoTotals };
 }
 
 /** Lines per day across one user's repos; see `placedDays` for where each figure comes from. */
@@ -695,9 +741,22 @@ export async function userDailyLines(userId: number, from: string, to: string, i
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export type RangeTotals = Amounts & { activeRepos: number };
+export type RangeTotals = Amounts & { activeRepos: number; topLanguage: string | null };
 
-export const NO_TOTALS: RangeTotals = { ...zero(), activeRepos: 0 };
+export const NO_TOTALS: RangeTotals = { ...zero(), activeRepos: 0, topLanguage: null };
+
+/** The language with the most commits over the same repo totals, lines breaking a tie. */
+function topLanguage(repoTotals: RepoTotal[]): string | null {
+  const byLanguage = new Map<string, { commits: number; lines: number }>();
+  for (const r of repoTotals) {
+    if (!r.language) continue;
+    const t = byLanguage.get(r.language) ?? { commits: 0, lines: 0 };
+    t.commits += r.commits;
+    t.lines += r.additions + r.deletions;
+    byLanguage.set(r.language, t);
+  }
+  return [...byLanguage].sort(([, a], [, b]) => b.commits - a.commits || b.lines - a.lines)[0]?.[0] ?? null;
+}
 
 /**
  * Each member's totals over an inclusive day range, as `viewer` may see them: the sum of the days
@@ -705,10 +764,10 @@ export const NO_TOTALS: RangeTotals = { ...zero(), activeRepos: 0 };
  * the range are absent.
  */
 export async function rangeTotals(userIds: number[] | null, range: Range, viewer: BoardViewer, now = new Date()): Promise<Map<number, RangeTotals>> {
-  const { days, activeRepos } = await placedDays(userIds, range.from, range.to, sharedRepo(viewer), now);
+  const { days, activeRepos, repos: repoTotals } = await placedDays(userIds, range.from, range.to, sharedRepo(viewer), now);
   const totals = new Map<number, RangeTotals>();
   for (const d of days) {
-    const t = totals.get(d.userId) ?? { ...NO_TOTALS, activeRepos: activeRepos.get(d.userId) ?? 0 };
+    const t = totals.get(d.userId) ?? { ...NO_TOTALS, activeRepos: activeRepos.get(d.userId) ?? 0, topLanguage: topLanguage(repoTotals.get(d.userId) ?? []) };
     for (const k of AMOUNTS) t[k] += d[k];
     totals.set(d.userId, t);
   }
@@ -990,25 +1049,20 @@ export type RepoMemberRow = {
   deletions: number;
 };
 
-/** Per-member totals for one repo in the window, biggest first. */
-export async function repoMemberTotals(nodeId: string, userIds: number[], window: Window): Promise<RepoMemberRow[]> {
+/** Per-member totals for one repo over the window's days, summed like every other period total, biggest first. */
+export async function repoMemberTotals(nodeId: string, userIds: number[], window: Window, now = new Date()): Promise<RepoMemberRow[]> {
   if (userIds.length === 0) return [];
-  const weeks = weekRange(window);
-  return db
-    .select({
-      userId: users.id,
-      login: users.githubLogin,
-      avatarUrl: users.avatarUrl,
-      name: users.name,
-      commits: sql<number>`sum(${weeklyStats.commits})::int`,
-      additions: sql<number>`sum(${weeklyStats.additions})::int`,
-      deletions: sql<number>`sum(${weeklyStats.deletions})::int`,
+  const { current } = periodBounds(window, now);
+  const [{ repos: repoTotals }, members] = await Promise.all([
+    placedDays(userIds, current.from, current.to, eq(repos.githubNodeId, nodeId), now),
+    db.select({ userId: users.id, login: users.githubLogin, avatarUrl: users.avatarUrl, name: users.name }).from(users).where(inArray(users.id, userIds)),
+  ]);
+  return members
+    .flatMap((m) => {
+      const t = repoTotals.get(m.userId)?.find((r) => r.nodeId === nodeId);
+      return t ? [{ ...m, commits: t.commits, additions: t.additions, deletions: t.deletions }] : [];
     })
-    .from(weeklyStats)
-    .innerJoin(users, eq(users.id, weeklyStats.userId))
-    .where(and(eq(weeklyStats.repoNodeId, nodeId), inArray(weeklyStats.userId, userIds), between(weeklyStats.weekStart, weeks.from, weeks.to)))
-    .groupBy(users.id)
-    .orderBy(desc(sql`sum(${weeklyStats.commits})`));
+    .sort((a, b) => b.commits - a.commits);
 }
 
 export type RepoWeekRow = { weekStart: string; userId: number; commits: number };
@@ -1032,35 +1086,44 @@ export type OverlapRow = {
   members: { userId: number; login: string; avatarUrl: string; repoNames: RepoNames; hiddenName: boolean }[];
 };
 
-/** Repos two or more of these members pushed to in the window, busiest first. */
-export async function repoOverlaps(userIds: number[], window: Window, viewer: BoardViewer): Promise<OverlapRow[]> {
+/** Repos two or more of these members pushed to over the window's days, busiest first. */
+export async function repoOverlaps(userIds: number[], window: Window, viewer: BoardViewer, now = new Date()): Promise<OverlapRow[]> {
   if (userIds.length < 2) return [];
-  const weeks = weekRange(window);
-  const rows = await db
-    .select({
-      nodeId: repos.githubNodeId,
-      nameWithOwner: repos.nameWithOwner,
-      isPrivate: repos.isPrivate,
-      userId: users.id,
-      login: users.githubLogin,
-      avatarUrl: users.avatarUrl,
-      repoNames: users.repoNames,
-      hiddenName: sql<boolean>`bool_or(coalesce(${repoNameOverrides.hidden}, false))`,
-      commits: sql<number>`sum(${weeklyStats.commits})::int`,
-    })
-    .from(weeklyStats)
-    .innerJoin(repos, eq(repos.githubNodeId, weeklyStats.repoNodeId))
-    .innerJoin(users, and(eq(users.id, weeklyStats.userId), sharedRepo(viewer)))
-    .leftJoin(repoNameOverrides, and(eq(repoNameOverrides.userId, users.id), eq(repoNameOverrides.repoNodeId, weeklyStats.repoNodeId)))
-    .where(and(inArray(weeklyStats.userId, userIds), between(weeklyStats.weekStart, weeks.from, weeks.to)))
-    .groupBy(repos.githubNodeId, users.id)
-    .having(sql`sum(${weeklyStats.commits}) > 0`);
-  const byRepo = new Map<string, OverlapRow>();
-  for (const r of rows) {
-    const entry = byRepo.get(r.nodeId) ?? { nodeId: r.nodeId, nameWithOwner: r.nameWithOwner, isPrivate: r.isPrivate, commits: 0, members: [] };
-    entry.commits += r.commits;
-    entry.members.push({ userId: r.userId, login: r.login, avatarUrl: r.avatarUrl, repoNames: r.repoNames, hiddenName: r.hiddenName });
-    byRepo.set(r.nodeId, entry);
+  const { current } = periodBounds(window, now);
+  const { repos: repoTotals } = await placedDays(userIds, current.from, current.to, sharedRepo(viewer), now);
+  const commitsBy = new Map<string, Map<number, number>>();
+  for (const [userId, mine] of repoTotals) {
+    for (const r of mine) if (r.commits > 0) commitsBy.set(r.nodeId, (commitsBy.get(r.nodeId) ?? new Map()).set(userId, r.commits));
   }
-  return [...byRepo.values()].filter((r) => r.members.length > 1).sort((a, b) => b.commits - a.commits);
+  const shared = [...commitsBy].filter(([, members]) => members.size > 1);
+  if (shared.length === 0) return [];
+  const nodeIds = shared.map(([nodeId]) => nodeId);
+  const memberIds = [...new Set(shared.flatMap(([, members]) => [...members.keys()]))];
+  const [repoRows, memberRows, hidden] = await Promise.all([
+    db.select({ nodeId: repos.githubNodeId, nameWithOwner: repos.nameWithOwner, isPrivate: repos.isPrivate }).from(repos).where(inArray(repos.githubNodeId, nodeIds)),
+    db.select({ userId: users.id, login: users.githubLogin, avatarUrl: users.avatarUrl, repoNames: users.repoNames }).from(users).where(inArray(users.id, memberIds)),
+    db
+      .select({ userId: repoNameOverrides.userId, nodeId: repoNameOverrides.repoNodeId })
+      .from(repoNameOverrides)
+      .where(and(inArray(repoNameOverrides.userId, memberIds), inArray(repoNameOverrides.repoNodeId, nodeIds), eq(repoNameOverrides.hidden, true))),
+  ]);
+  const repoById = new Map(repoRows.map((r) => [r.nodeId, r]));
+  const memberById = new Map(memberRows.map((m) => [m.userId, m]));
+  const hides = new Set(hidden.map((h) => `${h.userId}:${h.nodeId}`));
+  return shared
+    .flatMap(([nodeId, members]): OverlapRow[] => {
+      const repo = repoById.get(nodeId);
+      if (!repo) return [];
+      return [
+        {
+          ...repo,
+          commits: [...members.values()].reduce((a, b) => a + b, 0),
+          members: [...members.keys()].flatMap((userId) => {
+            const m = memberById.get(userId);
+            return m ? [{ ...m, hiddenName: hides.has(`${userId}:${nodeId}`) }] : [];
+          }),
+        },
+      ];
+    })
+    .sort((a, b) => b.commits - a.commits);
 }

@@ -208,14 +208,13 @@ export async function userStats(userId: number, window: Window, isOwner: boolean
   // One merged-calendar fetch feeds both the year strip and the weekday profile's commits mode.
   const calendarFrom = span.from < daysAgo(YEAR_DAYS) ? span.from : daysAgo(YEAR_DAYS);
   const mixFrom = shiftDate(chart.endSunday, -(MIX_WEEKS - 1) * 7);
-  const [[row], weeks, repoRows, calendar, before, dailyLines, languages, hiddenNames, repoWeeks] = await Promise.all([
+  const [[row], weeks, repoRows, calendar, before, dailyLines, hiddenNames, repoWeeks] = await Promise.all([
     boardRows([userId], window, reader),
     weeklyTotals(userId, shiftDate(chart.endSunday, -(chart.weeks - 1) * 7), chart.endSunday, includePrivate),
     userRepos(userId, window, includePrivate),
     userDailyCounts(userId, calendarFrom, reader),
     rangeTotals([userId], previous, reader).then((t) => t.get(userId) ?? NO_TOTALS),
     userDailyLines(userId, span.from, span.to, includePrivate),
-    languageLines(userId, window, includePrivate),
     hiddenRepoNames(userId),
     repoWeeklyTotals(userId, mixFrom, chart.endSunday, includePrivate),
   ]);
@@ -227,7 +226,7 @@ export async function userStats(userId: number, window: Window, isOwner: boolean
     chartEnd: chart.endSunday,
     repoRows,
     dailyLines,
-    languages,
+    languages: languageLines(repoRows),
     hiddenNames,
     repoWeeks,
     mixWeeks: MIX_WEEKS,
