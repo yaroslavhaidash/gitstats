@@ -95,6 +95,8 @@ Repos are keyed by GitHub node id so renames/deletions never orphan rows. Preced
 ## File map
 
 - `auth.ts` sign-in; `types/auth.d.ts` session typing.
+- `proxy.ts` answers the few HTTP statuses a page no longer can (see Speed): `/admin` 404s for anyone who is not an admin exactly like an unknown path, signed-out `/dashboard/*` 307s to `/`, signed-in `/` 307s to `/dashboard`. It only decodes the session JWT (plus `isAdmin` for `/admin`); the pages keep their own checks.
+- `lib/cached.ts` every stats read a page makes, `'use cache: remote'` with `cacheTag`s from `lib/cache.ts`, so one cache serves every instance and a sync, snapshot or settings change drops exactly its tags.
 - `db/schema.ts`, `db/index.ts` (lazy Neon client so `next build` needs no DB), `drizzle/` migrations.
 - `lib/account.ts` export, account deletion, the 30-day delete archive and its restore/purge · `lib/admin.ts` `ADMIN_GITHUB_IDS` gate, the `/admin` overview query and the admin log · `lib/github.ts` GraphQL/REST client with rate-limit headers · `lib/snapshot.ts` nightly job · `lib/cli.ts` pairing + ingest + HMAC matching · `lib/stats.ts` all board/user queries · `lib/crews.ts` membership · `lib/actions.ts` server actions (crews, tokens, profile, device) · `lib/window.ts` time windows · `lib/share.ts` share-card tokens · `lib/mcp.ts` MCP tools and token lookup · `lib/oauth.ts` the OAuth authorization server behind `/api/mcp` · `lib/crypto.ts` AES-GCM · `lib/format.ts` numbers/dates · `lib/env.ts`.
 - `components/`: `Leaderboard` (table from `sm:`, cards below; `rankOffset` lets the global board draw slices of a longer board and `highlightUserId` marks the reader's row), `StandingBlock` (the reader's percentile, place and movement), `SharePanel` (the owner's share switches; the page mints a token for all eight positions so a toggle needs no round trip), `RepoList` (same two modes), `StatTile`, `WeeklyBars` (mirrored weekly bars), `YearCalendar` (two half-year rows), `MonthBlocks`, `MemberBars` (stacked weekly commits per member), `Overlaps`, `LanguageShare`, `WeekdayProfile`, `Heatmap` (84-day strips), `CellTip` (hover label), `WindowTabs`, `MetricTabs`, `RangePicker` (one button, popover), `ViewLink` (carries the window and metric across pages, and tags the destination with `?src=` — `c:<code>` or `global` — so a profile or repo page knows which board to offer back), `Hotkeys` (1/2/3, g, h, / palette), `Palette`, `Skeleton` (used by the `loading.tsx` files), `EmptyNote` (`inset` when it stands in for a chart inside a card), `CopyText`, `Confirm` (two-click destructive actions), `CrewManage`, `VisibilityMatrix`, `SetupCommand`, `CrewForms`, `Brackets`, `Glitch`, `Logo`, `Section` (per-card Suspense + error boundary), `NavMenu` (the one `<details>` dropdown the nav uses), `CrewSwitcher` (the crews as links or as `[CREWS ▾]`), `BackLink` ("← <board>", Escape too).
@@ -130,7 +132,25 @@ any of them answer. Two things follow, and both are load-bearing:
 
 ## Speed (measured 2026-09-24)
 
-Production, `curl` from Europe (edge `arn1`), functions in `iad1`, Neon in `us-east-1`. Milliseconds; "first" is the first of ten requests, the rest are medians of the other nine. Signed-in rows use a throwaway account; the member page is an open member's page, the crew board a one-member crew.
+Production, `curl` from Europe (edge `arn1`), functions in `iad1`, Neon in `us-east-1`. Milliseconds; "first" is the first of ten requests, the rest are medians of the other nine. Signed-in rows use a throwaway account; the member page is an open member's page viewed as a stranger, the crew board a one-member crew.
+
+**Now: Cache Components, stats reads in `'use cache: remote'`.**
+
+| route | first TTFB | TTFB | total (stream end) |
+|---|---|---|---|
+| static robots.txt (network floor) | 509 | 140 | 140 |
+| /api/health (function + 2 queries) | 318 | 289 | 289 |
+| / signed out | 246 | 196 | 494 |
+| /demo (year default) | 163 | 143 | 601 |
+| /demo?w=week | 136 | 150 | 512 |
+| /gh/torvalds | 146 | 153 | 463 |
+| /vs/torvalds/gaearon | 159 | 146 | 496 |
+| member page (stranger, week) | 204 | 194 | 490 |
+| crew board (1 member) | 221 | 196 | 478 |
+| /dashboard/global week | 187 | 199 | 571 |
+| /docs | 161 | 145 | 305 |
+
+**Before (`experimental.useCache`, in-memory per instance; the morning's speed-pass table plus the afternoon's `/gh`, `/vs` and member-page rows):**
 
 | route | first TTFB | TTFB | total (stream end) |
 |---|---|---|---|
@@ -144,14 +164,18 @@ Production, `curl` from Europe (edge `arn1`), functions in `iad1`, Neon in `us-e
 | /dashboard/global year | 333 | 329 | 488 |
 | /demo (year default) | 668 | 616 | 846 |
 | /demo?w=week | 403 | 428 | 533 |
+| member page (stranger, week) | 363 | 303 | 457 |
+| /gh/torvalds | 293 | 292 | 352 |
+| /vs/torvalds/gaearon | 288 | 303 | 355 |
 | /badge/<login> | 158 | 148 | 149 |
 | MCP my_summary | 571 | 352 | 352 |
 
-What the numbers say, and why nothing was changed:
-- **The floor is geography.** A static file costs ~150 ms from Europe, the cheapest function ~315 ms; every page sits 0–250 ms above that. The edge-to-`iad1` hop is paid on every dynamic request.
-- **Postgres is not the cost.** `EXPLAIN ANALYZE` of the widest reads (a year of `daily_local`, `weekly_stats`, `daily_contributions` for the global board, and the stars query) executes in 0.4–1.3 ms on sequential scans of tables with a few thousand rows; an index has nothing to win. In-region round trips are close to free: an MCP call that adds two sequential queries is as fast as one that runs none, so collapsing queries is not measurable either.
-- **`use cache` does not hit on Vercel.** It is the default in-memory handler, per instance; ten requests in a row for `/demo` never dropped to a cached time. A local `next start` with a warm cache renders `/demo` in ~30 ms of server work, so a shared cache would remove nearly all of it, but `use cache: remote` needs `cacheComponents: true` (the app is on `experimental.useCache`), which is a rendering-model migration, not a tweak.
-- **`/demo` is the one outlier** (~300 ms above its own week view): the seeded crew has about five times the day rows of every real member combined, and each render reads them four times (board, previous period, overlaps, race), about 13k rows, where driver JSON parsing and row mapping dominate the CPU profile. It is generated data shown by design as a full year.
+What changed, and what it costs:
+- **Every page now streams a prerendered shell from the edge** (`x-nextjs-prerender: 1`), so the first byte arrives at about the static-file floor (~150 ms) instead of after the whole render. For most pages that shell is only the root layout; the content still comes from the function.
+- **`/demo` is the win.** Its four stats reads are now shared cache hits: 846 → ~600 ms to the end of the stream. The seeded crew has about five times the day rows of every real member combined, and each render used to re-read about 13k rows.
+- **Pages already at the floor got ~50–140 ms slower to the end of the stream** (`/gh`, `/vs`, the member page, the crew board): the shell-then-resume path costs more than it saves when the page had little to cache. Speed Insights (`@vercel/speed-insights`, root layout) now measures LCP from real visitors, which is the number to judge this by.
+- **The shell costs HTTP statuses.** Once it is sent the status is a 200, so a page's own `redirect()` becomes a client-side redirect and `notFound()` a soft 404 with `noindex` (Next's documented trade-off). What must be a real status is answered in `proxy.ts` before rendering, and the `/gh` and `/vs` lookups are route handlers; `/join/<bad>`, `/s/<bad>`, an unknown `/link` code and similar are soft 404s now.
+- Postgres is still not the cost: `EXPLAIN ANALYZE` of the widest reads executes in 0.4–1.3 ms, and in-region round trips are close to free.
 
 ## Invariants to keep
 - Pages never call GitHub. Snapshot and ingest are the only writers of stats.
