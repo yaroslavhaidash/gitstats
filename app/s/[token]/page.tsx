@@ -4,12 +4,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Heatmap } from "@/components/Heatmap";
 import { Logo } from "@/components/Logo";
-import { shareStats } from "@/lib/cached";
 import { fmt, fmtRank } from "@/lib/format";
-import { PERCENTILE_FROM } from "@/lib/stats";
-import { resolveShareToken, shareHeadline } from "@/lib/share";
+import { resolveShareToken, shareCard } from "@/lib/share";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
-import { windowLabel } from "@/lib/window";
 
 /** A link is unguessable, so a crawler must never hold on to one. */
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -18,10 +15,8 @@ export default async function ShareCard({ params }: { params: Promise<{ token: s
   const { token } = await params;
   const payload = await resolveShareToken(token);
   if (!payload) notFound();
-  const { row, standing, topRepos, record } = await shareStats(payload.userId, payload.window, payload.metric);
-  const { options, metric } = payload;
-  const label = windowLabel(payload.window);
-  const { headline, unit } = shareHeadline(row, metric, options, record, label);
+  const { row, label, headline, unit, rankLine, topRepos, activeDays } = await shareCard(payload);
+  const { options } = payload;
   return (
     <main className="flex-1 flex flex-col items-center justify-center px-4 py-14">
       <div className="w-full max-w-2xl">
@@ -38,11 +33,7 @@ export default async function ShareCard({ params }: { params: Promise<{ token: s
             <span className="font-sans font-bold text-5xl text-white">{headline}</span>
             <span className="font-mono text-sm text-silver">{unit}</span>
           </div>
-          {standing && (
-            <p className="font-mono text-xs text-faint mb-6">
-              &gt; {standing.total >= PERCENTILE_FROM ? `top ${standing.percentile}%` : `#${standing.rank}`} of {standing.total} on gitstats
-            </p>
-          )}
+          {rankLine && <p className="font-mono text-xs text-faint mb-6">&gt; {rankLine}</p>}
 
           {options.totals && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-dark border-2 border-dark mb-6">
@@ -61,7 +52,7 @@ export default async function ShareCard({ params }: { params: Promise<{ token: s
           )}
           {options.totals && (
             <p className="font-mono text-xs text-faint mb-6">
-              &gt; {row.activeRepos} active repo{row.activeRepos === 1 ? "" : "s"}
+              &gt; {activeDays === null ? `${row.activeRepos} active repo${row.activeRepos === 1 ? "" : "s"}` : `${activeDays} of 7 days active`}
               {row.topLanguage ? ` · mostly ${row.topLanguage}` : ""}
             </p>
           )}

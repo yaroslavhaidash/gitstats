@@ -2,12 +2,9 @@ import { ImageResponse } from "next/og";
 import { notFound } from "next/navigation";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { shareStats } from "@/lib/cached";
 import { fmt } from "@/lib/format";
 import { heatColor } from "@/lib/palette";
-import { PERCENTILE_FROM } from "@/lib/stats";
-import { resolveShareToken, shareHeadline } from "@/lib/share";
-import { windowLabel } from "@/lib/window";
+import { resolveShareToken, shareCard } from "@/lib/share";
 
 /**
  * The same card as `/s/<token>`, drawn for the unfurl. It is the one per-user OG image on the site:
@@ -29,10 +26,8 @@ export default async function shareOgImage({ params }: { params: Promise<{ token
   const { token } = await params;
   const payload = await resolveShareToken(token);
   if (!payload) notFound();
-  const { row, standing, record } = await shareStats(payload.userId, payload.window, payload.metric);
-  const { options, metric } = payload;
-  const label = windowLabel(payload.window);
-  const { headline, unit } = shareHeadline(row, metric, options, record, label);
+  const { row, label, headline, unit, rankLine, activeDays } = await shareCard(payload);
+  const { options } = payload;
   const [monoBold, monoRegular, groteskBold] = await Promise.all([
     asset("JetBrainsMono-Bold.ttf"),
     asset("JetBrainsMono-Regular.ttf"),
@@ -73,17 +68,14 @@ export default async function shareOgImage({ params }: { params: Promise<{ token
             <span style={{ fontFamily: "Space Grotesk", fontSize: 92, color: "#ffffff" }}>{headline}</span>
             <span style={{ fontSize: 28, color: "#e0e2e5" }}>{unit}</span>
           </div>
-          {standing && (
-            <span style={{ fontSize: 24, color: "#8b93a4" }}>
-              {standing.total >= PERCENTILE_FROM ? `top ${standing.percentile}%` : `#${standing.rank}`} of {standing.total} on gitstats
-            </span>
-          )}
+          {rankLine && <span style={{ fontSize: 24, color: "#8b93a4" }}>{rankLine}</span>}
           {options.totals && (
             <div style={{ display: "flex", gap: 44, marginTop: 8, fontSize: 26 }}>
               <span style={{ color: "#e0e2e5" }}>{fmt(row.commits)} commits</span>
               <span style={{ color: "#22c55e" }}>+{fmt(row.additions)}</span>
               <span style={{ color: "#ff3333" }}>−{fmt(row.deletions)}</span>
               <span style={{ color: "#e0e2e5" }}>{row.streak}d streak</span>
+              {activeDays !== null && <span style={{ color: "#e0e2e5" }}>{activeDays}/7 days</span>}
             </div>
           )}
           {options.grid && (

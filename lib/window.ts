@@ -34,6 +34,12 @@ export function weekStart(now: Date): string {
   return isoDate(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - back)));
 }
 
+/** Last week, Monday to Sunday: what the weekly recap reports. */
+export function lastWeekRange(now = new Date()): Range {
+  const monday = weekStart(now);
+  return { from: shiftDate(monday, -7), to: shiftDate(monday, -1) };
+}
+
 /** The Sunday that opens the GitHub week containing `date`. */
 export function sundayOf(date: string): string {
   const d = new Date(`${date}T00:00:00Z`);

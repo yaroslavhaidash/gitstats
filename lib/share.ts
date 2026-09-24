@@ -2,10 +2,11 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import type { ShareStats } from "./cached";
+import { recapStats, shareStats, type ShareStats } from "./cached";
 import { requireEnv } from "./env";
-import { fmt, fmtRank } from "./format";
-import { PRESETS, type Metric, type Preset, type Window } from "./window";
+import { fmt, fmtDate, fmtRank } from "./format";
+import { PERCENTILE_FROM } from "./stats";
+import { PRESETS, windowLabel, type Metric, type Preset, type Window } from "./window";
 
 /**
  * A share card is a signed URL, not a database row. `/s/<payload>.<signature>` carries the member
@@ -24,11 +25,14 @@ export type ShareOptions = {
   streak: boolean;
   /** The member's best week or month (by the card's window and metric) as the headline: the card a record banner opens. Off by default. */
   record: boolean;
+  /** The weekly recap: last Monday to Sunday with the crew placement. Its window is that fixed range. Off by default. */
+  recap: boolean;
 };
 
-export const DEFAULT_SHARE: ShareOptions = { totals: true, grid: true, names: false, streak: false, record: false };
+export const DEFAULT_SHARE: ShareOptions = { totals: true, grid: true, names: false, streak: false, record: false, recap: false };
 
-export type SharePayload = { userId: number; window: Window; metric: Metric; options: ShareOptions };
+/** `crewId` is the crew a recap card places the member in; absent on every other card. */
+export type SharePayload = { userId: number; window: Window; metric: Metric; options: ShareOptions; crewId?: number };
 
 /** 128 bits of the digest. A forger has to find a collision without the secret; 16 bytes is plenty. */
 const SIG_BYTES = 16;
@@ -54,16 +58,16 @@ function decodeWindow(text: string): Window | null {
 }
 
 function encodeFlags(o: ShareOptions): string {
-  return `${o.totals ? "t" : ""}${o.grid ? "g" : ""}${o.names ? "n" : ""}${o.streak ? "s" : ""}${o.record ? "r" : ""}` || "-";
+  return `${o.totals ? "t" : ""}${o.grid ? "g" : ""}${o.names ? "n" : ""}${o.streak ? "s" : ""}${o.record ? "r" : ""}${o.recap ? "w" : ""}` || "-";
 }
 
 function decodeFlags(text: string): ShareOptions | null {
-  if (!/^(-|t?g?n?s?r?)$/.test(text) || text === "") return null;
-  return { totals: text.includes("t"), grid: text.includes("g"), names: text.includes("n"), streak: text.includes("s"), record: text.includes("r") };
+  if (!/^(-|t?g?n?s?r?w?)$/.test(text) || text === "") return null;
+  return { totals: text.includes("t"), grid: text.includes("g"), names: text.includes("n"), streak: text.includes("s"), record: text.includes("r"), recap: text.includes("w") };
 }
 
-function body({ userId, window, metric, options }: SharePayload): string {
-  return [userId, encodeWindow(window), metric, encodeFlags(options)].join("~");
+function body({ userId, window, metric, options, crewId }: SharePayload): string {
+  return [userId, encodeWindow(window), metric, encodeFlags(options), ...(crewId === undefined ? [] : [crewId])].join("~");
 }
 
 function sign(text: string, nonce: string | null): string {
@@ -100,13 +104,15 @@ export function readShareToken(token: string, nonce: string | null): SharePayloa
   const given = Buffer.from(token.slice(token.indexOf(".") + 1), "base64url");
   const want = Buffer.from(sign(text, nonce), "base64url");
   if (given.length !== want.length || !timingSafeEqual(given, want)) return null;
-  const [rawId, rawWindow, rawMetric, rawFlags] = text.split("~");
+  const [rawId, rawWindow, rawMetric, rawFlags, rawCrew, ...rest] = text.split("~");
   const userId = Number(rawId);
+  const crewId = rawCrew === undefined ? undefined : Number(rawCrew);
+  if (rest.length > 0 || (crewId !== undefined && (!Number.isInteger(crewId) || crewId <= 0))) return null;
   const window = rawWindow === undefined ? null : decodeWindow(rawWindow);
   const options = rawFlags === undefined ? null : decodeFlags(rawFlags);
   if (!Number.isInteger(userId) || userId <= 0 || !window || !options) return null;
   if (rawMetric !== "lines" && rawMetric !== "commits") return null;
-  return { userId, window, metric: rawMetric, options };
+  return { userId, window, metric: rawMetric, options, crewId };
 }
 
 /**
@@ -134,4 +140,44 @@ export function shareHeadline(row: ShareStats["row"], metric: Metric, options: S
     return { headline: amount(record.best[metric]), unit: `${metric} · best ${record.kind} ever · ${record.kind === "week" ? `week of ${when}` : when}` };
   }
   return { headline: amount(metric === "lines" ? row.additions + row.deletions : row.commits), unit: `${metric} ${label}` };
+}
+
+/** Everything `/s/<token>` and its OG image print, so the page and the unfurl can never disagree. */
+export type ShareCard = {
+  row: ShareStats["row"];
+  label: string;
+  headline: string;
+  unit: string;
+  /** "top 12% of 80 on gitstats", or on a recap "#2 of 5 in <crew>". */
+  rankLine: string | null;
+  topRepos: ShareStats["topRepos"];
+  /** Set on a recap card only. */
+  activeDays: number | null;
+};
+
+export async function shareCard(payload: SharePayload): Promise<ShareCard> {
+  const { options, metric, window } = payload;
+  if (options.recap && window.kind === "range") {
+    const { row, activeDays, placement } = await recapStats(payload.userId, window, metric, payload.crewId ?? null);
+    const label = `week of ${fmtDate(window.from)}`;
+    return {
+      row,
+      label,
+      ...shareHeadline(row, metric, options, null, `in the ${label}`),
+      // The name switch is the crew's name here: off, the place stays and the crew goes unnamed.
+      rankLine: placement ? `#${placement.rank} of ${placement.total} in ${options.names ? placement.crew : "their crew"}` : null,
+      topRepos: [],
+      activeDays,
+    };
+  }
+  const { row, standing, topRepos, record } = await shareStats(payload.userId, window, metric);
+  const label = windowLabel(window);
+  return {
+    row,
+    label,
+    ...shareHeadline(row, metric, options, record, label),
+    rankLine: standing ? `${standing.total >= PERCENTILE_FROM ? `top ${standing.percentile}%` : `#${standing.rank}`} of ${standing.total} on gitstats` : null,
+    topRepos,
+    activeDays: null,
+  };
 }

@@ -1,8 +1,9 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { crewTag, GLOBAL_TAG, STATS_TAG, userTag } from "./cache";
-import { crewMemberIds } from "./crews";
+import { crewMemberIds, userCrews } from "./crews";
 import {
   boardRows,
+  rankBy,
   hiddenRepoNames,
   standing,
   languageLines,
@@ -127,6 +128,35 @@ export async function shareStats(userId: number, window: Window, metric: Metric)
     .sort((a, b) => b.lines - a.lines)
     .slice(0, SHARE_REPOS);
   return { row, standing: standing(board, metric, userId), topRepos, record: kind && best ? { kind, best } : null };
+}
+
+export type RecapStats = {
+  row: BoardRow;
+  /** Days of the week with any contribution in the merged calendar. */
+  activeDays: number;
+  /** Where the member finished on the crew board for that week, by the card's metric; null outside a crew. */
+  placement: { rank: number; total: number; crew: string } | null;
+};
+
+/**
+ * The weekly recap: one Monday-to-Sunday range, the owner's own view like every card, and the crew
+ * board's ranking for that same range, so the card's place is the place the board showed.
+ */
+export async function recapStats(userId: number, range: Range, metric: Metric, crewId: number | null): Promise<RecapStats> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(STATS_TAG, GLOBAL_TAG, userTag(userId), ...(crewId === null ? [] : [crewTag(crewId)]));
+  const window: Window = { kind: "range", ...range };
+  const crew = crewId === null ? undefined : (await userCrews(userId)).find((c) => c.id === crewId);
+  const [[row], calendar, board] = await Promise.all([
+    boardRows([userId], window, "own", new Date(), SHARE_HEATMAP_DAYS),
+    userDailyCounts(userId, range.from, "own"),
+    crew ? crewBoard(crew.id, window) : null,
+  ]);
+  const activeDays = [...calendar].filter(([date, n]) => date <= range.to && n > 0).length;
+  const order = board ? rankBy(board, metric) : [];
+  const at = order.findIndex((r) => r.userId === userId);
+  return { row, activeDays, placement: crew && at >= 0 ? { rank: at + 1, total: order.length, crew: crew.name } : null };
 }
 
 export type Totals = { commits: number; additions: number; deletions: number; activeRepos: number };

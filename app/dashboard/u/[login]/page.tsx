@@ -14,6 +14,7 @@ import { LinkComputerNudge } from "@/components/LinkComputerNudge";
 import { MetricTabs } from "@/components/MetricTabs";
 import { MonthBlocks } from "@/components/MonthBlocks";
 import { RangePicker } from "@/components/RangePicker";
+import { RecapPanel } from "@/components/RecapPanel";
 import { RecordsPanel } from "@/components/RecordsPanel";
 import { RepoList } from "@/components/RepoList";
 import { RepoMix } from "@/components/RepoMix";
@@ -30,23 +31,29 @@ import { WindowTabs } from "@/components/WindowTabs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { cliTokens, users } from "@/db/schema";
-import { memberRecords, ownGoalWeeks, userStats } from "@/lib/cached";
+import { memberRecords, ownGoalWeeks, recapStats, userStats } from "@/lib/cached";
 import { mintShareToken, type ShareOptions } from "@/lib/share";
 import { SITE_URL } from "@/lib/site";
 import { behindLatestCli, RELINK_COMMAND } from "@/lib/cli";
 import { firstSnapshotRunning } from "@/lib/snapshot";
 import { nameVisible, type BoardViewer } from "@/lib/stats";
-import { backTarget, inviteTarget, sharesCrew, userByLogin } from "@/lib/crews";
+import { backTarget, inviteTarget, sharesCrew, userByLogin, userCrews } from "@/lib/crews";
 import { fmt, pctDelta } from "@/lib/format";
-import { dayChartMode, parseMetric, parseWindow, rangeDays, viewQuery, windowLabel, windowQuery, windowRange, type Metric, type Window } from "@/lib/window";
+import { dayChartMode, lastWeekRange, parseMetric, parseWindow, rangeDays, viewQuery, windowLabel, windowQuery, windowRange, type Metric, type Window } from "@/lib/window";
 
-const flagsOf = (o: ShareOptions) => `${o.totals ? "t" : ""}${o.grid ? "g" : ""}${o.names ? "n" : ""}${o.streak ? "s" : ""}${o.record ? "r" : ""}` || "-";
+const flagsOf = (o: ShareOptions) => `${o.totals ? "t" : ""}${o.grid ? "g" : ""}${o.names ? "n" : ""}${o.streak ? "s" : ""}${o.record ? "r" : ""}${o.recap ? "w" : ""}` || "-";
 /** Every switch position on the share panel, so the page can mint a token for each one. */
 const SHARE_FLAGS: ShareOptions[] = [false, true].flatMap((totals) =>
   [false, true].flatMap((grid) =>
-    [false, true].flatMap((names) => [false, true].flatMap((streak) => [false, true].map((record) => ({ totals, grid, names, streak, record })))),
+    [false, true].flatMap((names) => [false, true].flatMap((streak) => [false, true].map((record) => ({ totals, grid, names, streak, record, recap: false })))),
   ),
 );
+/** The recap card's positions: its own headline, so only totals, grid and the crew name switch. */
+const RECAP_FLAGS: ShareOptions[] = [false, true].flatMap((totals) =>
+  [false, true].flatMap((grid) => [false, true].map((names) => ({ totals, grid, names, streak: false, record: false, recap: true }))),
+);
+/** "Your week" shows Monday to Wednesday (UTC), then gives way until the next Monday. */
+const RECAP_DAYS = [1, 2, 3];
 /** Streak lengths that earn a one-time banner on the member's own page. */
 const STREAK_MILESTONES = [7, 30, 100, 365];
 
@@ -63,6 +70,7 @@ async function Stats({
   repoNames,
   share,
   src,
+  recapCrew,
 }: {
   user: User;
   window: Window;
@@ -71,19 +79,27 @@ async function Stats({
   includePrivate: boolean;
   viewer: BoardViewer;
   repoNames: User["repoNames"];
-  share: "open" | "streak" | "record" | undefined;
+  share: "open" | "streak" | "record" | "recap" | undefined;
   src: string | undefined;
+  /** The crew a recap is placed in, as asked for in the URL. */
+  recapCrew: string | undefined;
 }) {
   const label = windowLabel(window);
+  const lastWeek = lastWeekRange();
+  const showRecap = isOwner && (share === "recap" || RECAP_DAYS.includes(new Date().getUTCDay()));
+  const crews = showRecap ? await userCrews(user.id) : [];
+  const recapCrewId = (crews.find((c) => String(c.id) === recapCrew) ?? crews[0])?.id ?? null;
   const goal = isOwner && user.weeklyGoal !== null && user.weeklyGoalMetric !== null ? { metric: user.weeklyGoalMetric, target: user.weeklyGoal } : null;
   const [
     { row, before, weeks, chartWeeks, chartEnd, repoRows, dailyLines, languages, year, weekdays, weekdayLines, span, nearest, hiddenNames, repoWeeks, mixWeeks, mixEnd },
     records,
     goalWeeks,
+    recap,
   ] = await Promise.all([
     userStats(user.id, window, isOwner, includePrivate, viewer),
     memberRecords(user.id, isOwner ? "own" : viewer),
     goal ? ownGoalWeeks(user.id) : null,
+    showRecap ? recapStats(user.id, lastWeek, metric, recapCrewId) : null,
   ]);
   const mode = dayChartMode(window);
   // The highest milestone the current streak has reached. Recording it as it is shown makes the banner
@@ -115,7 +131,17 @@ async function Stats({
   // The charts run on the client, so the name decision is made here and crosses as plain node ids.
   const maskedRepos = [...new Set(repoWeeks.filter((r) => !showName(r)).map((r) => r.nodeId))];
   // Signing needs the secret, so all eight switch positions are minted here and the panel picks one.
-  const shareTokens = isOwner ? Object.fromEntries(SHARE_FLAGS.map((o) => [flagsOf(o), mintShareToken({ userId: user.id, window, metric, options: o }, user.shareNonce)])) : {};
+  // A recap card has its own fixed window, last week, and the crew it places the member in.
+  const shareTokens = !isOwner
+    ? {}
+    : share === "recap"
+      ? Object.fromEntries(
+          RECAP_FLAGS.map((o) => [
+            flagsOf(o),
+            mintShareToken({ userId: user.id, window: { kind: "range", ...lastWeek }, metric, options: o, ...(recapCrewId === null ? {} : { crewId: recapCrewId }) }, user.shareNonce),
+          ]),
+        )
+      : Object.fromEntries(SHARE_FLAGS.map((o) => [flagsOf(o), mintShareToken({ userId: user.id, window, metric, options: o }, user.shareNonce)]));
   // Nothing on either side of the comparison is not a change of zero percent; it is no comparison,
   // and a row of "—" under every tile only invites the reader to look for the percentages.
   const delta = (now: number, was: number) => (now === 0 && was === 0 ? undefined : pctDelta(now, was));
@@ -151,6 +177,17 @@ async function Stats({
       {freshRecords.map(([kind, , , text, query]) => (
         <StreakBanner key={kind} text={text} shareHref={`/dashboard/u/${user.githubLogin}${query}`} />
       ))}
+      {recap && (
+        <RecapPanel
+          week={lastWeek.from}
+          label={windowLabel({ kind: "range", ...lastWeek })}
+          login={user.githubLogin}
+          metric={metric}
+          stats={{ ...recap.row, activeDays: recap.activeDays, placement: recap.placement }}
+          crews={crews}
+          crewId={recapCrewId}
+        />
+      )}
       {goal && goalWeeks && <GoalRing metric={goal.metric} goal={goal.target} weeks={goalWeeks} />}
       {newMilestone && <StreakBanner text={`${milestone}-day streak`} shareHref={`/dashboard/u/${user.githubLogin}?${viewQuery(window, metric)}&share=streak#share`} />}
 
@@ -164,6 +201,7 @@ async function Stats({
           defaultOpen={share !== undefined}
           defaultStreak={share === "streak"}
           defaultRecord={share === "record"}
+          defaultRecap={share === "recap"}
           empty={!hasAnything}
           login={user.githubLogin}
         />
@@ -293,7 +331,7 @@ export default async function UserPage({
   searchParams,
 }: {
   params: Promise<{ login: string }>;
-  searchParams: Promise<{ w?: string; m?: string; from?: string; to?: string; share?: string; src?: string }>;
+  searchParams: Promise<{ w?: string; m?: string; from?: string; to?: string; share?: string; src?: string; crew?: string }>;
 }) {
   const session = await auth();
   if (!session) redirect("/");
@@ -365,7 +403,8 @@ export default async function UserPage({
           includePrivate={includePrivate}
           viewer={viewer}
           repoNames={repoNames}
-          share={query.share === "1" ? "open" : query.share === "streak" || query.share === "record" ? query.share : undefined}
+          share={query.share === "1" ? "open" : query.share === "streak" || query.share === "record" || query.share === "recap" ? query.share : undefined}
+          recapCrew={query.crew}
           src={query.src}
         />
       </Section>

@@ -10,7 +10,7 @@ import { rotateShareLink } from "@/lib/actions";
  * each switch position and this picks one. No round trip per toggle, and the URL in
  * the box is always the URL the reader will open.
  */
-export function SharePanel({ tokens, origin, view, defaultOpen, defaultStreak, defaultRecord, empty, login }: {
+export function SharePanel({ tokens, origin, view, defaultOpen, defaultStreak, defaultRecord, defaultRecap, empty, login }: {
   tokens: Record<string, string>;
   /** This member's login, for the README badge. */
   login: string;
@@ -21,6 +21,8 @@ export function SharePanel({ tokens, origin, view, defaultOpen, defaultStreak, d
   defaultStreak: boolean;
   /** Opened from a record banner: the best week or month is the headline, and the switch for it is offered. */
   defaultRecord: boolean;
+  /** Opened from "Your week": the recap card, whose window is last week and whose name switch is the crew's. */
+  defaultRecap: boolean;
   /** Nothing has been counted for this account yet, so a card would only advertise an empty grid. */
   empty: boolean;
 }) {
@@ -30,12 +32,12 @@ export function SharePanel({ tokens, origin, view, defaultOpen, defaultStreak, d
   const [names, setNames] = useState(false);
   const [streak, setStreak] = useState(defaultStreak);
   const [record, setRecord] = useState(defaultRecord);
-  const flags = `${totals ? "t" : ""}${grid ? "g" : ""}${names ? "n" : ""}${streak ? "s" : ""}${record ? "r" : ""}` || "-";
+  const flags = `${totals ? "t" : ""}${grid ? "g" : ""}${names ? "n" : ""}${streak ? "s" : ""}${record ? "r" : ""}${defaultRecap ? "w" : ""}` || "-";
   const url = `${origin}/s/${tokens[flags]}`;
   const boxes: [string, string, boolean, (on: boolean) => void][] = [
     ["totals", "commits, +/−, streak", totals, setTotals],
     ["26-week grid", "one cell per day", grid, setGrid],
-    ["repo names", "your top 3 by lines · hidden repos stay hidden", names, setNames],
+    defaultRecap ? ["crew name", "which crew your place is in", names, setNames] : ["repo names", "your top 3 by lines · hidden repos stay hidden", names, setNames],
     ...(defaultStreak ? [["streak headline", "the day count up top, big", streak, setStreak] as (typeof boxes)[number]] : []),
     ...(defaultRecord ? [["record headline", "your best of this window, big", record, setRecord] as (typeof boxes)[number]] : []),
   ];
@@ -58,7 +60,7 @@ export function SharePanel({ tokens, origin, view, defaultOpen, defaultStreak, d
             <div>
               <div className="tag mb-2">SHARE CARD</div>
               <p className="font-mono text-xs text-dim leading-relaxed">
-                A page anyone with the link can open, no sign-in. It shows this window and this metric.
+                {defaultRecap ? "A page anyone with the link can open, no sign-in. It shows last week, Monday to Sunday, and never a repo name." : "A page anyone with the link can open, no sign-in. It shows this window and this metric."}
               </p>
             </div>
             <button type="button" onClick={() => setOpen(false)} className="font-mono text-xs text-faint hover:text-alert transition-colors cursor-pointer">
