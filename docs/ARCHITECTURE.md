@@ -125,6 +125,31 @@ any of them answer. Two things follow, and both are load-bearing:
   showed its own error page — dead, with no way back but a manual reload. Each boundary shows
   `error.digest`, which is the id to search production logs by.
 
+## Speed (measured 2026-09-24)
+
+Production, `curl` from Europe (edge `arn1`), functions in `iad1`, Neon in `us-east-1`. Milliseconds; "first" is the first of ten requests, the rest are medians of the other nine. Signed-in rows use a throwaway account; the member page is an open member's page, the crew board a one-member crew.
+
+| route | first TTFB | TTFB | total (stream end) |
+|---|---|---|---|
+| static robots.txt (network floor) | 161 | 152 | 152 |
+| /api/health (function + 2 queries) | 439 | 316 | 317 |
+| / signed out | 480 | 297 | 448 |
+| /dashboard/u/<login> week | 419 | 339 | 474 |
+| /dashboard/u/<login> year | 382 | 326 | 576 |
+| crew board (1 member) | 320 | 317 | 428 |
+| /dashboard/global week | 363 | 406 | 539 |
+| /dashboard/global year | 333 | 329 | 488 |
+| /demo (year default) | 668 | 616 | 846 |
+| /demo?w=week | 403 | 428 | 533 |
+| /badge/<login> | 158 | 148 | 149 |
+| MCP my_summary | 571 | 352 | 352 |
+
+What the numbers say, and why nothing was changed:
+- **The floor is geography.** A static file costs ~150 ms from Europe, the cheapest function ~315 ms; every page sits 0–250 ms above that. The edge-to-`iad1` hop is paid on every dynamic request.
+- **Postgres is not the cost.** `EXPLAIN ANALYZE` of the widest reads (a year of `daily_local`, `weekly_stats`, `daily_contributions` for the global board, and the stars query) executes in 0.4–1.3 ms on sequential scans of tables with a few thousand rows; an index has nothing to win. In-region round trips are close to free: an MCP call that adds two sequential queries is as fast as one that runs none, so collapsing queries is not measurable either.
+- **`use cache` does not hit on Vercel.** It is the default in-memory handler, per instance; ten requests in a row for `/demo` never dropped to a cached time. A local `next start` with a warm cache renders `/demo` in ~30 ms of server work, so a shared cache would remove nearly all of it, but `use cache: remote` needs `cacheComponents: true` (the app is on `experimental.useCache`), which is a rendering-model migration, not a tweak.
+- **`/demo` is the one outlier** (~300 ms above its own week view): the seeded crew has about five times the day rows of every real member combined, and each render reads them four times (board, previous period, overlaps, race), about 13k rows, where driver JSON parsing and row mapping dominate the CPU profile. It is generated data shown by design as a full year.
+
 ## Invariants to keep
 - Pages never call GitHub. Snapshot and ingest are the only writers of stats.
 - **A period total is a sum of days.** `periodBounds` in `lib/window.ts` gives the current and previous day ranges (week = Monday to today against last Monday to the same weekday; month = the 1st to today against the same days last month; year rolling). `rangeTotals` in `lib/stats.ts` sums `placedDays` over a range: counted `daily_local` days, plus GitHub-only weeks placed onto their elapsed days, so a range that cuts a week gets only its part. Boards, momentum, the page tiles and deltas, the badge and MCP all read these two; none sums weekly buckets. Per-repo and per-language totals (the repo list and `my_repos`, the language share, top language, repo pages, crew overlaps) come from the same `placedDays` pass, each repo getting its counted days plus its part of the placed amounts (largest remainder), so a repo list adds up to the tile exactly. Only the weekly charts still read weekly buckets.
