@@ -18,7 +18,9 @@ import { MCP_TOKEN_PREFIX } from "./mcp";
 import { fetchTokenLogin, GitHubAuthError } from "./github";
 import { newShareNonce } from "./share";
 import { runSnapshot } from "./snapshot";
-import { crewByCode, leaveCrew, regenerateCode, removeMember, renameCrew, type AdminResult } from "./crews";
+import { crewByCode, leaveCrew, regenerateCode, removeMember, renameCrew, userByLogin, type AdminResult } from "./crews";
+import { canViewProfile, toggleKudos } from "./kudos";
+import { rateLimit } from "./ratelimit";
 import { parseWindow, windowQuery } from "./window";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -185,6 +187,20 @@ export async function updateWeeklyGoal(formData: FormData): Promise<void> {
     .set(target === 0 ? { weeklyGoal: null, weeklyGoalMetric: null } : { weeklyGoal: target, weeklyGoalMetric: metric })
     .where(eq(users.id, session.user.id));
   redirect("/dashboard/settings?goal=1#weekly-goal");
+}
+
+/**
+ * One kudos a week from the signed-in member to someone whose page they can open, never themselves;
+ * pressing it again takes this week's back. The gate is re-checked here, not trusted from the page.
+ */
+export async function giveKudos(formData: FormData): Promise<void> {
+  const session = await auth();
+  if (!session) redirect("/");
+  const user = await userByLogin(String(formData.get("login") ?? ""));
+  if (!user || user.id === session.user.id || !(await canViewProfile(session.user.id, user))) return;
+  if (!rateLimit("kudos", String(session.user.id)).ok) return;
+  if (await toggleKudos(session.user.id, user.id)) await countStep("kudos_give");
+  revalidatePath(`/dashboard/u/${user.githubLogin}`);
 }
 
 export async function signInThenLink(code: string): Promise<void> {

@@ -9,6 +9,7 @@ import { DailyLines } from "@/components/DailyLines";
 import { EmptyNote } from "@/components/EmptyNote";
 import { GoalRing } from "@/components/GoalRing";
 import { InvitePanel } from "@/components/InvitePanel";
+import { KudosBar } from "@/components/KudosBar";
 import { LanguageShare } from "@/components/LanguageShare";
 import { LinkComputerNudge } from "@/components/LinkComputerNudge";
 import { MetricTabs } from "@/components/MetricTabs";
@@ -35,6 +36,7 @@ import { memberRecords, ownGoalWeeks, recapStats, userStats } from "@/lib/cached
 import { mintShareToken, type ShareOptions } from "@/lib/share";
 import { SITE_URL } from "@/lib/site";
 import { behindLatestCli, RELINK_COMMAND } from "@/lib/cli";
+import { kudosView } from "@/lib/kudos";
 import { firstSnapshotRunning } from "@/lib/snapshot";
 import { nameVisible, type BoardViewer } from "@/lib/stats";
 import { backTarget, inviteTarget, sharesCrew, userByLogin, userCrews } from "@/lib/crews";
@@ -356,10 +358,11 @@ export default async function UserPage({
   const window = parseWindow(query);
   const metric = parseMetric(query.m);
   const suffix = metric === "lines" ? "" : `&m=${metric}`;
-  const [back, machines, invite] = await Promise.all([
+  const [back, machines, invite, kudos] = await Promise.all([
     backTarget(session.user.id, query.src, viewQuery(window, metric)),
     isOwner ? db.select({ cliVersion: cliTokens.cliVersion }).from(cliTokens).where(eq(cliTokens.userId, user.id)) : [],
     isOwner ? inviteTarget(user.id) : null,
+    kudosView(user.id, session.user.id),
   ]);
   const behind = [...new Set(machines.filter((m) => behindLatestCli(m.cliVersion)).map((m) => m.cliVersion ?? "an old version"))];
   return (
@@ -388,6 +391,7 @@ export default async function UserPage({
           <RangePicker current={window} basePath={`/dashboard/u/${user.githubLogin}`} query={suffix} />
         </div>
       </div>
+      <KudosBar login={user.githubLogin} view={kudos} canGive={!isOwner} />
       {!isOwner && (
         <div className="mb-8">
           <CompareForm login={user.githubLogin} visitor={session.user.login} />

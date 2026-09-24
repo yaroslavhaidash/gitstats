@@ -43,6 +43,7 @@ GitHub (public)                    your computers (private + public)
 | `user_tokens` | `id` | optional read-only fine-grained PATs, AES-256-GCM (`lib/crypto.ts`, `TOKEN_ENCRYPTION_KEY`), `last_error` |
 | `cli_tokens` | `id` | linked machines: sha256 of token, machine name, last sync time/repos/error |
 | `mcp_tokens` | `id` | personal MCP tokens: sha256 of token, label, created/last used; created and revoked on settings |
+| `kudos` | `(giver_id, receiver_id, week_start)` | one kudos per giver per member per Monday week; the key is the rule. `lib/kudos.ts`: `giveKudos` re-checks that the giver can open the page (`canViewProfile`), 60/hour per giver; everyone who can open the page sees the counts, only the receiver sees who gave. Exported, archived and deleted in both directions (`lib/account.ts`) |
 | `repo_name_overrides` | `(user_id, repo_node_id)` | per-repo exception to the repo-names row; only ever hides more than the matrix |
 | `device_codes` | `code` | pairing in flight; purged on expiry |
 | `admin_log` | `id` | every mutation made from `/admin`: `who`, `action`, `target`, `at` |

@@ -28,6 +28,8 @@ export const LIMITS = {
   mcp: { capacity: 60, windowMs: 60_000 },
   /** MCP requests per address, spent before the token lookup, for the same reason as `cliIp`. */
   mcpIp: { capacity: 300, windowMs: 60_000 },
+  /** Kudos given or taken back, per giver. */
+  kudos: { capacity: 60, windowMs: 3_600_000 },
 } as const satisfies Record<string, Limit>;
 
 export type LimitName = keyof typeof LIMITS;

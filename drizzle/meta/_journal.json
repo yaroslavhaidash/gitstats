@@ -190,6 +190,13 @@
       "when": 1790258366162,
       "tag": "0026_weekly_goal_records",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1790259571348,
+      "tag": "0027_kudos",
+      "breakpoints": true
     }
   ]
 }

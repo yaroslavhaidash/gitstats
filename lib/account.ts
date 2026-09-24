@@ -1,4 +1,5 @@
-import { desc, eq, lt, sql } from "drizzle-orm";
+import { desc, eq, lt, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
@@ -15,6 +16,7 @@ import {
   weeklyStats,
   deletedUsersArchive,
   mcpTokens,
+  kudos,
   type ArchivedAccount,
 } from "@/db/schema";
 import { handOffCrews } from "./crews";
@@ -26,7 +28,9 @@ import { handOffCrews } from "./crews";
  * `device_codes`, a pairing in flight that is nothing but secrets and expires in ten minutes.
  */
 export async function exportAccount(userId: number) {
-  const [[user], memberships, machines, tokens, weeks, github, local, nameOverrides, assistants] = await Promise.all([
+  const giver = alias(users, "giver");
+  const receiver = alias(users, "receiver");
+  const [[user], memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, kudosRows] = await Promise.all([
     db
       .select({
         id: users.id,
@@ -120,6 +124,13 @@ export async function exportAccount(userId: number) {
       .from(mcpTokens)
       .where(eq(mcpTokens.userId, userId))
       .orderBy(mcpTokens.id),
+    db
+      .select({ from: giver.githubLogin, to: receiver.githubLogin, weekStart: kudos.weekStart, createdAt: kudos.createdAt })
+      .from(kudos)
+      .innerJoin(giver, eq(giver.id, kudos.giverId))
+      .innerJoin(receiver, eq(receiver.id, kudos.receiverId))
+      .where(or(eq(kudos.giverId, userId), eq(kudos.receiverId, userId)))
+      .orderBy(desc(kudos.createdAt)),
   ]);
   if (!user) return null;
   return {
@@ -133,6 +144,7 @@ export async function exportAccount(userId: number) {
     dailyLocal: local,
     repoNameOverrides: nameOverrides,
     mcpTokens: assistants,
+    kudos: kudosRows,
   };
 }
 
@@ -158,7 +170,7 @@ export async function archiveAccount(userId: number): Promise<void> {
   const found = await db.execute<{ row: Record<string, unknown> }>(sql`select to_jsonb(t) as row from ${users} t where t.id = ${userId}`);
   const user = found.rows[0]?.row;
   if (!user) return;
-  const [memberships, machines, tokens, weeks, github, local, nameOverrides, assistants] = await Promise.all([
+  const [memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, kudosRows] = await Promise.all([
     rowsAsJson(crewMembers, userId),
     rowsAsJson(cliTokens, userId),
     rowsAsJson(userTokens, userId),
@@ -167,6 +179,12 @@ export async function archiveAccount(userId: number): Promise<void> {
     rowsAsJson(dailyLocal, userId),
     rowsAsJson(repoNameOverrides, userId),
     rowsAsJson(mcpTokens, userId),
+    // Kudos carry two user ids, not one, so they are read both ways here instead of by `user_id`.
+    db
+      .execute<{ rows: Record<string, unknown>[] }>(
+        sql`select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) as rows from ${kudos} t where t.giver_id = ${userId} or t.receiver_id = ${userId}`,
+      )
+      .then((res) => res.rows[0].rows),
   ]);
   const data: ArchivedAccount = {
     user,
@@ -178,6 +196,7 @@ export async function archiveAccount(userId: number): Promise<void> {
     dailyLocal: local,
     repoNameOverrides: nameOverrides,
     mcpTokens: assistants,
+    kudos: kudosRows,
   };
   await db.insert(deletedUsersArchive).values({ userId, login: String(user.github_login), data });
 }
@@ -215,6 +234,15 @@ export async function restoreAccount(archiveId: number): Promise<string | null> 
   await restoreRows(dailyLocal, data.dailyLocal);
   await restoreRows(repoNameOverrides, data.repoNameOverrides);
   await restoreRows(mcpTokens, data.mcpTokens ?? []);
+  // Only kudos whose other member is still here can come back.
+  if (data.kudos && data.kudos.length > 0) {
+    await db.execute(sql`
+      insert into ${kudos}
+      select r.* from jsonb_populate_recordset(null::${kudos}, ${JSON.stringify(data.kudos)}::jsonb) r
+      where exists (select 1 from ${users} u where u.id = r.giver_id) and exists (select 1 from ${users} u where u.id = r.receiver_id)
+      on conflict do nothing
+    `);
+  }
   await db.delete(deletedUsersArchive).where(eq(deletedUsersArchive.id, archiveId));
   return row.login;
 }
@@ -242,6 +270,7 @@ export async function deleteAccount(userId: number): Promise<void> {
   await db.delete(repoNameOverrides).where(eq(repoNameOverrides.userId, userId));
   await db.delete(cliTokens).where(eq(cliTokens.userId, userId));
   await db.delete(mcpTokens).where(eq(mcpTokens.userId, userId));
+  await db.delete(kudos).where(or(eq(kudos.giverId, userId), eq(kudos.receiverId, userId)));
   await db.delete(userTokens).where(eq(userTokens.userId, userId));
   await db.delete(deviceCodes).where(eq(deviceCodes.userId, userId));
   await handOffCrews(userId);
