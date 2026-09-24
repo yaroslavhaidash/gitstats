@@ -1,6 +1,33 @@
 # gitstats
 
-A private-ish board where a crew of friends connect their GitHub accounts and compare public coding activity: commits, lines added/deleted, stars, active repos, streaks, top language.
+Compare coding activity with friends. Private and work repos are counted on your own computer; only numbers leave it.
+
+[![A gitstats crew board: four demo developers ranked by lines of code over a year](assets/readme-board.png)](https://gitstats.org/demo)
+
+**Try it: [gitstats.org](https://gitstats.org)** · **See a board: [gitstats.org/demo](https://gitstats.org/demo)**
+
+[![gitstats](https://gitstats.org/badge/yaroslavhaidash)](https://gitstats.org/gh/yaroslavhaidash)
+
+## Features
+
+- **Crews.** Sign in with GitHub, share an invite code, and your friends land on one board.
+- **Lines or commits, week, month or year.** Pick a metric and a window; the board and every chart follow it.
+- **Private and work repos count too.** A small CLI counts your commits locally and sends numbers only; repo names stay on your computer unless you opt in.
+- **Your own page.** Daily lines, a year calendar, streaks, the repos you worked in, and how you compare to last period.
+- **Streaks your way.** Choose what counts as a streak day.
+- **You choose who sees what.** Separate settings for your crews and for everyone, and any repo name can be hidden.
+- **Share it.** A share card for chats and a badge for your GitHub profile.
+- **Open source, MIT.** The server and the CLI; self-host it if you like.
+
+## Put it in your README
+
+```markdown
+[![gitstats](https://gitstats.org/badge/YOUR-LOGIN)](https://gitstats.org/gh/YOUR-LOGIN)
+```
+
+Pick a window and copy your own snippet at [gitstats.org/widget](https://gitstats.org/widget).
+
+---
 
 Live: https://gitstats.org · Where it is heading: [ROADMAP.md](ROADMAP.md) · Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 

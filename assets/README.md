@@ -10,3 +10,7 @@ this machine has no font tooling to convert one.
   <https://github.com/floriankarsten/space-grotesk>
 
 Both licences allow redistribution with this notice. Downloaded from the Google Fonts CDN.
+
+Images:
+- `readme-board.png` — capture of `/demo` (generated data) at 1280 wide, 2x, cropped to the board; the README screenshot.
+- `social-preview.png` — 1280×640 in the Open Graph card look, uploaded as the GitHub repo's social preview.
