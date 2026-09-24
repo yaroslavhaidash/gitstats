@@ -70,9 +70,30 @@ export async function joinCrew(formData: FormData): Promise<void> {
   const code = typeof raw === "string" ? raw.trim().toUpperCase() : "";
   const crew = await crewByCode(code);
   if (!crew) redirect("/dashboard?error=code");
-  await db.insert(crewMembers).values({ crewId: crew.id, userId }).onConflictDoNothing();
+  const joined = await db.insert(crewMembers).values({ crewId: crew.id, userId }).onConflictDoNothing().returning({ userId: crewMembers.userId });
+  if (joined.length > 0) await countStep("invite_join");
   updateTag(STATS_TAG);
   redirect(await afterCrew(userId, crew.code));
+}
+
+/** The invite panel's one-click crew for a member who has none: "<login>'s crew", back on their own page. */
+export async function createFirstCrew(): Promise<void> {
+  const userId = await requireUserId();
+  const [{ login }] = await db.select({ login: users.githubLogin }).from(users).where(eq(users.id, userId));
+  const back = `/dashboard/u/${login}`;
+  // A double click must not leave two crews behind.
+  const [existing] = await db.select({ crewId: crewMembers.crewId }).from(crewMembers).where(eq(crewMembers.userId, userId)).limit(1);
+  if (existing) redirect(back);
+  const [crew] = await db.insert(crews).values({ name: `${login}'s crew`.slice(0, 40), code: newCode(), createdBy: userId }).returning({ id: crews.id });
+  await db.insert(crewMembers).values({ crewId: crew.id, userId });
+  updateTag(STATS_TAG);
+  revalidatePath("/dashboard", "layout");
+  redirect(back);
+}
+
+/** An invite link was copied or handed to the share sheet. */
+export async function countInviteCopy(): Promise<void> {
+  if (await auth()) await countStep("invite_copy");
 }
 
 export async function addToken(formData: FormData): Promise<void> {

@@ -4,6 +4,7 @@ import { Confirm } from "@/components/Confirm";
 import { CopyText } from "@/components/CopyText";
 import { CrewManage } from "@/components/CrewManage";
 import { EmptyNote } from "@/components/EmptyNote";
+import { InvitePanel } from "@/components/InvitePanel";
 import { LinkComputerNudge } from "@/components/LinkComputerNudge";
 import { CrewRace } from "@/components/CrewRace";
 import { Leaderboard } from "@/components/Leaderboard";
@@ -23,7 +24,7 @@ import { crewBoard, crewOverlaps, crewTimelines } from "@/lib/cached";
 import { cliUpdateStuck, MIN_CLI_VERSION } from "@/lib/cli";
 import { leaveCrewAction } from "@/lib/actions";
 import { rankBy } from "@/lib/stats";
-import { crewByCode, isMember } from "@/lib/crews";
+import { crewByCode, crewMemberIds, isMember } from "@/lib/crews";
 import { HUES, hue } from "@/lib/palette";
 import { daySeriesMode, parseMetric, parseWindow, previousLabel, viewQuery, windowLabel, windowQuery, type Metric, type Window } from "@/lib/window";
 
@@ -195,10 +196,14 @@ export default async function CrewBoard({
   // Opening and closing the manage panel must not throw the reader's selected view away.
   const boardHref = `/dashboard/c/${crew.code}?${viewQuery(window, metric)}`;
   const isAdmin = crew.createdBy === session.user.id;
-  const machines = await db
-    .select({ cliVersion: cliTokens.cliVersion, lastSyncAt: cliTokens.lastSyncAt, createdAt: cliTokens.createdAt })
-    .from(cliTokens)
-    .where(eq(cliTokens.userId, session.user.id));
+  const [machines, memberIds] = await Promise.all([
+    db
+      .select({ cliVersion: cliTokens.cliVersion, lastSyncAt: cliTokens.lastSyncAt, createdAt: cliTokens.createdAt })
+      .from(cliTokens)
+      .where(eq(cliTokens.userId, session.user.id)),
+    crewMemberIds(crew.id),
+  ]);
+  const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/join/${crew.code}`;
   return (
     <>
       {machines.length === 0 && <LinkComputerNudge />}
@@ -213,7 +218,7 @@ export default async function CrewBoard({
           <div className="tag mb-3">CREW // {crew.code}</div>
           <h1 className="font-sans font-bold text-4xl">{crew.name}</h1>
           <p className="font-mono text-xs text-faint mt-2">
-            invite: <CopyText text={`${process.env.NEXT_PUBLIC_APP_URL ?? ""}/join/${crew.code}`} className="text-silver text-xs" />
+            invite: <CopyText text={inviteLink} className="text-silver text-xs" />
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -230,6 +235,7 @@ export default async function CrewBoard({
           )}
         </div>
       </div>
+      {memberIds.length === 1 && <InvitePanel link={inviteLink} />}
       <Section fallback={<SkeletonBoard rows={4} />}>
         <Board crew={crew} window={window} metric={metric} manage={isAdmin && Boolean(query.manage)} query={query} hasMachines={machines.length > 0} />
       </Section>

@@ -6,7 +6,7 @@ import { SignInButton } from "@/components/Tracked";
 import { joinCrew, signInThenJoin } from "@/lib/actions";
 import { crewByCode, crewMemberIds } from "@/lib/crews";
 
-// Deliberately generic: the crew's name belongs to its members, not to a link preview.
+// Generic text; the unfurl image (opengraph-image.tsx) names the inviter and the crew, never a number.
 export const metadata: Metadata = {
   title: "Join a crew",
   description: "You have been invited to a gitstats crew. Sign in with GitHub to join and get on the board.",

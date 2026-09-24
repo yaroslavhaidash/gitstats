@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { crewMembers, crews, users } from "@/db/schema";
 import { DEMO_CREW_CODE } from "./demo";
@@ -18,6 +18,21 @@ export async function crewByCode(code: string) {
   if (code === DEMO_CREW_CODE) return null;
   const [crew] = await db.select().from(crews).where(eq(crews.code, code)).limit(1);
   return crew ?? null;
+}
+
+/**
+ * The crew the "compare with a friend" panel invites into: the user's first crew, `{ code: null }` when
+ * they have none yet, and null once any of their crews has a second member and the panel has done its job.
+ */
+export async function inviteTarget(userId: number): Promise<{ code: string | null } | null> {
+  const mine = await userCrews(userId);
+  if (mine.length === 0) return { code: null };
+  const sizes = await db
+    .select({ crewId: crewMembers.crewId, n: count() })
+    .from(crewMembers)
+    .where(inArray(crewMembers.crewId, mine.map((c) => c.id)))
+    .groupBy(crewMembers.crewId);
+  return sizes.some((s) => s.n > 1) ? null : { code: mine[0].code };
 }
 
 export async function crewMemberIds(crewId: number): Promise<number[]> {

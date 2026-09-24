@@ -5,6 +5,7 @@ import { BackLink } from "@/components/BackLink";
 import { CopyText } from "@/components/CopyText";
 import { DailyLines } from "@/components/DailyLines";
 import { EmptyNote } from "@/components/EmptyNote";
+import { InvitePanel } from "@/components/InvitePanel";
 import { LanguageShare } from "@/components/LanguageShare";
 import { LinkComputerNudge } from "@/components/LinkComputerNudge";
 import { MetricTabs } from "@/components/MetricTabs";
@@ -30,7 +31,7 @@ import { SITE_URL } from "@/lib/site";
 import { behindLatestCli, RELINK_COMMAND } from "@/lib/cli";
 import { firstSnapshotRunning } from "@/lib/snapshot";
 import { nameVisible, type BoardViewer } from "@/lib/stats";
-import { backTarget, sharesCrew, userByLogin } from "@/lib/crews";
+import { backTarget, inviteTarget, sharesCrew, userByLogin } from "@/lib/crews";
 import { fmt, pctDelta } from "@/lib/format";
 import { dayChartMode, parseMetric, parseWindow, rangeDays, viewQuery, windowLabel, windowQuery, windowRange, type Metric, type Window } from "@/lib/window";
 
@@ -260,9 +261,10 @@ export default async function UserPage({
   const window = parseWindow(query);
   const metric = parseMetric(query.m);
   const suffix = metric === "lines" ? "" : `&m=${metric}`;
-  const [back, machines] = await Promise.all([
+  const [back, machines, invite] = await Promise.all([
     backTarget(session.user.id, query.src, viewQuery(window, metric)),
     isOwner ? db.select({ cliVersion: cliTokens.cliVersion }).from(cliTokens).where(eq(cliTokens.userId, user.id)) : [],
+    isOwner ? inviteTarget(user.id) : null,
   ]);
   const behind = [...new Set(machines.filter((m) => behindLatestCli(m.cliVersion)).map((m) => m.cliVersion ?? "an old version"))];
   return (
@@ -291,6 +293,7 @@ export default async function UserPage({
           <RangePicker current={window} basePath={`/dashboard/u/${user.githubLogin}`} query={suffix} />
         </div>
       </div>
+      {invite && <InvitePanel link={invite.code ? `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/join/${invite.code}` : null} />}
       <Section fallback={<SkeletonStats />}>
         <Stats
           user={user}

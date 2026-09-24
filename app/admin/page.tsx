@@ -28,6 +28,7 @@ const FUNNEL_FROM: Record<string, string> = {
   signin_error: "signin_start",
   first_dashboard: "signin_new",
   cli_linked: "first_dashboard",
+  invite_join: "invite_copy",
 };
 
 function duration(startedAt: Date, finishedAt: Date | null): string {
@@ -89,7 +90,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         <section id="funnel" className="mb-12 scroll-mt-20">
           <h2 className="font-sans font-bold text-xl">Funnel</h2>
           <p className="font-mono text-xs text-faint mt-1 mb-4">
-            &gt; last 14 days (UTC), counts only · page views are in Vercel Analytics · % is each step out of the one it follows: new, returning and errors out of started, first dashboard out of new, linked out of first dashboard
+            &gt; last 14 days (UTC), counts only · page views are in Vercel Analytics · % is each step out of the one it follows: new, returning and errors out of started, first dashboard out of new, linked out of first dashboard, joins by invite out of invite links copied or shared
           </p>
           <div className="overflow-x-auto border-2 border-dark">
             <table className="w-full font-mono text-xs">
