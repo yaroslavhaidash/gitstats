@@ -1,4 +1,4 @@
-import { desc, eq, lt, or, sql } from "drizzle-orm";
+import { asc, desc, eq, lt, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/db";
@@ -16,6 +16,7 @@ import {
   weeklyStats,
   deletedUsersArchive,
   mcpTokens,
+  messages,
   props,
   oauthCodes,
   oauthGrants,
@@ -32,7 +33,7 @@ import { handOffCrews } from "./crews";
 export async function exportAccount(userId: number) {
   const giver = alias(users, "giver");
   const receiver = alias(users, "receiver");
-  const [[user], memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, propsRows, apps] = await Promise.all([
+  const [[user], memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, propsRows, apps, thread] = await Promise.all([
     db
       .select({
         id: users.id,
@@ -136,6 +137,11 @@ export async function exportAccount(userId: number) {
       .from(oauthGrants)
       .where(eq(oauthGrants.userId, userId))
       .orderBy(oauthGrants.id),
+    db
+      .select({ fromAdmin: messages.fromAdmin, body: messages.body, createdAt: messages.createdAt, readAt: messages.readAt })
+      .from(messages)
+      .where(eq(messages.userId, userId))
+      .orderBy(asc(messages.createdAt)),
   ]);
   if (!user) return null;
   return {
@@ -151,6 +157,7 @@ export async function exportAccount(userId: number) {
     mcpTokens: assistants,
     props: propsRows,
     oauthApps: apps,
+    messages: thread,
   };
 }
 
@@ -176,7 +183,7 @@ export async function archiveAccount(userId: number): Promise<void> {
   const found = await db.execute<{ row: Record<string, unknown> }>(sql`select to_jsonb(t) as row from ${users} t where t.id = ${userId}`);
   const user = found.rows[0]?.row;
   if (!user) return;
-  const [memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, propsRows, apps] = await Promise.all([
+  const [memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, propsRows, apps, thread] = await Promise.all([
     rowsAsJson(crewMembers, userId),
     rowsAsJson(cliTokens, userId),
     rowsAsJson(userTokens, userId),
@@ -192,6 +199,7 @@ export async function archiveAccount(userId: number): Promise<void> {
       )
       .then((res) => res.rows[0].rows),
     rowsAsJson(oauthGrants, userId),
+    rowsAsJson(messages, userId),
   ]);
   const data: ArchivedAccount = {
     user,
@@ -205,6 +213,7 @@ export async function archiveAccount(userId: number): Promise<void> {
     mcpTokens: assistants,
     props: propsRows,
     oauthGrants: apps,
+    messages: thread,
   };
   await db.insert(deletedUsersArchive).values({ userId, login: String(user.github_login), data });
 }
@@ -243,6 +252,7 @@ export async function restoreAccount(archiveId: number): Promise<string | null> 
   await restoreRows(repoNameOverrides, data.repoNameOverrides);
   await restoreRows(mcpTokens, data.mcpTokens ?? []);
   await restoreRows(oauthGrants, data.oauthGrants ?? []);
+  await restoreRows(messages, data.messages ?? []);
   // Only props whose other member is still here can come back.
   if (data.props && data.props.length > 0) {
     await db.execute(sql`
@@ -281,6 +291,7 @@ export async function deleteAccount(userId: number): Promise<void> {
   await db.delete(mcpTokens).where(eq(mcpTokens.userId, userId));
   await db.delete(oauthGrants).where(eq(oauthGrants.userId, userId));
   await db.delete(oauthCodes).where(eq(oauthCodes.userId, userId));
+  await db.delete(messages).where(eq(messages.userId, userId));
   await db.delete(props).where(or(eq(props.giverId, userId), eq(props.receiverId, userId)));
   await db.delete(userTokens).where(eq(userTokens.userId, userId));
   await db.delete(deviceCodes).where(eq(deviceCodes.userId, userId));

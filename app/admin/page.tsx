@@ -2,13 +2,15 @@ import Link from "next/link";
 import { AdminVisitors } from "@/components/AdminVisitors";
 import { DangerConfirm } from "@/components/DangerConfirm";
 import { Logo } from "@/components/Logo";
+import { MessageThread } from "@/components/MessageThread";
 import { ARCHIVE_DAYS } from "@/lib/account";
 import { adminOverview, requireAdmin } from "@/lib/admin";
 import { behindLatestCli, LATEST_CLI, RELINK_COMMAND } from "@/lib/cli";
-import { adminDeleteUser, adminRestoreUser, adminRevokeMachine, adminSnapshotChain, adminSnapshotUser } from "@/lib/actions";
+import { adminDeleteUser, adminRestoreUser, adminRevokeMachine, adminSendMessage, adminSnapshotChain, adminSnapshotUser } from "@/lib/actions";
 import { userCrews } from "@/lib/crews";
 import { fmt, fmtDateTime } from "@/lib/format";
 import { FUNNEL_STEPS, funnelDays } from "@/lib/funnel";
+import { inbox, markRead, thread } from "@/lib/messages";
 
 /** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
 export const instant = false;
@@ -50,9 +52,24 @@ function daysLeft(deletedAt: Date): number {
   return Math.max(0, ARCHIVE_DAYS - Math.floor((Date.now() - deletedAt.getTime()) / 86_400_000));
 }
 
-export default async function Admin({ searchParams }: { searchParams: Promise<{ done?: string; v?: string; vpage?: string; lpage?: string; hpage?: string }> }) {
+export default async function Admin({
+  searchParams,
+}: {
+  searchParams: Promise<{ done?: string; v?: string; vpage?: string; lpage?: string; hpage?: string; thread?: string; error?: string }>;
+}) {
   const admin = await requireAdmin();
-  const [{ done, v, vpage, lpage, hpage }, { totals, capacity, runs, members, crewList, archives, log }, funnel, crews] = await Promise.all([searchParams, adminOverview(), funnelDays(14), userCrews(admin.id)]);
+  const { done, v, vpage, lpage, hpage, thread: threadParam, error } = await searchParams;
+  // The open thread's replies count as read before the inbox is listed, so it does not show them as unread.
+  const openId = Number(threadParam);
+  if (Number.isInteger(openId) && openId > 0) await markRead(openId, "admin");
+  const [{ totals, capacity, runs, members, crewList, archives, log }, funnel, crews, threads, openThread] = await Promise.all([
+    adminOverview(),
+    funnelDays(14),
+    userCrews(admin.id),
+    inbox(),
+    Number.isInteger(openId) && openId > 0 ? thread(openId) : null,
+  ]);
+  const openLogin = members.find((m) => m.id === openId)?.login;
   // Straight to the board, not via /dashboard: a client navigation to a page that redirects while
   // streaming leaves the browser where it was (the redirect arrives in the payload and is dropped).
   const homePath = crews[0] ? `/dashboard/c/${crews[0].code}` : "/dashboard";
@@ -68,6 +85,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
             <a href="#funnel" className="hover:text-alert transition-colors">[FUNNEL]</a>
             <a href="#visitors" className="hover:text-alert transition-colors">[VISITORS]</a>
             <a href="#runs" className="hover:text-alert transition-colors">[RUNS]</a>
+            <a href="#inbox" className="hover:text-alert transition-colors">[INBOX]{threads.some((t) => t.unread > 0) && <span className="inline-block w-2 h-2 bg-alert ml-1 align-middle" />}</a>
             <a href="#members" className="hover:text-alert transition-colors">[MEMBERS]</a>
             <a href="#crews" className="hover:text-alert transition-colors">[CREWS]</a>
             <a href="#archive" className="hover:text-alert transition-colors">[ARCHIVE]</a>
@@ -152,7 +170,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         </section>
 
         <AdminVisitors
-          filter={v === "all" || v === "stopped" || v === "leads" ? v : "engaged"}
+          filter={v === "engaged" || v === "stopped" || v === "leads" ? v : "all"}
           pages={{ visits: pageNumber(vpage), leads: pageNumber(lpage), lookedUp: pageNumber(hpage) }}
         />
 
@@ -212,6 +230,35 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
           )}
         </section>
 
+        <section id="inbox" className="mb-12 scroll-mt-20">
+          <h2 className="font-sans font-bold text-xl">Inbox</h2>
+          <p className="font-mono text-xs text-faint mt-1 mb-4">&gt; one thread per member, unread replies first · start one with [MESSAGE] under Members</p>
+          {threads.length === 0 ? (
+            <p className="font-mono text-xs text-faint border-2 border-dark px-4 py-3">&gt; no messages yet</p>
+          ) : (
+            <ul className="divide-y divide-dark border-2 border-dark font-mono text-sm mb-6">
+              {threads.map((t) => (
+                <li key={t.userId}>
+                  <Link href={`/admin?thread=${t.userId}#inbox`} className={`flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-dark ${t.userId === openId ? "bg-dark" : ""}`}>
+                    <span className="min-w-0">
+                      <span className="text-white">{t.login}</span>
+                      {t.unread > 0 && <span className="text-alert ml-2">{t.unread} unread</span>}
+                      <span className="block text-xs text-faint truncate max-w-xl">{t.last}</span>
+                    </span>
+                    <span className="text-xs text-faint">{t.total} · {fmtDateTime(t.lastAt)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {openThread && openLogin && (
+            <div className="border-2 border-dark p-4">
+              <h3 className="font-sans font-bold mb-4">{openLogin}</h3>
+              <MessageThread messages={openThread} me="admin" them={openLogin} action={adminSendMessage} userId={openId} error={error} />
+            </div>
+          )}
+        </section>
+
         <section id="members" className="mb-12 scroll-mt-20">
           <h2 className="font-sans font-bold text-xl mb-4">Members</h2>
           <ul className="divide-y divide-dark border-2 border-dark font-mono text-sm">
@@ -228,6 +275,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
                     </span>
                   </span>
                   <span className="flex items-center gap-4">
+                    <Link href={`/admin?thread=${m.id}#inbox`} className="font-mono text-xs text-faint hover:text-alert transition-colors">[MESSAGE]</Link>
                     <form action={adminSnapshotUser}>
                       <input type="hidden" name="id" value={m.id} />
                       <button type="submit" className="font-mono text-xs text-faint hover:text-alert transition-colors cursor-pointer">[SNAPSHOT]</button>

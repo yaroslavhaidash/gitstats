@@ -11,6 +11,7 @@ import { ViewLink } from "@/components/ViewLink";
 import { signInWithGitHub, signOutAction } from "@/lib/actions";
 import { isAdmin } from "@/lib/admin";
 import { userCrews } from "@/lib/crews";
+import { hasUnread } from "@/lib/messages";
 import { collapses } from "@/lib/nav";
 import { hasLinkedMachine } from "@/lib/stats";
 
@@ -20,10 +21,11 @@ type NavUser = { login: string; image?: string | null };
 const BAR = "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4 sm:gap-6";
 
 /**
- * A member's nav: crews, global, compare, docs, avatar and settings, exit, and the link-your-computer
+ * A member's nav: crews, global, compare, inbox, docs, avatar and settings, exit, and the link-your-computer
  * banner until a machine is linked. The dashboard and every public page share it.
  */
-export function MemberNav({ user, crews, admin, linked }: { user: NavUser; crews: Crew[]; admin: boolean; linked: boolean }) {
+export function MemberNav({ user, crews, admin, linked, unread }: { user: NavUser; crews: Crew[]; admin: boolean; linked: boolean; unread: boolean }) {
+  const dot = unread && <span aria-label="unread" className="inline-block w-2 h-2 bg-alert ml-1 align-middle" />;
   const homePath = crews[0] ? `/dashboard/c/${crews[0].code}` : "/dashboard";
   return (
     <>
@@ -38,6 +40,7 @@ export function MemberNav({ user, crews, admin, linked }: { user: NavUser; crews
             ))}
             <Link href="/vs" className="px-3 py-2 hover:text-alert transition-colors">[COMPARE]</Link>
             <Link href="/dashboard/new" className="px-3 py-2 hover:text-alert transition-colors">[NEW CREW]</Link>
+            <Link href="/dashboard/inbox" className="px-3 py-2 hover:text-alert transition-colors">[INBOX]{dot}</Link>
             <Link href="/dashboard/settings" className="px-3 py-2 hover:text-alert transition-colors">[SETTINGS]</Link>
             <Link href="/docs" className="px-3 py-2 hover:text-alert transition-colors">[DOCS]</Link>
             {admin && <Link href="/admin" className="px-3 py-2 hover:text-alert transition-colors">[ADMIN]</Link>}
@@ -49,6 +52,7 @@ export function MemberNav({ user, crews, admin, linked }: { user: NavUser; crews
           {!collapses(crews) && (
             <Link href="/dashboard/new" className="hidden md:block text-faint hover:text-alert transition-colors whitespace-nowrap">[+ CREW]</Link>
           )}
+          <Link href="/dashboard/inbox" className="hidden md:block hover:text-alert transition-colors whitespace-nowrap">[INBOX]{dot}</Link>
           <Link href="/docs" className="hidden md:block hover:text-alert transition-colors">[DOCS]</Link>
           {admin && <Link href="/admin" className="hidden md:block hover:text-alert transition-colors">[ADMIN]</Link>}
         </div>
@@ -88,8 +92,8 @@ const DEFAULT_LINKS = (
 async function SessionBar({ where, links }: { where: string; links: ReactNode }) {
   const session = await auth();
   if (session) {
-    const [crews, admin, linked] = await Promise.all([userCrews(session.user.id), isAdmin(session.user.id), hasLinkedMachine(session.user.id)]);
-    return <MemberNav user={session.user} crews={crews} admin={admin} linked={linked} />;
+    const [crews, admin, linked, unread] = await Promise.all([userCrews(session.user.id), isAdmin(session.user.id), hasLinkedMachine(session.user.id), hasUnread(session.user.id)]);
+    return <MemberNav user={session.user} crews={crews} admin={admin} linked={linked} unread={unread} />;
   }
   return (
     <div className={BAR}>

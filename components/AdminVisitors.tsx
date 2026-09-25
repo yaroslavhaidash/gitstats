@@ -3,8 +3,8 @@ import { fmtDateTime } from "@/lib/format";
 import { VISIT_STEPS, type SourceRow, type VisitFilter, type VisitorPages, visitorsOverview } from "@/lib/visits";
 
 const FILTERS: [VisitFilter, string][] = [
-  ["engaged", "engaged"],
   ["all", "all"],
+  ["engaged", "engaged"],
   ["stopped", "stopped before sign-in"],
   ["leads", "leads only"],
 ];
@@ -25,7 +25,7 @@ function Handle({ login }: { login: string }) {
 /** The /admin URL for a filter and set of pages, pointing at one section. */
 function adminHref(filter: VisitFilter, pages: VisitorPages, anchor: string): string {
   const q = new URLSearchParams();
-  if (filter !== "engaged") q.set("v", filter);
+  if (filter !== "all") q.set("v", filter);
   if (pages.visits > 1) q.set("vpage", String(pages.visits));
   if (pages.leads > 1) q.set("lpage", String(pages.leads));
   if (pages.lookedUp > 1) q.set("hpage", String(pages.lookedUp));

@@ -19,6 +19,7 @@ const STORED: [string, string][] = [
   ["repo names, only if you ask", "Names are off until you run gitstats names on. Public repos are matched by hash to names GitHub already publishes."],
   ["your crews and your machines", "Crew membership and invite codes; per linked computer its name, the CLI version, when it last synced and what went wrong if it did."],
   ["props", "Who gave props to whom, and in which week. Only the member who got them sees who gave; anyone else who can open that page sees the count."],
+  ["messages", "What you and the person who runs gitstats write to each other in your inbox. Only the two of you can read it; it is in your export and goes when you delete your account."],
   ["visits", "We count page visits without cookies and keep GitHub handles typed into the site, with where the visit came from."],
   ["read-only tokens, if you add one", "A fine-grained GitHub token is optional. It is encrypted with AES-256-GCM and decrypted only inside the nightly job."],
 ];

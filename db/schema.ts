@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   customType,
   date,
   index,
@@ -359,6 +360,8 @@ export type ArchivedAccount = {
   props?: Record<string, unknown>[];
   /** Apps connected over OAuth. Absent from archives written before OAuth existed. */
   oauthGrants?: Record<string, unknown>[];
+  /** The thread with the maintainer. Absent from archives written before messages existed. */
+  messages?: Record<string, unknown>[];
 };
 
 /** A deleted member, kept for 30 days so an accidental delete can be undone, then purged nightly. */
@@ -494,3 +497,22 @@ export const lookedUpHandles = pgTable("looked_up_handles", {
   lookups: integer("lookups").notNull().default(1),
   byLeads: citextArray("by_leads").notNull().default(sql`'{}'`),
 });
+
+/**
+ * One thread per member, between that member and the maintainer; members never message each other.
+ * `read_at` is when the other side read it: the member for `from_admin` rows, the maintainer otherwise.
+ */
+export const messages = pgTable(
+  "messages",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    fromAdmin: boolean("from_admin").notNull(),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (t) => [index("messages_user_idx").on(t.userId, t.createdAt), check("messages_body_len", sql`char_length(${t.body}) between 1 and 2000`)],
+);

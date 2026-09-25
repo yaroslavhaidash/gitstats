@@ -16,6 +16,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { encrypt } from "./crypto";
 import { countStep } from "./funnel";
 import { MCP_TOKEN_PREFIX } from "./mcp";
+import { postMessage } from "./messages";
 import { checkAuthorize, issueCode, publicOrigin, withParams, type AuthorizeParams } from "./oauth";
 import { fetchTokenLogin, GitHubAuthError } from "./github";
 import { newShareNonce } from "./share";
@@ -95,6 +96,23 @@ export async function createFirstCrew(): Promise<void> {
   updateTag(STATS_TAG);
   revalidatePath("/dashboard", "layout");
   redirect(back);
+}
+
+/** A member writes to the maintainer. Only ever into their own thread: the user id is the session's. */
+export async function sendMessage(formData: FormData): Promise<void> {
+  const userId = await requireUserId();
+  const result = await postMessage(userId, false, formData.get("body"));
+  redirect(result === "ok" ? "/dashboard/inbox" : `/dashboard/inbox?error=${result}`);
+}
+
+/** The maintainer writes into one member's thread. */
+export async function adminSendMessage(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const userId = Number(formData.get("id"));
+  const [user] = Number.isInteger(userId) ? await db.select({ id: users.id }).from(users).where(eq(users.id, userId)) : [];
+  if (!user) redirect("/admin#inbox");
+  const result = await postMessage(user.id, true, formData.get("body"));
+  redirect(`/admin?thread=${user.id}${result === "ok" ? "" : `&error=${result}`}#inbox`);
 }
 
 /** The link command was copied from the "link your computer" banner. */
