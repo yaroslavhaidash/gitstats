@@ -31,6 +31,7 @@ const FUNNEL_FROM: Record<string, string> = {
   signin_error: "signin_start",
   first_dashboard: "signin_new",
   cli_linked: "first_dashboard",
+  cli_banner_copy: "first_dashboard",
   invite_join: "invite_copy",
 };
 

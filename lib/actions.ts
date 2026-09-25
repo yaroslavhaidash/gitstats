@@ -97,6 +97,11 @@ export async function createFirstCrew(): Promise<void> {
   redirect(back);
 }
 
+/** The link command was copied from the "link your computer" banner. */
+export async function countCliBannerCopy(): Promise<void> {
+  if (await auth()) await countStep("cli_banner_copy");
+}
+
 /** An invite link was copied or handed to the share sheet. */
 export async function countInviteCopy(): Promise<void> {
   if (await auth()) await countStep("invite_copy");

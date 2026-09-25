@@ -886,6 +886,12 @@ export type SyncWarning = { kind: "token" | "machine"; name: string; last: Date 
 /** How long a linked machine may stay quiet before its owner is told. It syncs every 6 hours. */
 const STALE_DAYS = 3;
 
+/** Whether the member has linked any computer; until then `CliBanner` rides under their nav. */
+export async function hasLinkedMachine(userId: number): Promise<boolean> {
+  const [row] = await db.select({ id: cliTokens.id }).from(cliTokens).where(eq(cliTokens.userId, userId)).limit(1);
+  return row !== undefined;
+}
+
 /**
  * Whatever is keeping this member's numbers from updating: a GitHub token GitHub stopped accepting,
  * or a linked machine that has gone quiet. Only ever shown to the member themselves.
