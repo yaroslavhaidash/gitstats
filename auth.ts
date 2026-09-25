@@ -60,6 +60,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     error(error) {
       console.error(error);
       const code = error instanceof AuthError ? error.type : error.name;
+      // An undecodable session cookie is logged on every page it rides along with, not on a sign-in;
+      // `proxy.ts` clears it and counts it once as `stale_session`.
+      if (code === "JWTSessionError") return;
       const count = () => Promise.all([countStep("signin_error"), countStep(`signin_error:${code}`)]);
       try {
         after(count);
