@@ -1,15 +1,18 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, lt, sql } from "drizzle-orm";
+import { decode } from "next-auth/jwt";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { leads, lookedUpHandles, users, visitEvents, visitSalts, visits, type VisitEventKind } from "@/db/schema";
+import { crews, leads, lookedUpHandles, users, visitEvents, visitSalts, visits, type VisitEventKind } from "@/db/schema";
+import { isAdmin } from "./admin";
 import { getHandle } from "./handle";
 
 /**
  * Visitor journeys without cookies. A visitor is sha256(today's salt + IP + user agent): the same
  * browser is one visitor for one UTC day and a different one tomorrow, and neither the IP nor the
- * user agent is stored. Nothing is recorded for a browser sending Global Privacy Control or for a
- * bot. Every write here swallows its own error: counting a visit must never break the page.
+ * user agent is stored. Nothing is recorded for a browser sending Global Privacy Control, for a
+ * bot, or for a signed-in admin. Every write here swallows its own error: counting a visit must
+ * never break the page.
  */
 
 /** How far a visitor-day got, in order; `visits.furthest_step` and `leads.furthest_step` index this. */
@@ -46,10 +49,33 @@ async function saltFor(day: string): Promise<string> {
   return row.salt;
 }
 
-/** This request's visitor, or null when it must not be counted (GPC, a bot, no user agent). */
+const SESSION_COOKIES = ["__Secure-authjs.session-token", "authjs.session-token"];
+
+/**
+ * Whether the request carries an admin's session, read from the session cookie the way `proxy.ts`
+ * reads it: this also runs inside the Auth.js callback, where calling `auth()` is not an option.
+ */
+async function adminSession(h: Headers): Promise<boolean> {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) return false;
+  const jar = new Map((h.get("cookie") ?? "").split(";").map((c) => [c.slice(0, c.indexOf("=")).trim(), c.slice(c.indexOf("=") + 1).trim()]));
+  for (const name of SESSION_COOKIES) {
+    const raw = jar.get(name);
+    if (!raw) continue;
+    try {
+      const token = await decode({ token: raw, secret, salt: name });
+      if (typeof token?.uid === "number") return isAdmin(token.uid);
+    } catch {
+      // An unreadable cookie is no session.
+    }
+  }
+  return false;
+}
+
+/** This request's visitor, or null when it must not be counted (GPC, a bot, no user agent, an admin). */
 export async function visitorFrom(h: Headers): Promise<Visitor | null> {
   const ua = h.get("user-agent") ?? "";
-  if (h.get("sec-gpc") === "1" || !ua || BOT.test(ua)) return null;
+  if (h.get("sec-gpc") === "1" || !ua || BOT.test(ua) || (await adminSession(h))) return null;
   const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
   const day = new Date().toISOString().slice(0, 10);
   const id = createHash("sha256").update(`${await saltFor(day)}|${ip}|${ua}`).digest("hex").slice(0, 32);
@@ -116,6 +142,29 @@ export async function recordEvent(v: Visitor, kind: VisitEventKind, path: string
   } catch (e) {
     console.error(`[visits] could not record ${kind}:`, e);
   }
+}
+
+/** First path segments that are pages; anything else is a 404 and not part of a journey. */
+const PAGES = new Set(["", "dashboard", "demo", "gh", "vs", "docs", "privacy", "changelog", "blog", "widget", "join", "link", "s", "oauth"]);
+
+/**
+ * Whether a viewed path is a page that exists: a known route, and for a member's page, a crew board
+ * or an invite, an account or crew that is still there. A deleted account's path is not recorded.
+ */
+export async function livePath(path: string): Promise<boolean> {
+  const [, first = "", second, third] = path.split("/");
+  if (!PAGES.has(first)) return false;
+  const id = third ? decodeURIComponent(third) : "";
+  if (first === "dashboard" && second === "u" && id) {
+    const [row] = await db.select({ id: users.id }).from(users).where(sql`lower(${users.githubLogin}) = lower(${id})`).limit(1);
+    return Boolean(row);
+  }
+  const code = first === "join" ? (second ? decodeURIComponent(second) : "") : first === "dashboard" && second === "c" ? id : "";
+  if (code) {
+    const [row] = await db.select({ id: crews.id }).from(crews).where(sql`upper(${crews.code}) = upper(${code})`).limit(1);
+    return Boolean(row);
+  }
+  return true;
 }
 
 /** A handle that is a real GitHub account: a member, or one GitHub answered for. */
@@ -196,7 +245,8 @@ export async function visitorLead(): Promise<string | null> {
 /** A finished sign-in: the visit gets the account, and a lead with that login became a member. */
 export async function recordSignIn(v: Visitor | null, userId: number, login: string): Promise<void> {
   try {
-    if (v) {
+    // The admin signing in is not a visitor; their browsing is never recorded either.
+    if (v && !(await isAdmin(userId))) {
       await recordEvent(v, "signin_done", "/api/auth/callback/github");
       await db.update(visits).set({ userId }).where(and(eq(visits.visitorId, v.id), eq(visits.day, v.day)));
     }
@@ -214,7 +264,7 @@ export async function purgeOldVisits(): Promise<number> {
   return gone.length;
 }
 
-export type VisitFilter = "all" | "stopped" | "leads";
+export type VisitFilter = "engaged" | "all" | "stopped" | "leads";
 
 export type VisitRow = {
   visitorId: string;
@@ -234,19 +284,26 @@ export type SourceRow = { source: string; demoViews: number; signinClicks: numbe
 
 const LIST_DAYS = 30;
 const LIST_ROWS = 200;
+/** Days in the per-day count lines above the Visitors table. */
+const DAY_LINES = 7;
 
 /** /admin "Visitors": visitor-days, leads, looked-up handles and the per-source funnel, last 30 days. */
 export async function visitorsOverview(filter: VisitFilter) {
   const since = sql`(now() at time zone 'utc')::date - ${LIST_DAYS - 1}::int`;
+  // Engaged: anything beyond a single view of the landing page.
+  const engaged = sql`exists (select 1 from ${visitEvents} e where e.visitor_id = v.visitor_id and e.day = v.day and not (e.kind = 'view' and e.path = '/'))
+    or (select count(*) from ${visitEvents} e where e.visitor_id = v.visitor_id and e.day = v.day) > 1`;
   const where =
-    filter === "stopped"
+    filter === "engaged"
+      ? sql`v.day >= ${since} and (${engaged})`
+      : filter === "stopped"
       ? sql`v.day >= ${since} and v.furthest_step < 4`
       : filter === "leads"
         ? sql`v.day >= ${since} and v.lead_login is not null`
         : sql`v.day >= ${since}`;
   // A new account is a sign-in on this visit by someone whose account did not exist when it began.
   const newAccount = sql`(v.user_id is not null and exists (select 1 from ${users} u where u.id = v.user_id and u.created_at >= v.first_at))`;
-  const [list, leadRows, lookedUp, byFrom, byHost] = await Promise.all([
+  const [list, leadRows, lookedUp, byFrom, byHost, days] = await Promise.all([
     db.execute<{
       visitor_id: string;
       day: string;
@@ -291,6 +348,13 @@ export async function visitorsOverview(filter: VisitFilter) {
       where v.day >= ${since}
       group by 1 order by count(distinct (v.visitor_id, v.day)) desc
     `),
+    db.execute<{ day: string; visits: number; engaged: number; leads: number; signins: number }>(sql`
+      select v.day::text as day, count(*)::int as visits, count(*) filter (where ${engaged})::int as engaged,
+        count(*) filter (where v.lead_login is not null)::int as leads,
+        count(*) filter (where exists (select 1 from ${visitEvents} e where e.visitor_id = v.visitor_id and e.day = v.day and e.kind = 'signin_done'))::int as signins
+      from ${visits} v where v.day >= (now() at time zone 'utc')::date - ${DAY_LINES - 1}::int
+      group by v.day order by v.day desc
+    `),
   ]);
   const rows: VisitRow[] = list.rows.map((r) => ({
     visitorId: r.visitor_id,
@@ -307,5 +371,5 @@ export async function visitorsOverview(filter: VisitFilter) {
   }));
   const sources = (rs: { source: string; demo_views?: number; signin_clicks: number; new_accounts: number }[]): SourceRow[] =>
     rs.map((r) => ({ source: r.source, demoViews: r.demo_views ?? 0, signinClicks: r.signin_clicks, newAccounts: r.new_accounts }));
-  return { rows, leads: leadRows, lookedUp, byFrom: sources(byFrom.rows), byHost: sources(byHost.rows) };
+  return { rows, days: days.rows, leads: leadRows, lookedUp, byFrom: sources(byFrom.rows), byHost: sources(byHost.rows) };
 }

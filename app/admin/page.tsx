@@ -144,7 +144,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
           )}
         </section>
 
-        <AdminVisitors filter={v === "stopped" || v === "leads" ? v : "all"} />
+        <AdminVisitors filter={v === "all" || v === "stopped" || v === "leads" ? v : "engaged"} />
 
         <section id="runs" className="mb-12 scroll-mt-20">
           <div className="flex items-center justify-between mb-4 gap-4">

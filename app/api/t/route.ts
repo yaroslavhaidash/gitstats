@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
-import { recordEvent, visitorFrom } from "@/lib/visits";
+import { livePath, recordEvent, visitorFrom } from "@/lib/visits";
 
 /** Paths that are not a visitor's journey: the admin's own page and anything machine-facing. */
 const SKIP = /^\/(admin|api|devlogin)(\/|$)/;
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   }
   if (typeof body.path !== "string" || !body.path.startsWith("/") || body.path.length > 2000) return done;
   const url = new URL(body.path, "http://x");
-  if (SKIP.test(url.pathname)) return done;
+  if (SKIP.test(url.pathname) || !(await livePath(url.pathname))) return done;
   const visitor = await visitorFrom(request.headers);
   if (!visitor) return done;
   if (body.kind === "signin_click") {

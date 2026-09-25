@@ -3,6 +3,7 @@ import { fmtDateTime } from "@/lib/format";
 import { VISIT_STEPS, type SourceRow, type VisitFilter, visitorsOverview } from "@/lib/visits";
 
 const FILTERS: [VisitFilter, string][] = [
+  ["engaged", "engaged"],
   ["all", "all"],
   ["stopped", "stopped before sign-in"],
   ["leads", "leads only"],
@@ -55,14 +56,23 @@ function SourceTable({ title, rows, demo }: { title: string; rows: SourceRow[]; 
 
 /** Visitor journeys, leads and looked-up handles on /admin. */
 export async function AdminVisitors({ filter }: { filter: VisitFilter }) {
-  const { rows, leads, lookedUp, byFrom, byHost } = await visitorsOverview(filter);
+  const { rows, days, leads, lookedUp, byFrom, byHost } = await visitorsOverview(filter);
   return (
     <>
       <section id="visitors" className="mb-12 scroll-mt-20">
         <h2 className="font-sans font-bold text-xl">Visitors</h2>
         <p className="font-mono text-xs text-faint mt-1 mb-4">
-          &gt; last 30 days, newest first · one row per visitor-day (no cookies: the id changes at 00:00 UTC) · times UTC
+          &gt; last 30 days, newest first · one row per visitor-day · engaged hides a lone view of / (no cookies: the id changes at 00:00 UTC) · times UTC
         </p>
+        <ul className="font-mono text-xs mb-4 space-y-1">
+          {days.length === 0 && <li className="text-faint">no visits in the last 7 days</li>}
+          {days.map((d) => (
+            <li key={d.day}>
+              <span className="text-faint">{d.day}</span> · {d.visits} visitor-days · <span className="text-silver">{d.engaged} engaged</span> · {d.leads} leads ·{" "}
+              <span className={d.signins > 0 ? "text-green" : ""}>{d.signins} sign-ins</span>
+            </li>
+          ))}
+        </ul>
         <div className="flex flex-wrap gap-2 mb-4 font-mono text-xs">
           {FILTERS.map(([value, label]) => (
             <Link
