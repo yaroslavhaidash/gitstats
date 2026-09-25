@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/format";
-import { VISIT_STEPS, type SourceRow, type VisitFilter, visitorsOverview } from "@/lib/visits";
+import { VISIT_STEPS, type SourceRow, type VisitFilter, type VisitorPages, visitorsOverview } from "@/lib/visits";
 
 const FILTERS: [VisitFilter, string][] = [
   ["engaged", "engaged"],
@@ -19,6 +19,32 @@ function Handle({ login }: { login: string }) {
     <a href={`https://github.com/${login}`} target="_blank" rel="noreferrer" className="text-silver underline hover:text-alert">
       {login}
     </a>
+  );
+}
+
+/** The /admin URL for a filter and set of pages, pointing at one section. */
+function adminHref(filter: VisitFilter, pages: VisitorPages, anchor: string): string {
+  const q = new URLSearchParams();
+  if (filter !== "engaged") q.set("v", filter);
+  if (pages.visits > 1) q.set("vpage", String(pages.visits));
+  if (pages.leads > 1) q.set("lpage", String(pages.leads));
+  if (pages.lookedUp > 1) q.set("hpage", String(pages.lookedUp));
+  const query = q.toString();
+  return `/admin${query ? `?${query}` : ""}#${anchor}`;
+}
+
+/** Newer/older links for one table; every other table's page and the filter stay as they are. */
+function Pager({ filter, pages, table, anchor, more }: { filter: VisitFilter; pages: VisitorPages; table: keyof VisitorPages; anchor: string; more: boolean }) {
+  const current = pages[table];
+  if (current === 1 && !more) return null;
+  const to = (n: number) => adminHref(filter, { ...pages, [table]: n }, anchor);
+  const link = "border-2 border-dark px-3 py-1 hover:border-silver transition-colors";
+  return (
+    <div className="flex items-center gap-2 my-3 font-mono text-xs">
+      {current > 1 ? <Link href={to(current - 1)} className={link}>&larr; newer</Link> : <span className="border-2 border-dark px-3 py-1 text-faint">&larr; newer</span>}
+      <span className="text-faint px-2">page {current}</span>
+      {more ? <Link href={to(current + 1)} className={link}>older &rarr;</Link> : <span className="border-2 border-dark px-3 py-1 text-faint">older &rarr;</span>}
+    </div>
   );
 }
 
@@ -55,8 +81,9 @@ function SourceTable({ title, rows, demo }: { title: string; rows: SourceRow[]; 
 }
 
 /** Visitor journeys, leads and looked-up handles on /admin. */
-export async function AdminVisitors({ filter }: { filter: VisitFilter }) {
-  const { rows, days, leads, lookedUp, byFrom, byHost } = await visitorsOverview(filter);
+export async function AdminVisitors({ filter, pages }: { filter: VisitFilter; pages: VisitorPages }) {
+  const { visits, days, leads, lookedUp, byFrom, byHost } = await visitorsOverview(filter, pages);
+  const rows = visits.rows;
   return (
     <>
       <section id="visitors" className="mb-12 scroll-mt-20">
@@ -77,13 +104,14 @@ export async function AdminVisitors({ filter }: { filter: VisitFilter }) {
           {FILTERS.map(([value, label]) => (
             <Link
               key={value}
-              href={`/admin?v=${value}#visitors`}
+              href={adminHref(value, { ...pages, visits: 1 }, "visitors")}
               className={`border-2 px-3 py-1 transition-colors ${value === filter ? "border-silver bg-silver text-void" : "border-dark hover:border-silver"}`}
             >
               {label}
             </Link>
           ))}
         </div>
+        <Pager filter={filter} pages={pages} table="visits" anchor="visitors" more={visits.more} />
         <div className="overflow-x-auto border-2 border-dark">
           <table className="w-full font-mono text-xs">
             <thead className="text-faint uppercase border-b-2 border-dark">
@@ -124,11 +152,13 @@ export async function AdminVisitors({ filter }: { filter: VisitFilter }) {
             </tbody>
           </table>
         </div>
+        <Pager filter={filter} pages={pages} table="visits" anchor="visitors" more={visits.more} />
       </section>
 
       <section id="leads" className="mb-12 scroll-mt-20">
         <h2 className="font-sans font-bold text-xl">Leads</h2>
         <p className="font-mono text-xs text-faint mt-1 mb-4">&gt; handles typed as the visitor&apos;s own, on the landing or a compare box · kept after their visits expire</p>
+        <Pager filter={filter} pages={pages} table="leads" anchor="leads" more={leads.more} />
         <div className="overflow-x-auto border-2 border-dark">
           <table className="w-full font-mono text-xs">
             <thead className="text-faint uppercase border-b-2 border-dark">
@@ -143,12 +173,12 @@ export async function AdminVisitors({ filter }: { filter: VisitFilter }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-dark">
-              {leads.length === 0 && (
+              {leads.rows.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-3 py-2 text-faint">no leads yet</td>
                 </tr>
               )}
-              {leads.map((l) => (
+              {leads.rows.map((l) => (
                 <tr key={l.login}>
                   <td className="px-3 py-2"><Handle login={l.login} /></td>
                   <td className="px-3 py-2 text-faint whitespace-nowrap">{fmtDateTime(l.firstSeen)}</td>
@@ -162,11 +192,13 @@ export async function AdminVisitors({ filter }: { filter: VisitFilter }) {
             </tbody>
           </table>
         </div>
+        <Pager filter={filter} pages={pages} table="leads" anchor="leads" more={leads.more} />
       </section>
 
       <section id="looked-up" className="mb-12 scroll-mt-20">
         <h2 className="font-sans font-bold text-xl">Looked-up handles</h2>
         <p className="font-mono text-xs text-faint mt-1 mb-4">&gt; handles a lead compared against: someone else&apos;s, never a lead themselves</p>
+        <Pager filter={filter} pages={pages} table="lookedUp" anchor="looked-up" more={lookedUp.more} />
         <div className="overflow-x-auto border-2 border-dark">
           <table className="w-full font-mono text-xs">
             <thead className="text-faint uppercase border-b-2 border-dark">
@@ -178,12 +210,12 @@ export async function AdminVisitors({ filter }: { filter: VisitFilter }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-dark">
-              {lookedUp.length === 0 && (
+              {lookedUp.rows.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-3 py-2 text-faint">none yet</td>
                 </tr>
               )}
-              {lookedUp.map((h) => (
+              {lookedUp.rows.map((h) => (
                 <tr key={h.login}>
                   <td className="px-3 py-2"><Handle login={h.login} /></td>
                   <td className="px-3 py-2 text-right">{h.lookups}</td>
@@ -194,6 +226,7 @@ export async function AdminVisitors({ filter }: { filter: VisitFilter }) {
             </tbody>
           </table>
         </div>
+        <Pager filter={filter} pages={pages} table="lookedUp" anchor="looked-up" more={lookedUp.more} />
       </section>
 
       <section id="sources" className="mb-12 scroll-mt-20">

@@ -332,12 +332,22 @@ export type VisitRow = {
 export type SourceRow = { source: string; demoViews: number; signinClicks: number; newAccounts: number };
 
 const LIST_DAYS = 30;
-const LIST_ROWS = 200;
+/** Rows per page of each /admin visitor table. */
+export const PAGE_ROWS = 50;
+
+/** 1-based page of each paginated table: visitor-days, leads, looked-up handles. */
+export type VisitorPages = { visits: number; leads: number; lookedUp: number };
+
+/** One page of a list fetched with one row of lookahead, so the pager knows whether there is an older page. */
+function page<T>(rows: T[]): { rows: T[]; more: boolean } {
+  return { rows: rows.slice(0, PAGE_ROWS), more: rows.length > PAGE_ROWS };
+}
+const offset = (n: number) => (n - 1) * PAGE_ROWS;
 /** Days in the per-day count lines above the Visitors table. */
 const DAY_LINES = 7;
 
 /** /admin "Visitors": visitor-days, leads, looked-up handles and the per-source funnel, last 30 days. */
-export async function visitorsOverview(filter: VisitFilter) {
+export async function visitorsOverview(filter: VisitFilter, pages: VisitorPages) {
   const since = sql`(now() at time zone 'utc')::date - ${LIST_DAYS - 1}::int`;
   // Engaged: anything beyond a single view of the landing page.
   const engaged = sql`exists (select 1 from ${visitEvents} e where e.visitor_id = v.visitor_id and e.day = v.day and not (e.kind = 'view' and e.path = '/'))
@@ -372,14 +382,15 @@ export async function visitorsOverview(filter: VisitFilter) {
         coalesce((select jsonb_agg(jsonb_build_object('at', e.at, 'path', e.path, 'kind', e.kind, 'from', e."from") order by e.at)
           from ${visitEvents} e where e.visitor_id = v.visitor_id and e.day = v.day), '[]'::jsonb) as events
       from ${visits} v where ${where}
-      order by v.first_at desc limit ${LIST_ROWS}
+      order by v.first_at desc limit ${PAGE_ROWS + 1} offset ${offset(pages.visits)}
     `),
-    db.select().from(leads).orderBy(sql`${leads.lastSeen} desc`).limit(LIST_ROWS),
+    db.select().from(leads).orderBy(sql`${leads.lastSeen} desc`).limit(PAGE_ROWS + 1).offset(offset(pages.leads)),
     db
       .select({ login: lookedUpHandles.login, lookups: lookedUpHandles.lookups, lastSeen: lookedUpHandles.lastSeen, byLeads: sql<string>`array_to_string(${lookedUpHandles.byLeads}, ', ')` })
       .from(lookedUpHandles)
       .orderBy(sql`${lookedUpHandles.lastSeen} desc`)
-      .limit(LIST_ROWS),
+      .limit(PAGE_ROWS + 1)
+      .offset(offset(pages.lookedUp)),
     db.execute<{ source: string; signin_clicks: number; new_accounts: number }>(sql`
       with clicks as (select e."from", e.visitor_id, e.day, e.at from ${visitEvents} e where e.kind = 'signin_click' and e.day >= ${since}),
       last_click as (select distinct on (visitor_id, day) visitor_id, day, "from" from clicks order by visitor_id, day, at desc)
@@ -420,5 +431,5 @@ export async function visitorsOverview(filter: VisitFilter) {
   }));
   const sources = (rs: { source: string; demo_views?: number; signin_clicks: number; new_accounts: number }[]): SourceRow[] =>
     rs.map((r) => ({ source: r.source, demoViews: r.demo_views ?? 0, signinClicks: r.signin_clicks, newAccounts: r.new_accounts }));
-  return { rows, days: days.rows, leads: leadRows, lookedUp, byFrom: sources(byFrom.rows), byHost: sources(byHost.rows) };
+  return { visits: page(rows), days: days.rows, leads: page(leadRows), lookedUp: page(lookedUp), byFrom: sources(byFrom.rows), byHost: sources(byHost.rows) };
 }

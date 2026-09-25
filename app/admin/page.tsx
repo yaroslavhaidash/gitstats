@@ -39,13 +39,19 @@ function duration(startedAt: Date, finishedAt: Date | null): string {
   return `${Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000)}s`;
 }
 
+/** A `?…page=` value as a page number; anything that is not a positive integer is the first page. */
+function pageNumber(raw: string | undefined): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : 1;
+}
+
 function daysLeft(deletedAt: Date): number {
   return Math.max(0, ARCHIVE_DAYS - Math.floor((Date.now() - deletedAt.getTime()) / 86_400_000));
 }
 
-export default async function Admin({ searchParams }: { searchParams: Promise<{ done?: string; v?: string }> }) {
+export default async function Admin({ searchParams }: { searchParams: Promise<{ done?: string; v?: string; vpage?: string; lpage?: string; hpage?: string }> }) {
   const admin = await requireAdmin();
-  const [{ done, v }, { totals, capacity, runs, members, crewList, archives, log }, funnel, crews] = await Promise.all([searchParams, adminOverview(), funnelDays(14), userCrews(admin.id)]);
+  const [{ done, v, vpage, lpage, hpage }, { totals, capacity, runs, members, crewList, archives, log }, funnel, crews] = await Promise.all([searchParams, adminOverview(), funnelDays(14), userCrews(admin.id)]);
   // Straight to the board, not via /dashboard: a client navigation to a page that redirects while
   // streaming leaves the browser where it was (the redirect arrives in the payload and is dropped).
   const homePath = crews[0] ? `/dashboard/c/${crews[0].code}` : "/dashboard";
@@ -144,7 +150,10 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
           )}
         </section>
 
-        <AdminVisitors filter={v === "all" || v === "stopped" || v === "leads" ? v : "engaged"} />
+        <AdminVisitors
+          filter={v === "all" || v === "stopped" || v === "leads" ? v : "engaged"}
+          pages={{ visits: pageNumber(vpage), leads: pageNumber(lpage), lookedUp: pageNumber(hpage) }}
+        />
 
         <section id="runs" className="mb-12 scroll-mt-20">
           <div className="flex items-center justify-between mb-4 gap-4">
