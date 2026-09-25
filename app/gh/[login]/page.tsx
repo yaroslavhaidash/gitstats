@@ -7,11 +7,10 @@ import { auth } from "@/auth";
 import { CommitWeeks } from "@/components/CommitWeeks";
 import { CompareForm } from "@/components/CompareForm";
 import { PublicShell } from "@/components/PublicShell";
+import { PublicOnlyNotice } from "@/components/PublicOnlyNotice";
 import { SignInPitch } from "@/components/SignInPitch";
 import { SignedOut } from "@/components/SiteNav";
-import { SignInButton } from "@/components/Tracked";
 import { YearCalendar } from "@/components/YearCalendar";
-import { signInWithGitHub } from "@/lib/actions";
 import { fmt } from "@/lib/format";
 import { getHandle, markMemberViewed, memberLogin } from "@/lib/handle";
 import { openGraphFor } from "@/lib/site";
@@ -70,13 +69,16 @@ export default async function HandlePage({ params }: Props) {
   const { data } = handle;
   return (
     <PublicShell where="handle_nav">
-      <div className="flex items-center gap-5 mb-8">
+      <div className="flex items-center gap-5 mb-6">
         <Image src={data.avatarUrl} alt="" width={64} height={64} className="border-2 border-silver" unoptimized />
         <div className="min-w-0">
           <div className="tag mb-2">GITHUB // {data.login.toUpperCase()}</div>
           <h1 className="font-sans font-bold text-4xl leading-none truncate">{data.name ?? data.login}</h1>
         </div>
       </div>
+      <SignedOut>
+        <PublicOnlyNotice where="gh_top" />
+      </SignedOut>
 
       <div className="grid grid-cols-3 gap-[2px] bg-dark border-2 border-dark mb-3">
         {([
@@ -136,24 +138,12 @@ export default async function HandlePage({ params }: Props) {
         </p>
       </section>
 
-      <SignedOut>
-        {member ? (
-          <section className="border-2 border-alert p-6 flex flex-wrap items-center justify-between gap-6">
-            <div className="min-w-0">
-              <h2 className="font-sans font-bold text-2xl mb-2">Lines, private repos, and a crew need your sign-in.</h2>
-              <p className="font-mono text-xs text-dim">
-                Already linked? Your full page is at{" "}
-                <Link href={`/dashboard/u/${member}`} className="text-silver underline hover:text-alert">/dashboard/u/{member}</Link>
-              </p>
-            </div>
-            <form action={signInWithGitHub}>
-              <SignInButton where="handle" className="btn-brutal px-8 py-4">SIGN IN WITH GITHUB_</SignInButton>
-            </form>
-          </section>
-        ) : (
+      {/* A member already has an account, so there is nothing about them to pitch. */}
+      {!member && (
+        <SignedOut>
           <SignInPitch handle={{ login: data.login, commits: data.totalCommits, streak: data.streak, topLanguage: data.topLanguage }} where="gh_pitch" />
-        )}
-      </SignedOut>
+        </SignedOut>
+      )}
     </PublicShell>
   );
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import { PublicOnlyNotice } from "@/components/PublicOnlyNotice";
 import { PublicShell } from "@/components/PublicShell";
 import { SignInPitch } from "@/components/SignInPitch";
 import { SignedOut } from "@/components/SiteNav";
@@ -108,9 +109,10 @@ function Side({ side, withLines, label, change }: { side: VsSide; withLines: boo
 
 /**
  * Signed out: when this visitor typed one side's handle as their own today and that side is not on
- * gitstats yet, the ask is made about them; otherwise it is the plain one.
+ * gitstats yet, the ask is made about them; otherwise it is the plain one, unless the notice at the
+ * top already asked (a side on public numbers only).
  */
-async function VsSignIn({ sides, ip }: { sides: VsSide[]; ip: string }) {
+async function VsSignIn({ sides, ip, asked }: { sides: VsSide[]; ip: string; asked: boolean }) {
   const lead = (await visitorLead())?.toLowerCase();
   const own = sides.find((s) => s.source === "github" && s.login.toLowerCase() === lead);
   // The pitch speaks of the last year whatever window the pair is on, so it reads the year numbers.
@@ -119,6 +121,7 @@ async function VsSignIn({ sides, ip }: { sides: VsSide[]; ip: string }) {
     const { data } = handle;
     return <SignInPitch handle={{ login: data.login, commits: data.totalCommits, streak: data.streak, topLanguage: data.topLanguage }} where="vs_pitch" compact />;
   }
+  if (asked) return null;
   return (
     <section className="border-2 border-alert p-6 flex flex-wrap items-center justify-between gap-6">
       <div className="min-w-0">
@@ -149,6 +152,7 @@ export default async function VsPage({ params, searchParams }: Props) {
   const [l, r] = [left.side, right.side];
   const withLines = l.lines !== null && r.lines !== null;
   const noLines = [l, r].filter((s) => s.lines === null).map((s) => s.login);
+  const publicOnly = l.source === "github" || r.source === "github";
   const label = windowLabel(window);
   // Reopens the two fields of `/vs` with this pair in them, the clicked side focused.
   const changeHref = (focus: "a" | "b") => `/vs?${new URLSearchParams({ pa: l.login, pb: r.login, focus })}`;
@@ -163,6 +167,11 @@ export default async function VsPage({ params, searchParams }: Props) {
         </div>
         <WindowTabs current={window} basePath={`/vs/${l.login}/${r.login}`} />
       </div>
+      {publicOnly && (
+        <SignedOut>
+          <PublicOnlyNotice where="vs_top" />
+        </SignedOut>
+      )}
 
       <ul className="font-mono text-xs text-dim space-y-1 mb-2">
         {withLines && ahead("lines", l, r, lines)}
@@ -181,7 +190,7 @@ export default async function VsPage({ params, searchParams }: Props) {
       </div>
 
       <SignedOut>
-        <VsSignIn sides={[l, r]} ip={ip} />
+        <VsSignIn sides={[l, r]} ip={ip} asked={publicOnly} />
       </SignedOut>
     </PublicShell>
   );

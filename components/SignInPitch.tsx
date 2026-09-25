@@ -24,7 +24,7 @@ export async function SignInPitch({ handle, where, compact = false }: { handle: 
   const { place, of } = await wouldRank(handle.commits);
   const badge = statsBadge({ ...handle, window: "year", metric: "commits", additions: 0, deletions: 0 });
   return (
-    <section className={`border-2 border-alert ${compact ? "p-5" : "p-6"}`}>
+    <section className={`panel ${compact ? "p-5" : "p-6"}`}>
       <h2 className={`font-sans font-bold mb-5 ${compact ? "text-xl" : "text-2xl"}`}>What you get when you sign in, {handle.login}:</h2>
       <ol className={`grid gap-6 mb-6 ${compact ? "md:grid-cols-3" : "md:grid-cols-[minmax(0,420px)_1fr]"}`}>
         <li className="min-w-0">
