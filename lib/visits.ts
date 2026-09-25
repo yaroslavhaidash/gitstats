@@ -10,9 +10,10 @@ import { getHandle } from "./handle";
 /**
  * Visitor journeys without cookies. A visitor is sha256(today's salt + IP + user agent): the same
  * browser is one visitor for one UTC day and a different one tomorrow, and neither the IP nor the
- * user agent is stored. Nothing is recorded for a browser sending Global Privacy Control, for a
- * bot, or for a signed-in admin. Every write here swallows its own error: counting a visit must
- * never break the page.
+ * user agent is stored. Nothing is recorded outside the production site (local dev and preview
+ * deploys share the production database), for a browser sending Global Privacy Control, for a bot,
+ * or for a signed-in admin. Every write here swallows its own error: counting a visit must never
+ * break the page.
  */
 
 /** How far a visitor-day got, in order; `visits.furthest_step` and `leads.furthest_step` index this. */
@@ -72,8 +73,11 @@ async function adminSession(h: Headers): Promise<boolean> {
   return false;
 }
 
-/** This request's visitor, or null when it must not be counted (GPC, a bot, no user agent, an admin). */
+const PRODUCTION_HOSTS = new Set(["gitstats.org", "www.gitstats.org"]);
+
+/** This request's visitor, or null when it must not be counted (not production, GPC, a bot, no user agent, an admin). */
 export async function visitorFrom(h: Headers): Promise<Visitor | null> {
+  if (process.env.VERCEL_ENV !== "production" || !PRODUCTION_HOSTS.has(h.get("host") ?? "")) return null;
   const ua = h.get("user-agent") ?? "";
   if (h.get("sec-gpc") === "1" || !ua || BOT.test(ua) || (await adminSession(h))) return null;
   const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
@@ -108,20 +112,40 @@ export type Landing = { referrer?: string; utmSource?: string | null; utmMedium?
 
 const clip = (s: string | null | undefined, n = 200) => (s ? s.slice(0, n) : null);
 
+/** The same visitor, kind and path again within this window is the same event (a double submit, a reload). */
+const DUPLICATE_WINDOW = "5 seconds";
+
 /**
  * One event on a visitor-day: opens the visit on its first event (where it landed and came from),
  * moves `last_at` and the furthest step on every later one, and carries the step to the visit's lead.
+ * Returns false when it was a repeat inside `DUPLICATE_WINDOW`, or could not be recorded; a repeat
+ * changes nothing. The advisory lock makes two concurrent requests take turns, so the second one's
+ * check sees the first one's row (the batch is one transaction, each statement a fresh snapshot).
  */
-export async function recordEvent(v: Visitor, kind: VisitEventKind, path: string, extra: { from?: string; landing?: Landing } = {}): Promise<void> {
+export async function recordEvent(v: Visitor, kind: VisitEventKind, path: string, extra: { from?: string; landing?: Landing } = {}): Promise<boolean> {
   try {
     const step = STEP_OF[kind];
     const landing = extra.landing ?? {};
+    const at = clip(path, 300) ?? "/";
+    const [, inserted] = await db.batch([
+      db.execute(sql`select pg_advisory_xact_lock(hashtext(${`visit|${v.id}|${kind}|${at}`}))`),
+      db.execute(sql`
+        insert into ${visitEvents} (visitor_id, day, path, kind, "from")
+        select ${v.id}, ${v.day}, ${at}, ${kind}, ${clip(extra.from, 40)}
+        where not exists (
+          select 1 from ${visitEvents} e where e.visitor_id = ${v.id} and e.day = ${v.day} and e.kind = ${kind} and e.path = ${at}
+            and e.at > now() - ${DUPLICATE_WINDOW}::interval
+        )
+        returning 1
+      `),
+    ]);
+    if (inserted.rows.length === 0) return false;
     await db
       .insert(visits)
       .values({
         visitorId: v.id,
         day: v.day,
-        landingPath: clip(path, 300) ?? "/",
+        landingPath: at,
         referrer: clip(cleanReferrer(landing.referrer, v.host), 500),
         utmSource: clip(landing.utmSource),
         utmMedium: clip(landing.utmMedium),
@@ -134,13 +158,14 @@ export async function recordEvent(v: Visitor, kind: VisitEventKind, path: string
         target: [visits.visitorId, visits.day],
         set: { lastAt: sql`now()`, furthestStep: sql`greatest(${visits.furthestStep}, ${step})` },
       });
-    await db.insert(visitEvents).values({ visitorId: v.id, day: v.day, path: clip(path, 300) ?? "/", kind, from: clip(extra.from, 40) });
     await db.execute(sql`
       update ${leads} set furthest_step = greatest(${leads.furthestStep}, ${step}), last_seen = now()
       from ${visits} where ${visits.visitorId} = ${v.id} and ${visits.day} = ${v.day} and ${leads.login} = ${visits.leadLogin}
     `);
+    return true;
   } catch (e) {
     console.error(`[visits] could not record ${kind}:`, e);
+    return false;
   }
 }
 
@@ -188,7 +213,7 @@ export async function recordTypedHandle(v: Visitor, login: string, path: string)
       .where(and(eq(visits.visitorId, v.id), eq(visits.day, v.day)));
     const lead = visit?.lead ?? null;
     const self = lead === null || lead.toLowerCase() === login.toLowerCase();
-    await recordEvent(v, self ? "handle_self" : "handle_other", path);
+    if (!(await recordEvent(v, self ? "handle_self" : "handle_other", path))) return;
     if (self && lead === null) {
       const [opened] = await db
         .update(visits)
@@ -233,7 +258,7 @@ export async function recordTypedHandle(v: Visitor, login: string, path: string)
 export async function recordMemberLookup(v: Visitor, login: string, member: string, path: string): Promise<void> {
   try {
     if (login.toLowerCase() === member.toLowerCase() || !(await realHandle(login, v.ip))) return;
-    await recordEvent(v, "handle_other", path);
+    if (!(await recordEvent(v, "handle_other", path))) return;
     await db
       .insert(lookedUpHandles)
       .values({ login, byLeads: sql`array[${member}]::citext[]` })
