@@ -6,6 +6,7 @@ import { ARCHIVE_DAYS } from "@/lib/account";
 import { adminOverview, requireAdmin } from "@/lib/admin";
 import { behindLatestCli, LATEST_CLI, RELINK_COMMAND } from "@/lib/cli";
 import { adminDeleteUser, adminRestoreUser, adminRevokeMachine, adminSnapshotChain, adminSnapshotUser } from "@/lib/actions";
+import { userCrews } from "@/lib/crews";
 import { fmt, fmtDateTime } from "@/lib/format";
 import { FUNNEL_STEPS, funnelDays } from "@/lib/funnel";
 
@@ -44,7 +45,10 @@ function daysLeft(deletedAt: Date): number {
 
 export default async function Admin({ searchParams }: { searchParams: Promise<{ done?: string; v?: string }> }) {
   const admin = await requireAdmin();
-  const [{ done, v }, { totals, capacity, runs, members, crewList, archives, log }, funnel] = await Promise.all([searchParams, adminOverview(), funnelDays(14)]);
+  const [{ done, v }, { totals, capacity, runs, members, crewList, archives, log }, funnel, crews] = await Promise.all([searchParams, adminOverview(), funnelDays(14), userCrews(admin.id)]);
+  // Straight to the board, not via /dashboard: a client navigation to a page that redirects while
+  // streaming leaves the browser where it was (the redirect arrives in the payload and is dropped).
+  const homePath = crews[0] ? `/dashboard/c/${crews[0].code}` : "/dashboard";
   const funnelTotals: Record<string, number> = {};
   for (const d of funnel) for (const [step, n] of Object.entries(d.counts)) funnelTotals[step] = (funnelTotals[step] ?? 0) + n;
   const errorCodes = Object.entries(funnelTotals).filter(([step]) => step.startsWith("signin_error:"));
@@ -52,7 +56,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
     <main className="flex-1">
       <nav className="sticky top-0 z-40 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Logo href="/dashboard" />
+          <Logo href={homePath} />
           <div className="hidden md:flex gap-6 font-mono text-sm">
             <a href="#funnel" className="hover:text-alert transition-colors">[FUNNEL]</a>
             <a href="#visitors" className="hover:text-alert transition-colors">[VISITORS]</a>
@@ -62,7 +66,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
             <a href="#archive" className="hover:text-alert transition-colors">[ARCHIVE]</a>
             <a href="#log" className="hover:text-alert transition-colors">[LOG]</a>
           </div>
-          <Link href="/dashboard" className="font-mono text-xs border border-silver px-3 py-1 hover:bg-silver hover:text-void transition-colors">
+          <Link href={homePath} className="font-mono text-xs border border-silver px-3 py-1 hover:bg-silver hover:text-void transition-colors">
             BOARD
           </Link>
         </div>

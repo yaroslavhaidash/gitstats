@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { reportBoundary } from "@/lib/actions";
@@ -29,9 +28,10 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
           <button type="button" onClick={reset} className="btn-brutal">
             TRY AGAIN
           </button>
-          <Link href="/dashboard" className="btn-ghost inline-block">
+          {/* A full load: /dashboard redirects to the member's board, and a client navigation drops that redirect. */}
+          <a href="/dashboard" className="btn-ghost inline-block">
             DASHBOARD_
-          </Link>
+          </a>
         </div>
         {error.digest && <p className="font-mono text-xs text-faint mt-8">ref {error.digest}</p>}
       </div>
