@@ -131,6 +131,9 @@ export default async function HandlePage({ params }: Props) {
         <h2 className="font-sans font-bold text-lg mb-1">Compare with {data.login}</h2>
         <p className="font-mono text-xs text-faint mb-4">&gt; type your handle for a side-by-side, no sign-in</p>
         <CompareForm login={data.login} />
+        <p className="font-mono text-xs text-faint mt-4">
+          &gt; or <Link href="/vs" className="text-silver underline hover:text-alert">compare any two handles</Link>
+        </p>
       </section>
 
       <SignedOut>

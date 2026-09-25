@@ -2,7 +2,7 @@
  * "Compare with me": the visitor types their own handle and lands on `/vs/<them>/<visitor>`. A plain
  * GET form to `/vs`, which counts the pair and redirects, so Enter submits before any JavaScript.
  */
-export function CompareForm({ login, visitor }: { login: string; visitor?: string }) {
+export function CompareForm({ login }: { login: string }) {
   return (
     <form action="/vs" className="flex flex-col sm:flex-row gap-4 max-w-lg">
       <input type="hidden" name="a" value={login} />
@@ -10,7 +10,6 @@ export function CompareForm({ login, visitor }: { login: string; visitor?: strin
         name="b"
         required
         maxLength={39}
-        defaultValue={visitor}
         autoComplete="off"
         autoCapitalize="none"
         spellCheck={false}

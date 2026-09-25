@@ -17,7 +17,7 @@ type NavUser = { login: string; image?: string | null };
 
 const BAR = "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4 sm:gap-6";
 
-/** A member's nav: crews, global, docs, avatar and settings, exit. The dashboard and every public page share it. */
+/** A member's nav: crews, global, compare, docs, avatar and settings, exit. The dashboard and every public page share it. */
 export function MemberNav({ user, crews, admin }: { user: NavUser; crews: Crew[]; admin: boolean }) {
   const homePath = crews[0] ? `/dashboard/c/${crews[0].code}` : "/dashboard";
   return (
@@ -30,6 +30,7 @@ export function MemberNav({ user, crews, admin }: { user: NavUser; crews: Crew[]
               [{c.name}]
             </ViewLink>
           ))}
+          <Link href="/vs" className="px-3 py-2 hover:text-alert transition-colors">[COMPARE]</Link>
           <Link href="/dashboard/new" className="px-3 py-2 hover:text-alert transition-colors">[NEW CREW]</Link>
           <Link href="/dashboard/settings" className="px-3 py-2 hover:text-alert transition-colors">[SETTINGS]</Link>
           <Link href="/docs" className="px-3 py-2 hover:text-alert transition-colors">[DOCS]</Link>
@@ -37,6 +38,7 @@ export function MemberNav({ user, crews, admin }: { user: NavUser; crews: Crew[]
         </NavMenu>
         <CrewSwitcher crews={crews} />
         <ViewLink href="/dashboard/global" className="hover:text-alert transition-colors">[GLOBAL]</ViewLink>
+        <Link href="/vs" className="hidden md:block hover:text-alert transition-colors">[COMPARE]</Link>
         {/* Collapsed, `[+ CREW]` lives in the dropdown with the crews it makes. */}
         {!collapses(crews) && (
           <Link href="/dashboard/new" className="hidden md:block text-faint hover:text-alert transition-colors whitespace-nowrap">[+ CREW]</Link>

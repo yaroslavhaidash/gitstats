@@ -9,7 +9,7 @@ export function PropsBar({ login, view, canGive }: { login: string; view: PropsV
   return (
     <section id="props" className="flex flex-wrap items-center gap-x-6 gap-y-3 font-mono text-xs mb-8 scroll-mt-20">
       <span className="text-dim">
-        <span className="text-white font-bold">{view.week}</span> props this week · <span className="text-white font-bold">{view.allTime}</span> all time
+        props: <span className="text-white font-bold">{view.week}</span> this week · <span className="text-white font-bold">{view.allTime}</span> all time
       </span>
       {canGive && (
         <form action={giveProps}>

@@ -1,9 +1,9 @@
 import Image from "next/image";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { after } from "next/server";
 import { auth } from "@/auth";
 import { BackLink } from "@/components/BackLink";
-import { CompareForm } from "@/components/CompareForm";
 import { CopyText } from "@/components/CopyText";
 import { DailyLines } from "@/components/DailyLines";
 import { EmptyNote } from "@/components/EmptyNote";
@@ -392,7 +392,7 @@ export default async function UserPage({
       <PropsBar login={user.githubLogin} view={props} canGive={!isOwner} />
       {!isOwner && (
         <div className="mb-8">
-          <CompareForm login={user.githubLogin} visitor={session.user.login} />
+          <Link href={`/vs/${session.user.login}/${user.githubLogin}`} className="btn-brutal inline-block px-8 py-4">COMPARE WITH ME_</Link>
         </div>
       )}
       {invite && <InvitePanel link={invite.code ? `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/join/${invite.code}` : null} />}

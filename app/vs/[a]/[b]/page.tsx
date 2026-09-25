@@ -73,7 +73,7 @@ function ahead(label: string, left: VsSide, right: VsSide, value: (s: VsSide) =>
   );
 }
 
-function Side({ side, withLines, label }: { side: VsSide; withLines: boolean; label: string }) {
+function Side({ side, withLines, label, change }: { side: VsSide; withLines: boolean; label: string; change: string }) {
   return (
     <section className="min-w-0">
       <div className="flex items-center gap-4 mb-4">
@@ -82,6 +82,7 @@ function Side({ side, withLines, label }: { side: VsSide; withLines: boolean; la
           <div className="tag mb-1">{side.source === "gitstats" ? "GITSTATS" : "PUBLIC GITHUB"}</div>
           <h2 className="font-sans font-bold text-2xl leading-none truncate">{side.name ?? side.login}</h2>
         </div>
+        <Link href={change} className="ml-auto self-start font-mono text-xs text-faint hover:text-alert transition-colors">[change]</Link>
       </div>
       <div className="grid grid-cols-2 gap-[2px] bg-dark border-2 border-dark mb-4">
         {withLines && (
@@ -149,6 +150,8 @@ export default async function VsPage({ params, searchParams }: Props) {
   const withLines = l.lines !== null && r.lines !== null;
   const noLines = [l, r].filter((s) => s.lines === null).map((s) => s.login);
   const label = windowLabel(window);
+  // Reopens the two fields of `/vs` with this pair in them, the clicked side focused.
+  const changeHref = (focus: "a" | "b") => `/vs?${new URLSearchParams({ pa: l.login, pb: r.login, focus })}`;
   return (
     <PublicShell where="vs_nav">
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
@@ -173,8 +176,8 @@ export default async function VsPage({ params, searchParams }: Props) {
       </p>
 
       <div className="grid md:grid-cols-2 gap-8 mb-12">
-        <Side side={l} withLines={withLines} label={label} />
-        <Side side={r} withLines={withLines} label={label} />
+        <Side side={l} withLines={withLines} label={label} change={changeHref("a")} />
+        <Side side={r} withLines={withLines} label={label} change={changeHref("b")} />
       </div>
 
       <SignedOut>

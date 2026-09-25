@@ -160,6 +160,7 @@ export default async function Landing() {
                 <SignInButton where="landing_hero" className="text-dim underline underline-offset-4 hover:text-alert transition-colors">sign in with GitHub</SignInButton>
               </form>
               <DemoLink where="hero_button" className="text-dim underline underline-offset-4 hover:text-alert transition-colors">see a board</DemoLink>
+              <Link href="/vs" className="text-dim underline underline-offset-4 hover:text-alert transition-colors">compare two handles</Link>
             </div>
             <p className="font-mono text-dim mb-4 max-w-lg">
               <span className="text-alert">Your commits and lines, next to your friends&apos;.</span> Commits, lines per

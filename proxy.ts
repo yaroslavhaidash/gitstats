@@ -32,7 +32,10 @@ export async function proxy(request: NextRequest) {
   }
   if (path.startsWith("/dashboard") && uid === null) return NextResponse.redirect(new URL("/", request.url));
   if (path === "/" && uid !== null) return NextResponse.redirect(new URL("/dashboard", request.url));
+  // `/vs` is the compare page until a form submits handles to it; then its route handler records and redirects.
+  const query = request.nextUrl.searchParams;
+  if (path === "/vs" && !query.has("a") && !query.has("b")) return NextResponse.rewrite(new URL(`/compare${request.nextUrl.search}`, request.url));
   return NextResponse.next();
 }
 
-export const config = { matcher: ["/", "/dashboard/:path*", "/admin"] };
+export const config = { matcher: ["/", "/dashboard/:path*", "/admin", "/vs"] };

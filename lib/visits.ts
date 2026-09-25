@@ -226,6 +226,30 @@ export async function recordTypedHandle(v: Visitor, login: string, path: string)
   }
 }
 
+/**
+ * A handle a signed-in member typed. Members are never leads: the handle goes to
+ * `looked_up_handles` under the member's login, and the visit gets a `handle_other`.
+ */
+export async function recordMemberLookup(v: Visitor, login: string, member: string, path: string): Promise<void> {
+  try {
+    if (login.toLowerCase() === member.toLowerCase() || !(await realHandle(login, v.ip))) return;
+    await recordEvent(v, "handle_other", path);
+    await db
+      .insert(lookedUpHandles)
+      .values({ login, byLeads: sql`array[${member}]::citext[]` })
+      .onConflictDoUpdate({
+        target: lookedUpHandles.login,
+        set: {
+          lastSeen: sql`now()`,
+          lookups: sql`${lookedUpHandles.lookups} + 1`,
+          byLeads: sql`case when ${member}::citext = any(${lookedUpHandles.byLeads}) then ${lookedUpHandles.byLeads} else array_append(${lookedUpHandles.byLeads}, ${member}::citext) end`,
+        },
+      });
+  } catch (e) {
+    console.error("[visits] could not record a member's lookup:", e);
+  }
+}
+
 /** The handle this visitor typed as their own today, if they did; read only, nothing is recorded. */
 export async function visitorLead(): Promise<string | null> {
   const v = await currentVisitor();
