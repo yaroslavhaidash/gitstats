@@ -15,6 +15,10 @@ function corrupt(text: string, from: number, len: number): string {
 /**
  * Every few seconds a burst of noise appears in `text` and sweeps a few characters to the right,
  * like a corrupted terminal line, then heals. Off under prefers-reduced-motion.
+ *
+ * Noise glyphs are wider or narrower than the letters they replace, so the real text always holds
+ * the space (transparent while corrupted, still read by screen readers) and the noise is an overlay
+ * clipped to that width: the word can never grow, wrap or move anything around it.
  */
 export function Glitch({ text, className = "", every = [4000, 9000] }: { text: string; className?: string; every?: [number, number] }) {
   const [shown, setShown] = useState(text);
@@ -34,5 +38,15 @@ export function Glitch({ text, className = "", every = [4000, 9000] }: { text: s
     later(burst, 1500 + Math.random() * 2500);
     return () => timers.forEach(clearTimeout);
   }, [text, every]);
-  return <span className={className}>{shown}</span>;
+  const glitching = shown !== text;
+  return (
+    <span className={`relative inline-block whitespace-nowrap ${className}`}>
+      <span className={glitching ? "text-transparent" : undefined}>{text}</span>
+      {glitching && (
+        <span aria-hidden="true" className="absolute inset-x-0 top-0 overflow-x-clip">
+          {shown}
+        </span>
+      )}
+    </span>
+  );
 }

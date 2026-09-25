@@ -133,9 +133,14 @@ export default async function Landing() {
           <div>
             <div className="tag mb-6">YOUR YEAR // COMMITS // LINES // STREAKS</div>
             <h1 className="font-sans font-bold text-5xl sm:text-6xl leading-[1.05] mb-6">
-              <Glitch text="Your" every={[9000, 18000]} /> coding <Glitch text="stats," every={[8000, 16000]} />
-              <br />
-              including <span className="text-alert"><Glitch text="private work." every={[7000, 15000]} /></span>
+              {/* One glitching word per line; each line is kept whole at the widths where it fits
+                  (the lg column is narrower than md's full width, xl's wider again). */}
+              <span className="block sm:whitespace-nowrap lg:whitespace-normal xl:whitespace-nowrap">
+                Your coding <Glitch text="stats," every={[8000, 16000]} />
+              </span>
+              <span className="block md:whitespace-nowrap lg:whitespace-normal">
+                including <span className="text-alert"><Glitch text="private work." every={[7000, 15000]} /></span>
+              </span>
             </h1>
             <p className="font-mono text-silver text-lg mb-8 max-w-lg">
               Type your GitHub handle and see your year in 5&nbsp;seconds. No sign-in.
