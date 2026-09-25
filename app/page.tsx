@@ -12,6 +12,7 @@ import { SETUP_COMMAND } from "@/components/SetupCommand";
 import { DemoLink, SignInButton } from "@/components/Tracked";
 import { signInWithGitHub } from "@/lib/actions";
 import { posts } from "@/lib/blog";
+import { DEMO_LOGINS } from "@/lib/demo";
 import { openGraphFor, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
 /** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
@@ -23,8 +24,10 @@ export const metadata: Metadata = {
   openGraph: openGraphFor("/"),
 };
 
-const BOARD_ALT =
-  "A gitstats crew board: four developers ranked by lines of code over a year, each row showing commits, lines added and deleted, active repos, streak, stars, top language and a twelve-week activity heatmap.";
+/** The hero shows one person's page, because the hero speaks to one visitor. */
+const HERO_PAGE = `/demo/u/${DEMO_LOGINS[0]}`;
+const PAGE_ALT =
+  "A gitstats personal page for a demo developer over a year: commits, lines added and deleted, active repos, streak and stars, then lines per week and a 52-week contribution calendar.";
 
 const JSON_LD = {
   "@context": "https://schema.org",
@@ -128,23 +131,17 @@ export default async function Landing() {
       <section className="relative pt-32 pb-20 lg:pt-44 lg:pb-28 border-b-2 border-dark rail">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-12 items-center">
           <div>
-            <div className="tag mb-6">YOUR CREW // COMMITS // LINES // STREAKS</div>
-            <h1 className="font-sans font-bold text-5xl sm:text-6xl lg:text-7xl leading-[1.05] mb-6">
-              <Glitch text="Your" every={[9000, 18000]} /> crew&apos;s
+            <div className="tag mb-6">YOUR YEAR // COMMITS // LINES // STREAKS</div>
+            <h1 className="font-sans font-bold text-5xl sm:text-6xl leading-[1.05] mb-6">
+              <Glitch text="Your" every={[9000, 18000]} /> coding <Glitch text="stats," every={[8000, 16000]} />
               <br />
-              <Glitch text="commits," every={[8000, 16000]} /> on
-              <br />
-              one <span className="text-alert"><Glitch text="board." every={[7000, 15000]} /></span>
+              including <span className="text-alert"><Glitch text="private work." every={[7000, 15000]} /></span>
             </h1>
-            <p className="font-mono text-dim text-lg mb-4 max-w-lg">
-              <span className="text-alert">Your commits and lines, next to your friends&apos;.</span> Commits, lines per
-              day, active repos, streaks and stars, ranked per week, month or year.
-            </p>
-            <p className="font-mono text-faint text-sm mb-10 max-w-lg leading-relaxed">
-              Private and work repos count too, without a GitHub token. A year of history the minute you link.
+            <p className="font-mono text-silver text-lg mb-8 max-w-lg">
+              Type your GitHub handle and see your year in 5&nbsp;seconds. No sign-in.
             </p>
             {/* A plain GET form: Enter submits, and it works before any JavaScript has loaded. */}
-            <form action="/gh" className="flex flex-col sm:flex-row gap-4 mb-4 max-w-lg">
+            <form action="/gh" className="flex flex-col sm:flex-row gap-4 mb-5 max-w-xl">
               <input
                 name="login"
                 required
@@ -154,35 +151,42 @@ export default async function Landing() {
                 spellCheck={false}
                 placeholder="your GitHub handle"
                 aria-label="your GitHub handle"
-                className="flex-1 min-w-0 bg-void border-2 border-dark px-4 py-4 font-mono text-sm focus:border-silver outline-none"
+                className="flex-1 min-w-0 bg-void border-2 border-silver px-5 py-5 font-mono text-base focus:border-alert outline-none"
               />
-              <button className="btn-brutal px-8 py-4">SHOW ME_</button>
+              <button className="btn-brutal px-10 py-5 text-base">SHOW ME_</button>
             </form>
-            <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-sm mb-10">
               <form action={signInWithGitHub}>
-                <SignInButton where="landing_hero" className="btn-ghost px-8 py-4 w-full sm:w-auto">SIGN IN WITH GITHUB_</SignInButton>
+                <SignInButton where="landing_hero" className="text-dim underline underline-offset-4 hover:text-alert transition-colors">sign in with GitHub</SignInButton>
               </form>
-              <DemoLink where="hero_button" className="btn-ghost px-8 py-4 text-center">SEE A BOARD</DemoLink>
+              <DemoLink where="hero_button" className="text-dim underline underline-offset-4 hover:text-alert transition-colors">see a board</DemoLink>
             </div>
+            <p className="font-mono text-dim mb-4 max-w-lg">
+              <span className="text-alert">Your commits and lines, next to your friends&apos;.</span> Commits, lines per
+              day, active repos, streaks and stars, ranked per week, month or year.
+            </p>
+            <p className="font-mono text-faint text-sm max-w-lg leading-relaxed">
+              Private and work repos count too, without a GitHub token. A year of history the minute you link.
+            </p>
           </div>
           <div className="relative">
             <Brackets />
-            <DemoLink where="hero_image" className="block border-2 border-dark hover:border-alert transition-colors">
+            <DemoLink where="hero_image" href={HERO_PAGE} className="block border-2 border-dark hover:border-alert transition-colors">
               {/* A 1280-wide desktop capture is sub-pixel text on a phone, so small screens get the
-                  leaderboard cropped to the columns that still read at that size. Both declare the
+                  header and first tiles cropped to what still reads at that size. Both declare the
                   file's own dimensions, so the reserved box matches what loads. */}
               <Image
-                src="/demo-board-mobile.png"
-                alt={BOARD_ALT}
+                src="/demo-personal-mobile.png"
+                alt={PAGE_ALT}
                 width={640}
-                height={608}
+                height={293}
                 priority
                 sizes="100vw"
                 className="block sm:hidden w-full h-auto"
               />
               <Image
-                src="/demo-board.png"
-                alt={BOARD_ALT}
+                src="/demo-personal.png"
+                alt={PAGE_ALT}
                 width={2560}
                 height={1490}
                 priority
@@ -190,7 +194,7 @@ export default async function Landing() {
                 className="hidden sm:block w-full h-auto"
               />
             </DemoLink>
-            <p className="font-mono text-xs text-faint mt-3">&gt; the demo board · generated data, live page · <DemoLink where="hero_caption" className="text-silver hover:text-alert">open it</DemoLink></p>
+            <p className="font-mono text-xs text-faint mt-3">&gt; a demo member&apos;s page · generated data, live page · <DemoLink where="hero_caption" href={HERO_PAGE} className="text-silver hover:text-alert">open it</DemoLink></p>
           </div>
         </div>
       </section>

@@ -105,7 +105,7 @@ Repos are keyed by GitHub node id so renames/deletions never orphan rows. Preced
 - SEO lives in three places: `lib/site.ts` (origin, name, the shared description, and `openGraphFor` — a page's `openGraph` replaces the layout's instead of merging, so each one restates the shared fields), the root layout's title template `%s · gitstats`, and a `metadata` export with a canonical URL on each public page. The landing also carries a `SoftwareApplication` JSON-LD block.
 - `assets/*.ttf` are JetBrains Mono and Space Grotesk (SIL OFL 1.1), read by `lib/og.tsx`; satori cannot use the woff2 files `next/font` downloads.
 - `scripts/snapshot.ts` runs the job locally. `scripts/seed-demo.ts` writes the `/demo` crew by hand through `seedDemo()` in `lib/seed.ts`, which the cron route also runs once per night before the snapshot, so the demo always ends today (idempotent; every figure hashed from `login:repo:date`, so re-running is a no-op on the same day). Throwaway verification scripts go in `scripts/_*.ts` and are deleted.
-- `public/demo-board.png` is a real 1280-wide capture of `/demo`; the landing hero renders it and `lib/og.tsx` composes the 1200-wide copy in `assets/demo-board-og.png` under the wordmark for the share card.
+- `public/demo-personal.png` is a real 1280-wide capture (DPR 2) of a demo member's page, and `public/demo-personal-mobile.png` its header and first tiles for phones; the landing hero renders them. `lib/og.tsx` composes the 1200-wide board capture in `assets/demo-board-og.png` under the wordmark for the share card.
 
 ## When something fails
 

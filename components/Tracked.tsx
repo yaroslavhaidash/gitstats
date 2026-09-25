@@ -30,10 +30,10 @@ export function SignInButton({ where, className, children }: { where: string; cl
   );
 }
 
-/** A link to `/demo` that records which placement was clicked. */
-export function DemoLink({ where, className, children }: { where: string; className?: string; children: ReactNode }) {
+/** A link into the demo (the board unless `href` says a page in it) that records which placement was clicked. */
+export function DemoLink({ where, href = "/demo", className, children }: { where: string; href?: string; className?: string; children: ReactNode }) {
   return (
-    <Link href="/demo" className={className} onClick={() => track("demo_open", { where })}>
+    <Link href={href} className={className} onClick={() => track("demo_open", { where })}>
       {children}
     </Link>
   );
