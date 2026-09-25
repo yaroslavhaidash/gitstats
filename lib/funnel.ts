@@ -3,8 +3,8 @@ import { db } from "@/db";
 import { funnelDaily } from "@/db/schema";
 
 /** Funnel order, as /admin shows the columns. */
-export const FUNNEL_STEPS = ["signin_start", "signin_new", "signin_returning", "signin_error", "stale_session", "first_dashboard", "cli_banner_copy", "cli_linked", "invite_copy", "invite_join", "mcp_call", "vs_create", "vs_view", "props_give"] as const;
-export type FunnelStep = (typeof FUNNEL_STEPS)[number] | `signin_error:${string}`;
+export const FUNNEL_STEPS = ["signin_start", "signin_new", "signin_returning", "signin_error", "stale_session", "first_dashboard", "cli_banner_copy", "cli_linked", "invite_copy", "invite_join", "mcp_call", "vs_create", "vs_view", "props_give", "gpc_skipped"] as const;
+export type FunnelStep = (typeof FUNNEL_STEPS)[number] | `signin_error:${string}` | `signin_start:${string}` | `signin_new:${string}`;
 
 /**
  * One more of `step` today (UTC). Never throws: a counter must not break the sign-in it counts.

@@ -51,6 +51,8 @@ export type AdminUser = {
   name: string | null;
   createdAt: Date;
   lastSnapshotAt: Date | null;
+  /** "button · referrer host · page · utm", whatever of it was recorded at signup; null if nothing was. */
+  signup: string | null;
   crews: number;
   machines: AdminMachine[];
   tokenWarnings: { label: string; lastError: string }[];
@@ -123,7 +125,18 @@ export async function adminOverview(): Promise<AdminOverview> {
       .orderBy(desc(snapshotRuns.id))
       .limit(10),
     db
-      .select({ id: users.id, login: users.githubLogin, name: users.name, createdAt: users.createdAt, lastSnapshotAt: users.lastSnapshotAt })
+      .select({
+        id: users.id,
+        login: users.githubLogin,
+        name: users.name,
+        createdAt: users.createdAt,
+        lastSnapshotAt: users.lastSnapshotAt,
+        signupFrom: users.signupFrom,
+        signupReferrerHost: users.signupReferrerHost,
+        signupLandingPath: users.signupLandingPath,
+        signupUtmSource: users.signupUtmSource,
+        signupUtmCampaign: users.signupUtmCampaign,
+      })
       .from(users)
       .where(notDemo)
       .orderBy(asc(users.id)),
@@ -169,8 +182,10 @@ export async function adminOverview(): Promise<AdminOverview> {
       const failures = realFailures(r.errors).length;
       return { ...r, errors: failures, retrying: r.errors.length - failures };
     }),
-    members: userRows.map((u) => ({
+    members: userRows.map(({ signupFrom, signupReferrerHost, signupLandingPath, signupUtmSource, signupUtmCampaign, ...u }) => ({
       ...u,
+      signup:
+        [signupFrom, signupReferrerHost, signupLandingPath, [signupUtmSource, signupUtmCampaign].filter(Boolean).join(" / ")].filter(Boolean).join(" · ") || null,
       crews: crewsByUser.get(u.id) ?? 0,
       machines: machineRows
         .filter((m) => m.userId === u.id)

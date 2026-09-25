@@ -54,6 +54,16 @@ export const users = pgTable("users", {
   /** The sign-in snapshot's state; null for members who joined before it was tracked. */
   firstSnapshot: text("first_snapshot").$type<FirstSnapshot>(),
   /**
+   * Where the account came from, written once at creation from a cookie the sign-in button sets:
+   * the button's placement, the external referrer host, the page it was on and its UTM tags. Null
+   * for accounts made before this was recorded, or through a path with no button.
+   */
+  signupFrom: text("signup_from"),
+  signupReferrerHost: text("signup_referrer_host"),
+  signupLandingPath: text("signup_landing_path"),
+  signupUtmSource: text("signup_utm_source"),
+  signupUtmCampaign: text("signup_utm_campaign"),
+  /**
    * Mixed into every share-card signature. Null until the member first rotates it; "new link" on
    * the share panel writes a fresh value, which is what makes every link minted before it a 404.
    */

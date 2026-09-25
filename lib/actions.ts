@@ -2,7 +2,7 @@
 
 import { randomInt } from "node:crypto";
 import { revalidatePath, updateTag } from "next/cache";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { auth, signIn, signOut } from "@/auth";
@@ -25,6 +25,7 @@ import { crewByCode, leaveCrew, regenerateCode, removeMember, renameCrew, userBy
 import { canViewProfile, toggleProps } from "./props";
 import { currentVisitor, recordEvent } from "./visits";
 import { rateLimit } from "./ratelimit";
+import { parseSignupCookie, SIGNUP_COOKIE } from "./signup";
 import { parseWindow, windowQuery } from "./window";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -39,13 +40,19 @@ async function requireUserId(): Promise<number> {
   return session.user.id;
 }
 
+/** A sign-in started, and from which button when the button said (`lib/signup.ts`). Counts only, no visitor id. */
+async function countSignInStart(): Promise<void> {
+  const from = parseSignupCookie((await cookies()).get(SIGNUP_COOKIE)?.value)?.from;
+  await Promise.all([countStep("signin_start"), from ? countStep(`signin_start:${from}`) : null]);
+}
+
 export async function signInWithGitHub(): Promise<void> {
-  await countStep("signin_start");
+  await countSignInStart();
   await signIn("github", { redirectTo: "/dashboard" });
 }
 
 export async function signInThenJoin(code: string): Promise<void> {
-  await countStep("signin_start");
+  await countSignInStart();
   await signIn("github", { redirectTo: `/join/${code}` });
 }
 
@@ -211,7 +218,7 @@ export async function giveProps(formData: FormData): Promise<void> {
 }
 
 export async function signInThenLink(code: string): Promise<void> {
-  await countStep("signin_start");
+  await countSignInStart();
   await signIn("github", { redirectTo: `/link?code=${code}` });
 }
 
@@ -288,7 +295,7 @@ export async function denyOAuth(formData: FormData): Promise<void> {
 }
 
 export async function signInThenAuthorize(query: string): Promise<void> {
-  await countStep("signin_start");
+  await countSignInStart();
   await signIn("github", { redirectTo: `/oauth/authorize?${query}` });
 }
 

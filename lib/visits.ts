@@ -361,7 +361,6 @@ export async function visitorsOverview(filter: VisitFilter, pages: VisitorPages)
         ? sql`v.day >= ${since} and v.lead_login is not null`
         : sql`v.day >= ${since}`;
   // A new account is a sign-in on this visit by someone whose account did not exist when it began.
-  const newAccount = sql`(v.user_id is not null and exists (select 1 from ${users} u where u.id = v.user_id and u.created_at >= v.first_at))`;
   const [list, leadRows, lookedUp, byFrom, byHost, days] = await Promise.all([
     db.execute<{
       visitor_id: string;
@@ -391,22 +390,29 @@ export async function visitorsOverview(filter: VisitFilter, pages: VisitorPages)
       .orderBy(sql`${lookedUpHandles.lastSeen} desc`)
       .limit(PAGE_ROWS + 1)
       .offset(offset(pages.lookedUp)),
+    // New accounts come from the signup columns on `users`, which are written whether or not the
+    // browser sent GPC; clicks and demo views only exist for journeys that were recorded.
     db.execute<{ source: string; signin_clicks: number; new_accounts: number }>(sql`
-      with clicks as (select e."from", e.visitor_id, e.day, e.at from ${visitEvents} e where e.kind = 'signin_click' and e.day >= ${since}),
-      last_click as (select distinct on (visitor_id, day) visitor_id, day, "from" from clicks order by visitor_id, day, at desc)
-      select coalesce(c."from", '(none)') as source, count(*)::int as signin_clicks,
-        (select count(*)::int from ${visits} v join last_click l on l.visitor_id = v.visitor_id and l.day = v.day
-          where l."from" is not distinct from c."from" and ${newAccount}) as new_accounts
-      from clicks c group by c."from" order by signin_clicks desc
+      with clicks as (select coalesce(e."from", '(none)') as source, count(*)::int as n from ${visitEvents} e where e.kind = 'signin_click' and e.day >= ${since} group by 1),
+      signups as (select u.signup_from as source, count(*)::int as n from ${users} u where u.signup_from is not null and u.created_at >= ${since} group by 1)
+      select coalesce(c.source, s.source) as source, coalesce(c.n, 0) as signin_clicks, coalesce(s.n, 0) as new_accounts
+      from clicks c full join signups s on s.source = c.source
+      order by signin_clicks desc, new_accounts desc
     `),
     db.execute<{ source: string; demo_views: number; signin_clicks: number; new_accounts: number }>(sql`
-      select coalesce(substring(v.referrer from '^https?://([^/]+)'), '(direct)') as source,
-        count(*) filter (where e.kind = 'demo_view')::int as demo_views,
-        count(*) filter (where e.kind = 'signin_click')::int as signin_clicks,
-        count(distinct (v.visitor_id, v.day)) filter (where ${newAccount})::int as new_accounts
-      from ${visits} v left join ${visitEvents} e on e.visitor_id = v.visitor_id and e.day = v.day
-      where v.day >= ${since}
-      group by 1 order by count(distinct (v.visitor_id, v.day)) desc
+      with hosts as (
+        select coalesce(substring(v.referrer from '^https?://([^/]+)'), '(direct)') as source,
+          count(*) filter (where e.kind = 'demo_view')::int as demo_views,
+          count(*) filter (where e.kind = 'signin_click')::int as signin_clicks,
+          count(distinct (v.visitor_id, v.day))::int as visits
+        from ${visits} v left join ${visitEvents} e on e.visitor_id = v.visitor_id and e.day = v.day
+        where v.day >= ${since}
+        group by 1
+      ),
+      signups as (select coalesce(u.signup_referrer_host, '(direct)') as source, count(*)::int as n from ${users} u where u.signup_from is not null and u.created_at >= ${since} group by 1)
+      select coalesce(h.source, s.source) as source, coalesce(h.demo_views, 0) as demo_views, coalesce(h.signin_clicks, 0) as signin_clicks, coalesce(s.n, 0) as new_accounts
+      from hosts h full join signups s on s.source = h.source
+      order by coalesce(h.visits, 0) desc, new_accounts desc
     `),
     db.execute<{ day: string; visits: number; engaged: number; leads: number; signins: number }>(sql`
       select v.day::text as day, count(*)::int as visits, count(*) filter (where ${engaged})::int as engaged,

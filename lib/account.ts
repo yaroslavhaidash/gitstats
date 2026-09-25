@@ -49,6 +49,11 @@ export async function exportAccount(userId: number) {
         sharePrivateGlobal: users.sharePrivateGlobal,
         streakMode: users.streakMode,
         createdAt: users.createdAt,
+        signupFrom: users.signupFrom,
+        signupReferrerHost: users.signupReferrerHost,
+        signupLandingPath: users.signupLandingPath,
+        signupUtmSource: users.signupUtmSource,
+        signupUtmCampaign: users.signupUtmCampaign,
       })
       .from(users)
       .where(eq(users.id, userId)),

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { countStep } from "@/lib/funnel";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
 import { livePath, recordEvent, visitorFrom } from "@/lib/visits";
 
@@ -23,6 +24,8 @@ export async function POST(request: Request) {
   if (typeof body.path !== "string" || !body.path.startsWith("/") || body.path.length > 2000) return done;
   const url = new URL(body.path, "http://x");
   if (SKIP.test(url.pathname) || !(await livePath(url.pathname))) return done;
+  // Global Privacy Control means no journey is recorded; this counter is only there to give that blind spot a size.
+  if (request.headers.get("sec-gpc") === "1") await countStep("gpc_skipped");
   const visitor = await visitorFrom(request.headers);
   if (!visitor) return done;
   if (body.kind === "signin_click") {

@@ -76,6 +76,10 @@ export default async function Admin({
   const funnelTotals: Record<string, number> = {};
   for (const d of funnel) for (const [step, n] of Object.entries(d.counts)) funnelTotals[step] = (funnelTotals[step] ?? 0) + n;
   const errorCodes = Object.entries(funnelTotals).filter(([step]) => step.startsWith("signin_error:"));
+  /** `signin_start:<placement>` and `signin_new:<placement>` as "placement started/new", most started first. */
+  const placements = [...new Set(Object.keys(funnelTotals).flatMap((s) => (s.startsWith("signin_start:") || s.startsWith("signin_new:") ? [s.slice(s.indexOf(":") + 1)] : [])))]
+    .map((p) => ({ p, start: funnelTotals[`signin_start:${p}`] ?? 0, fresh: funnelTotals[`signin_new:${p}`] ?? 0 }))
+    .sort((a, b) => b.start - a.start);
   return (
     <main className="flex-1">
       <nav className="sticky top-0 z-40 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
@@ -167,6 +171,12 @@ export default async function Admin({
               &gt; errors by kind: {errorCodes.map(([step, n]) => `${step.slice("signin_error:".length)} ${n}`).join(" · ")}
             </p>
           )}
+          {placements.length > 0 && (
+            <p className="font-mono text-xs text-faint mt-2">
+              &gt; sign-ins by button, started / new accounts: {placements.map(({ p, start, fresh }) => `${p} ${start}/${fresh}`).join(" · ")}
+            </p>
+          )}
+          <p className="font-mono text-xs text-faint mt-2">&gt; gpc skipped: page beacons from browsers sending Global Privacy Control, which record no journey (counter only)</p>
         </section>
 
         <AdminVisitors
@@ -272,6 +282,7 @@ export default async function Admin({
                     <span className="block text-xs text-faint mt-1">
                       joined {fmtDateTime(m.createdAt)} · {m.crews} {m.crews === 1 ? "crew" : "crews"} ·{" "}
                       snapshot {m.lastSnapshotAt ? fmtDateTime(m.lastSnapshotAt) : "never"}
+                      {m.signup && <> · via {m.signup}</>}
                     </span>
                   </span>
                   <span className="flex items-center gap-4">

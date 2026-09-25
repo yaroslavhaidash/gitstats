@@ -4,8 +4,10 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { revalidateForUsers } from "@/lib/cache";
 import { eq } from "drizzle-orm";
+import { cookies } from "next/headers";
 import { after } from "next/server";
 import { countStep } from "@/lib/funnel";
+import { parseSignupCookie, SIGNUP_COOKIE, type SignupSource } from "@/lib/signup";
 import { currentVisitor, recordSignIn } from "@/lib/visits";
 
 type GitHubIdentity = {
@@ -24,7 +26,8 @@ function readGitHubIdentity(profile: Profile): GitHubIdentity {
   return { login, nodeId, avatarUrl, name: typeof name === "string" ? name : null, githubId: typeof id === "number" ? id : null };
 }
 
-async function upsertUser(identity: GitHubIdentity): Promise<{ id: number; isNew: boolean }> {
+/** `source` lands only on a new row: the conflict update below leaves the signup columns alone. */
+async function upsertUser(identity: GitHubIdentity, source: SignupSource | null): Promise<{ id: number; isNew: boolean }> {
   const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.githubNodeId, identity.nodeId)).limit(1);
   const [row] = await db
     .insert(users)
@@ -34,6 +37,11 @@ async function upsertUser(identity: GitHubIdentity): Promise<{ id: number; isNew
       githubId: identity.githubId,
       avatarUrl: identity.avatarUrl,
       name: identity.name,
+      signupFrom: source?.from,
+      signupReferrerHost: source?.referrerHost,
+      signupLandingPath: source?.landingPath,
+      signupUtmSource: source?.utmSource,
+      signupUtmCampaign: source?.utmCampaign,
     })
     .onConflictDoUpdate({
       target: users.githubNodeId,
@@ -78,8 +86,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, profile }) {
       if (profile) {
         const identity = readGitHubIdentity(profile);
-        const { id, isNew } = await upsertUser(identity);
+        const source = parseSignupCookie((await cookies()).get(SIGNUP_COOKIE)?.value);
+        const { id, isNew } = await upsertUser(identity, source);
         await countStep(isNew ? "signin_new" : "signin_returning");
+        if (isNew && source?.from) await countStep(`signin_new:${source.from}`);
         token.uid = id;
         token.login = identity.login;
         // The footer's member count is cached for hours and refreshed by snapshots, ingest and crew
