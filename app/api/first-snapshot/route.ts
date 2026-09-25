@@ -9,6 +9,6 @@ import { firstSnapshotRunning } from "@/lib/snapshot";
 export async function GET() {
   const session = await auth();
   if (!session) return NextResponse.json({ running: false }, { status: 401 });
-  const [user] = await db.select({ firstSnapshot: users.firstSnapshot, createdAt: users.createdAt }).from(users).where(eq(users.id, session.user.id));
+  const [user] = await db.select({ firstSnapshot: users.firstSnapshot, lastSnapshotAt: users.lastSnapshotAt, createdAt: users.createdAt }).from(users).where(eq(users.id, session.user.id));
   return NextResponse.json({ running: user ? firstSnapshotRunning(user) : false }, { headers: { "Cache-Control": "no-store" } });
 }

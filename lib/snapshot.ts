@@ -110,9 +110,14 @@ export async function runFirstSnapshot(userId: number): Promise<SnapshotSummary>
   }
 }
 
-/** Whether this member's first snapshot is under way, so their pages say "counting" instead of zeros. */
-export function firstSnapshotRunning(user: { firstSnapshot: FirstSnapshot | null; createdAt: Date }): boolean {
-  return user.firstSnapshot === "running" && Date.now() - user.createdAt.getTime() < FIRST_SNAPSHOT_GIVE_UP_MS;
+/**
+ * Whether this member's first snapshot is under way, so their pages say "counting" instead of zeros.
+ * A new account nobody has claimed yet counts too: the first page reads the row in the same breath as
+ * the layout claims it, and would otherwise render a page of zeros under the "counting" line.
+ */
+export function firstSnapshotRunning(user: { firstSnapshot: FirstSnapshot | null; lastSnapshotAt: Date | null; createdAt: Date }): boolean {
+  const waiting = user.firstSnapshot === "running" || (user.firstSnapshot === null && user.lastSnapshotAt === null);
+  return waiting && Date.now() - user.createdAt.getTime() < FIRST_SNAPSHOT_GIVE_UP_MS;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

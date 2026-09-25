@@ -5,7 +5,6 @@ import { CopyText } from "@/components/CopyText";
 import { CrewManage } from "@/components/CrewManage";
 import { EmptyNote } from "@/components/EmptyNote";
 import { InvitePanel } from "@/components/InvitePanel";
-import { LinkComputerNudge } from "@/components/LinkComputerNudge";
 import { CrewRace } from "@/components/CrewRace";
 import { Leaderboard } from "@/components/Leaderboard";
 import { MetricTabs } from "@/components/MetricTabs";
@@ -209,7 +208,6 @@ export default async function CrewBoard({
   const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/join/${crew.code}`;
   return (
     <>
-      {machines.length === 0 && <LinkComputerNudge />}
       {cliUpdateStuck(machines) && (
         <Link href="/docs#faq" className="flex flex-wrap items-center justify-between gap-3 border-2 border-amber px-4 py-3 mb-8 font-mono text-xs text-amber hover:bg-amber hover:text-void transition-colors">
           <span>&gt; your linked computers are on an older gitstats and have been quiet for days · run <span className="font-bold">gitstats update</span> to get {MIN_CLI_VERSION}</span>

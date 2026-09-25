@@ -10,7 +10,6 @@ import { EmptyNote } from "@/components/EmptyNote";
 import { InvitePanel } from "@/components/InvitePanel";
 import { PropsBar } from "@/components/PropsBar";
 import { LanguageShare } from "@/components/LanguageShare";
-import { LinkComputerNudge } from "@/components/LinkComputerNudge";
 import { MetricTabs } from "@/components/MetricTabs";
 import { MonthBlocks } from "@/components/MonthBlocks";
 import { RangePicker } from "@/components/RangePicker";
@@ -368,7 +367,6 @@ export default async function UserPage({
     <>
       <BackLink href={back.href} label={back.label} />
       {/* A member with no crew never sees the crew board's copy of this. */}
-      {isOwner && machines.length === 0 && <LinkComputerNudge />}
       {behind.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-2 border-amber px-4 py-3 mb-8 font-mono text-xs text-amber">
           <span>&gt; your computer is on {behind.join(", ")}, run</span>

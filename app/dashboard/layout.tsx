@@ -32,7 +32,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     syncWarnings(session.user.id),
     claimFirstSnapshot(session.user.id),
     isAdmin(session.user.id),
-    db.select({ firstSnapshot: users.firstSnapshot, createdAt: users.createdAt }).from(users).where(eq(users.id, session.user.id)),
+    db.select({ firstSnapshot: users.firstSnapshot, lastSnapshotAt: users.lastSnapshotAt, createdAt: users.createdAt }).from(users).where(eq(users.id, session.user.id)),
     hasLinkedMachine(session.user.id),
     hasUnread(session.user.id),
   ]);

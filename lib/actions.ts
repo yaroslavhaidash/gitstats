@@ -109,6 +109,8 @@ export async function createFirstCrew(): Promise<void> {
 export async function sendMessage(formData: FormData): Promise<void> {
   const userId = await requireUserId();
   const result = await postMessage(userId, false, formData.get("body"));
+  // The redirect lands on the page the form is on; without this a production build keeps showing the old thread.
+  revalidatePath("/dashboard/inbox");
   redirect(result === "ok" ? "/dashboard/inbox" : `/dashboard/inbox?error=${result}`);
 }
 
@@ -119,6 +121,7 @@ export async function adminSendMessage(formData: FormData): Promise<void> {
   const [user] = Number.isInteger(userId) ? await db.select({ id: users.id }).from(users).where(eq(users.id, userId)) : [];
   if (!user) redirect("/admin#inbox");
   const result = await postMessage(user.id, true, formData.get("body"));
+  revalidatePath("/admin");
   redirect(`/admin?thread=${user.id}${result === "ok" ? "" : `&error=${result}`}#inbox`);
 }
 
