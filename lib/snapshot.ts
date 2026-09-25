@@ -1,6 +1,6 @@
 import { and, asc, between, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { dailyContributions, repos, snapshotRuns, userTokens, users, weeklyStats, type SnapshotError, type SnapshotKind } from "@/db/schema";
+import { dailyContributions, repos, snapshotRuns, userTokens, users, weeklyStats, type FirstSnapshot, type SnapshotError, type SnapshotKind } from "@/db/schema";
 import { purgeExpiredArchives } from "./account";
 import { purgeExpiredOAuth } from "./oauth";
 import { purgeOldVisits } from "./visits";
@@ -70,42 +70,49 @@ export type SnapshotOptions = {
   chainId?: string;
   /** Recorded on the run so `/api/health` and `/admin` can read the sign-in rate off the history. */
   kind?: SnapshotKind;
-  /**
-   * Stop after discovery: the calendar and the public repo list, one GraphQL call per user, and no
-   * `stats/contributors` at all. A first sign-in uses it so one new member costs one call instead of
-   * one per repo — the lines land on the nightly chain, which already carries pending repos.
-   */
-  discoveryOnly?: boolean;
 };
 
-/** How long a first sign-in's discovery run may take; the page says "counting" for this long. */
-export const FIRST_SNAPSHOT_BUDGET_MS = 60_000;
+/**
+ * How long a first sign-in's full run may take, out of the page's 300 s. A member with 30 public
+ * repos took 40 s; repos GitHub is still computing when it runs out are finished by the nightly run.
+ */
+const FIRST_SNAPSHOT_BUDGET_MS = 240_000;
+/** Past this, a run still marked `running` died with its function; the page stops saying "counting". */
+const FIRST_SNAPSHOT_GIVE_UP_MS = 5 * 60_000;
 
 /**
- * True exactly once per member: for the request whose update flips `last_snapshot_at` from null.
- * Flipping before the run starts is what keeps two tabs opened at once from starting two runs.
+ * True exactly once per member: for the request whose update marks the first snapshot `running`.
+ * Marking before the run starts is what keeps two tabs opened at once from starting two runs.
  */
 export async function claimFirstSnapshot(userId: number): Promise<boolean> {
   const claimed = await db
     .update(users)
-    .set({ lastSnapshotAt: new Date() })
-    .where(and(eq(users.id, userId), isNull(users.lastSnapshotAt), eq(users.isDemo, false)))
+    .set({ firstSnapshot: "running" })
+    .where(and(eq(users.id, userId), isNull(users.lastSnapshotAt), isNull(users.firstSnapshot), eq(users.isDemo, false)))
     .returning({ id: users.id });
   return claimed.length > 0;
 }
 
 /**
- * A new member's calendar and repo list, right away instead of at the nightly cron. Discovery only —
- * one GraphQL call, no `stats/contributors` per repo — so a spike of sign-ins cannot eat the hour's
- * quota and stall the chain. The lines follow tonight.
+ * A new member's calendar, repos and lines right away instead of at the nightly cron: the full run,
+ * for this one member. The quota floor still applies inside it, so when GitHub's hourly quota is low
+ * it stops after discovery and the rest is left, like any unfinished repo, to the nightly run.
  */
-export function runFirstSnapshot(userId: number): Promise<SnapshotSummary> {
-  return runSnapshot(new Date(Date.now() + FIRST_SNAPSHOT_BUDGET_MS), { onlyUserIds: [userId], kind: "signin", discoveryOnly: true });
+export async function runFirstSnapshot(userId: number): Promise<SnapshotSummary> {
+  let left = true;
+  try {
+    const summary = await runSnapshot(new Date(Date.now() + FIRST_SNAPSHOT_BUDGET_MS), { onlyUserIds: [userId], kind: "signin" });
+    left = summary.reposPending > 0 || summary.quotaExhausted;
+    return summary;
+  } finally {
+    await db.update(users).set({ firstSnapshot: left ? "pending" : "done" }).where(eq(users.id, userId));
+    await revalidateForUsers([userId]);
+  }
 }
 
-/** Whether a member with nothing counted yet is most likely waiting on that first run. */
-export function firstSnapshotRunning(lastSnapshotAt: Date | null): boolean {
-  return lastSnapshotAt === null || Date.now() - lastSnapshotAt.getTime() < FIRST_SNAPSHOT_BUDGET_MS;
+/** Whether this member's first snapshot is under way, so their pages say "counting" instead of zeros. */
+export function firstSnapshotRunning(user: { firstSnapshot: FirstSnapshot | null; createdAt: Date }): boolean {
+  return user.firstSnapshot === "running" && Date.now() - user.createdAt.getTime() < FIRST_SNAPSHOT_GIVE_UP_MS;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -152,7 +159,7 @@ export async function alertOnRepeatedFailure(runId: number, errors: SnapshotErro
  * reported as `usersPending` so the caller can chain another run.
  */
 export async function runSnapshot(deadline: Date, options: SnapshotOptions = {}): Promise<SnapshotSummary> {
-  const { onlyUserIds, chainId = null, kind = "nightly", discoveryOnly = false } = options;
+  const { onlyUserIds, chainId = null, kind = "nightly" } = options;
   const startedAt = Date.now();
   const [run] = await db.insert(snapshotRuns).values({ chainId, kind }).returning({ id: snapshotRuns.id, startedAt: snapshotRuns.startedAt });
   const errors: SnapshotError[] = [];
@@ -253,6 +260,8 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
   // stamps too — it reached only the members it names, and `/admin` reads this as "last snapshot".
   if (reached.length > 0) {
     await db.update(users).set({ lastSnapshotAt: new Date() }).where(inArray(users.id, reached));
+    // The nightly run is what a first snapshot's leftovers were waiting for.
+    if (!onlyUserIds) await db.update(users).set({ firstSnapshot: "done" }).where(and(inArray(users.id, reached), eq(users.firstSnapshot, "pending")));
   }
   const usersPending = onlyUserIds ? 0 : targetUsers.length - reached.length;
 
@@ -311,30 +320,23 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
   // A repo nobody has pushed to since the last successful fetch would answer with the same numbers,
   // so it is not asked. A targeted run always asks: it exists because a user is new to this repo's
   // rows, and their rows are exactly what a cached answer would be missing.
-  const local = discoveryOnly ? new Set<string>() : await locallyOwnedPairs();
+  const local = await locallyOwnedPairs();
   let pending: ActiveRepo[] = [];
   let reposSkipped = 0;
-  // A discovery-only run leaves `pending` empty, so every GitHub call below is skipped along with
-  // it. The repos are in the table with no `stats_fetched_for`, and the member's stamp predates
-  // tonight's chain, so the chain reaches them and fills the lines in.
-  if (!discoveryOnly) {
-    for (const repo of activeRepos.values()) {
-      const last = statsFetchedFor.get(repo.nodeId);
-      if (!onlyUserIds && repo.pushedAt !== null && last && last.getTime() === new Date(repo.pushedAt).getTime()) {
-        reposSkipped += 1;
-        continue;
-      }
-      pending.push(repo);
+  for (const repo of activeRepos.values()) {
+    const last = statsFetchedFor.get(repo.nodeId);
+    if (!onlyUserIds && repo.pushedAt !== null && last && last.getTime() === new Date(repo.pushedAt).getTime()) {
+      reposSkipped += 1;
+      continue;
     }
-    // Repos an earlier invocation of this chain left at 202. Their owner is already stamped, so
-    // discovery will not surface them again and the backlog would be forgotten until tomorrow.
-    // Private ones are left out: reading them needs their owner's PAT, which only discovery loads.
-    const carried = onlyUserIds ? [] : await carriedPending(new Set(activeRepos.keys()));
-    pending.push(...carried);
-    log(`stats: ${pending.length} repos to fetch (${carried.length} carried from an earlier run), skipped ${reposSkipped} with unchanged pushed_at`);
-  } else {
-    log(`discovery only: ${activeRepos.size} repos discovered, stats left to the nightly chain`);
+    pending.push(repo);
   }
+  // Repos an earlier invocation of this chain left at 202. Their owner is already stamped, so
+  // discovery will not surface them again and the backlog would be forgotten until tomorrow.
+  // Private ones are left out: reading them needs their owner's PAT, which only discovery loads.
+  const carried = onlyUserIds ? [] : await carriedPending(new Set(activeRepos.keys()));
+  pending.push(...carried);
+  log(`stats: ${pending.length} repos to fetch (${carried.length} carried from an earlier run), skipped ${reposSkipped} with unchanged pushed_at`);
 
   // Pass 0 hits every repo once (which makes GitHub start computing); later
   // passes retry only the ones that answered 202, with growing delays.

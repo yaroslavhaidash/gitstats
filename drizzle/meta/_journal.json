@@ -225,6 +225,13 @@
       "when": 1790269278401,
       "tag": "0031_visits",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1790371707155,
+      "tag": "0032_first_snapshot",
+      "breakpoints": true
     }
   ]
 }

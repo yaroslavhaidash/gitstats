@@ -13,7 +13,7 @@ import { fmtDateTime } from "@/lib/format";
 export const instant = false;
 
 const STEPS = [
-  { tag: "01_SIGNED_IN", title: "GitHub sign-in", body: "Done. That only tells us who you are. Your calendar and your public repos are already here. The lines for them arrive tonight, in the 03:00 UTC snapshot. Link your computer for them now." },
+  { tag: "01_SIGNED_IN", title: "GitHub sign-in", body: "Done. That only tells us who you are. Your calendar, your public repos and their lines are counted right after it, in about a minute. Link your computer for private and work repos, and for lines per day." },
   { tag: "02_LINK", title: "Run one command on your computer", body: "It opens a page where you confirm the link, scans your home folder for git repos, counts your commits for the last year, shows you exactly what it found, and uploads only after you say yes. Then it schedules itself to re-run daily. Node.js is the only requirement." },
   { tag: "03_DONE", title: "That’s it", body: "Private and work repos show up on your board as soon as the first sync finishes. Repeat on any other computer you commit from." },
 ];

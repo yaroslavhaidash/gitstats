@@ -88,6 +88,8 @@ async function Stats({
   /** The crew a recap is placed in, as asked for in the URL. */
   recapCrew: string | undefined;
 }) {
+  // The layout says "counting" above; a page of zeros under it would only contradict it.
+  if (isOwner && firstSnapshotRunning(user)) return null;
   const label = windowLabel(window);
   const lastWeek = lastWeekRange();
   const showRecap = isOwner && (share === "recap" || RECAP_DAYS.includes(new Date().getUTCDay()));
@@ -212,12 +214,11 @@ async function Stats({
           <EmptyNote href={`/dashboard/u/${user.githubLogin}?w=${nearest.preset}`} cta={nearest.preset.toUpperCase()}>
             nothing {label} · {fmt(nearest.commits)} commits this {nearest.preset}
           </EmptyNote>
-        ) : isOwner && !hasAnything && firstSnapshotRunning(user.lastSnapshotAt) ? (
-          <EmptyNote>counting your public repos now · refresh in a moment</EmptyNote>
         ) : (
           <EmptyNote href={isOwner ? "/dashboard/setup" : undefined} cta={isOwner ? "SETUP" : undefined}>
-            nothing counted {label} · lines for public repos arrive tonight, in the 03:00 UTC snapshot
-            {isOwner ? " · link your computer for them now, and for private and work repos" : ""}
+            nothing counted {label}
+            {user.firstSnapshot === "pending" ? " · some public repos were still being counted by GitHub, their lines arrive tonight in the 03:00 UTC snapshot" : ""}
+            {isOwner ? " · link your computer for private and work repos" : ""}
           </EmptyNote>
         ))}
 

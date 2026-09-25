@@ -17,6 +17,8 @@ import {
 export type ProfileVisibility = "crew" | "everyone";
 export type RepoNames = "all" | "public_only" | "none";
 export type StreakMode = "all_days" | "weekdays";
+/** A new member's first snapshot: under way, finished, or finished with repos left for the nightly run. */
+export type FirstSnapshot = "running" | "done" | "pending";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -48,6 +50,8 @@ export const users = pgTable("users", {
   lastRecordStreak: date("last_record_streak", { mode: "string" }),
   /** When the nightly job last finished this user. The queue is ordered by it, oldest (and never) first. */
   lastSnapshotAt: timestamp("last_snapshot_at", { withTimezone: true }),
+  /** The sign-in snapshot's state; null for members who joined before it was tracked. */
+  firstSnapshot: text("first_snapshot").$type<FirstSnapshot>(),
   /**
    * Mixed into every share-card signature. Null until the member first rotates it; "new link" on
    * the share panel writes a fresh value, which is what makes every link minted before it a 404.
