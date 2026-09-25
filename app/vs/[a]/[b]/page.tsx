@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { PublicShell } from "@/components/PublicShell";
+import { SignInPitch } from "@/components/SignInPitch";
 import { SignedOut } from "@/components/SiteNav";
 import { StatTile } from "@/components/StatTile";
 import { SignInButton } from "@/components/Tracked";
@@ -12,8 +13,10 @@ import { WindowTabs } from "@/components/WindowTabs";
 import { YearCalendar } from "@/components/YearCalendar";
 import { signInWithGitHub } from "@/lib/actions";
 import { fmt } from "@/lib/format";
+import { getHandle } from "@/lib/handle";
 import { countStep } from "@/lib/funnel";
 import { openGraphFor } from "@/lib/site";
+import { visitorLead } from "@/lib/visits";
 import { vsSide, type VsSide } from "@/lib/vs";
 import { PRESETS, windowLabel, type Preset, type Window } from "@/lib/window";
 
@@ -102,6 +105,32 @@ function Side({ side, withLines, label }: { side: VsSide; withLines: boolean; la
   );
 }
 
+/**
+ * Signed out: when this visitor typed one side's handle as their own today and that side is not on
+ * gitstats yet, the ask is made about them; otherwise it is the plain one.
+ */
+async function VsSignIn({ sides, ip }: { sides: VsSide[]; ip: string }) {
+  const lead = (await visitorLead())?.toLowerCase();
+  const own = sides.find((s) => s.source === "github" && s.login.toLowerCase() === lead);
+  // The pitch speaks of the last year whatever window the pair is on, so it reads the year numbers.
+  const handle = own ? await getHandle(own.login, ip) : null;
+  if (handle?.status === "ok") {
+    const { data } = handle;
+    return <SignInPitch handle={{ login: data.login, commits: data.totalCommits, streak: data.streak, topLanguage: data.topLanguage }} where="vs_pitch" compact />;
+  }
+  return (
+    <section className="border-2 border-alert p-6 flex flex-wrap items-center justify-between gap-6">
+      <div className="min-w-0">
+        <h2 className="font-sans font-bold text-2xl mb-2">See your private repos and lines too: sign in.</h2>
+        <p className="font-mono text-xs text-dim">GitHub sign-in is identity only: no repo access, no token stored.</p>
+      </div>
+      <form action={signInWithGitHub}>
+        <SignInButton where="vs" className="btn-brutal px-8 py-4">SIGN IN WITH GITHUB_</SignInButton>
+      </form>
+    </section>
+  );
+}
+
 export default async function VsPage({ params, searchParams }: Props) {
   const [{ a, b }, { w }] = await Promise.all([params, searchParams]);
   const [rawA, rawB] = [decodeURIComponent(a), decodeURIComponent(b)];
@@ -149,15 +178,7 @@ export default async function VsPage({ params, searchParams }: Props) {
       </div>
 
       <SignedOut>
-        <section className="border-2 border-alert p-6 flex flex-wrap items-center justify-between gap-6">
-          <div className="min-w-0">
-            <h2 className="font-sans font-bold text-2xl mb-2">See your private repos and lines too: sign in.</h2>
-            <p className="font-mono text-xs text-dim">GitHub sign-in is identity only: no repo access, no token stored.</p>
-          </div>
-          <form action={signInWithGitHub}>
-            <SignInButton where="vs" className="btn-brutal px-8 py-4">SIGN IN WITH GITHUB_</SignInButton>
-          </form>
-        </section>
+        <VsSignIn sides={[l, r]} ip={ip} />
       </SignedOut>
     </PublicShell>
   );

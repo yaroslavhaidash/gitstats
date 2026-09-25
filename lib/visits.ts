@@ -177,6 +177,22 @@ export async function recordTypedHandle(v: Visitor, login: string, path: string)
   }
 }
 
+/** The handle this visitor typed as their own today, if they did; read only, nothing is recorded. */
+export async function visitorLead(): Promise<string | null> {
+  const v = await currentVisitor();
+  if (!v) return null;
+  try {
+    const [visit] = await db
+      .select({ lead: visits.leadLogin })
+      .from(visits)
+      .where(and(eq(visits.visitorId, v.id), eq(visits.day, v.day)));
+    return visit?.lead ?? null;
+  } catch (e) {
+    console.error("[visits] could not read the lead:", e);
+    return null;
+  }
+}
+
 /** A finished sign-in: the visit gets the account, and a lead with that login became a member. */
 export async function recordSignIn(v: Visitor | null, userId: number, login: string): Promise<void> {
   try {
