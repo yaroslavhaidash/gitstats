@@ -6,12 +6,13 @@ import { CliBanner } from "@/components/CliBanner";
 import { CrewSwitcher } from "@/components/CrewSwitcher";
 import { Logo } from "@/components/Logo";
 import { NavMenu } from "@/components/NavMenu";
+import { NoteOverlay, NoteStrip, UnreadOnly } from "@/components/NoteOverlay";
 import { SignInButton } from "@/components/Tracked";
 import { ViewLink } from "@/components/ViewLink";
 import { signInWithGitHub, signOutAction } from "@/lib/actions";
 import { isAdmin } from "@/lib/admin";
 import { userCrews } from "@/lib/crews";
-import { hasUnread } from "@/lib/messages";
+import { MESSAGE_MAX, unreadNotes, type Note } from "@/lib/messages";
 import { collapses } from "@/lib/nav";
 import { hasLinkedMachine } from "@/lib/stats";
 
@@ -21,11 +22,16 @@ type NavUser = { login: string; image?: string | null };
 const BAR = "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4 sm:gap-6";
 
 /**
- * A member's nav: crews, global, compare, inbox, docs, avatar and settings, exit, and the link-your-computer
- * banner until a machine is linked. The dashboard and every public page share it.
+ * A member's nav: crews, global, compare, inbox, docs, avatar and settings, exit; under it the strip and
+ * the overlay for unread notes from the maintainer, and the link-your-computer banner until a machine is linked. The dashboard and every public page share it.
  */
-export function MemberNav({ user, crews, admin, linked, unread }: { user: NavUser; crews: Crew[]; admin: boolean; linked: boolean; unread: boolean }) {
-  const dot = unread && <span aria-label="unread" className="inline-block w-2 h-2 bg-alert ml-1 align-middle" />;
+export function MemberNav({ user, crews, admin, linked, notes }: { user: NavUser; crews: Crew[]; admin: boolean; linked: boolean; notes: Note[] }) {
+  const newest = notes.at(-1)?.id;
+  const dot = newest !== undefined && (
+    <UnreadOnly key={newest}>
+      <span aria-label="unread" className="inline-block w-2 h-2 bg-alert ml-1 align-middle" />
+    </UnreadOnly>
+  );
   const homePath = crews[0] ? `/dashboard/c/${crews[0].code}` : "/dashboard";
   return (
     <>
@@ -76,6 +82,12 @@ export function MemberNav({ user, crews, admin, linked, unread }: { user: NavUse
           </form>
         </div>
       </div>
+      {newest !== undefined && (
+        <UnreadOnly key={newest}>
+          <NoteStrip count={notes.length} />
+          {notes.some((n) => !n.seenAt) && <NoteOverlay notes={notes} max={MESSAGE_MAX} />}
+        </UnreadOnly>
+      )}
       {!linked && <CliBanner />}
     </>
   );
@@ -92,8 +104,8 @@ const DEFAULT_LINKS = (
 async function SessionBar({ where, links }: { where: string; links: ReactNode }) {
   const session = await auth();
   if (session) {
-    const [crews, admin, linked, unread] = await Promise.all([userCrews(session.user.id), isAdmin(session.user.id), hasLinkedMachine(session.user.id), hasUnread(session.user.id)]);
-    return <MemberNav user={session.user} crews={crews} admin={admin} linked={linked} unread={unread} />;
+    const [crews, admin, linked, notes] = await Promise.all([userCrews(session.user.id), isAdmin(session.user.id), hasLinkedMachine(session.user.id), unreadNotes(session.user.id)]);
+    return <MemberNav user={session.user} crews={crews} admin={admin} linked={linked} notes={notes} />;
   }
   return (
     <div className={BAR}>

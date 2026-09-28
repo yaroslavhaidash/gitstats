@@ -35,8 +35,11 @@ export const VISIT_RETENTION_DAYS = 90;
 const BOT = /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|headless|lighthouse|curl|wget|python|go-http|java\/|node-fetch|undici|axios|okhttp|monitor/i;
 const MOBILE = /mobi|android|iphone|ipad|ipod/i;
 
-/** `ip` is only for the per-address GitHub budget of a handle check; it is never written anywhere. */
-export type Visitor = { id: string; day: string; country: string | null; device: "mobile" | "desktop"; host: string | null; ip: string };
+/**
+ * `ip` is only for the per-address GitHub budget of a handle check; it is never written anywhere.
+ * `userId` is the signed-in member, if any, so a member who visited shows as one in the log.
+ */
+export type Visitor = { id: string; day: string; country: string | null; device: "mobile" | "desktop"; host: string | null; ip: string; userId: number | null };
 
 let salt: { day: string; value: string } | null = null;
 
@@ -53,24 +56,24 @@ async function saltFor(day: string): Promise<string> {
 const SESSION_COOKIES = ["__Secure-authjs.session-token", "authjs.session-token"];
 
 /**
- * Whether the request carries an admin's session, read from the session cookie the way `proxy.ts`
- * reads it: this also runs inside the Auth.js callback, where calling `auth()` is not an option.
+ * The signed-in account behind the request, read from the session cookie the way `proxy.ts` reads it:
+ * this also runs inside the Auth.js callback and the beacon route, where calling `auth()` is not an option.
  */
-async function adminSession(h: Headers): Promise<boolean> {
+async function sessionUid(h: Headers): Promise<number | null> {
   const secret = process.env.AUTH_SECRET;
-  if (!secret) return false;
+  if (!secret) return null;
   const jar = new Map((h.get("cookie") ?? "").split(";").map((c) => [c.slice(0, c.indexOf("=")).trim(), c.slice(c.indexOf("=") + 1).trim()]));
   for (const name of SESSION_COOKIES) {
     const raw = jar.get(name);
     if (!raw) continue;
     try {
       const token = await decode({ token: raw, secret, salt: name });
-      if (typeof token?.uid === "number") return isAdmin(token.uid);
+      if (typeof token?.uid === "number") return token.uid;
     } catch {
       // An unreadable cookie is no session.
     }
   }
-  return false;
+  return null;
 }
 
 const PRODUCTION_HOSTS = new Set(["gitstats.org", "www.gitstats.org"]);
@@ -79,11 +82,13 @@ const PRODUCTION_HOSTS = new Set(["gitstats.org", "www.gitstats.org"]);
 export async function visitorFrom(h: Headers): Promise<Visitor | null> {
   if (process.env.VERCEL_ENV !== "production" || !PRODUCTION_HOSTS.has(h.get("host") ?? "")) return null;
   const ua = h.get("user-agent") ?? "";
-  if (h.get("sec-gpc") === "1" || !ua || BOT.test(ua) || (await adminSession(h))) return null;
+  if (h.get("sec-gpc") === "1" || !ua || BOT.test(ua)) return null;
+  const userId = await sessionUid(h);
+  if (userId !== null && (await isAdmin(userId))) return null;
   const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
   const day = new Date().toISOString().slice(0, 10);
   const id = createHash("sha256").update(`${await saltFor(day)}|${ip}|${ua}`).digest("hex").slice(0, 32);
-  return { id, day, country: h.get("x-vercel-ip-country"), device: MOBILE.test(ua) ? "mobile" : "desktop", host: h.get("host"), ip };
+  return { id, day, country: h.get("x-vercel-ip-country"), device: MOBILE.test(ua) ? "mobile" : "desktop", host: h.get("host"), ip, userId };
 }
 
 /** The visitor behind the current server action, page or route handler. */
@@ -140,6 +145,8 @@ export async function recordEvent(v: Visitor, kind: VisitEventKind, path: string
       `),
     ]);
     if (inserted.rows.length === 0) return false;
+    // Through the users table, so a session cookie left over from a deleted account records no member.
+    const member = sql`(select ${users.id} from ${users} where ${users.id} = ${v.userId})`;
     await db
       .insert(visits)
       .values({
@@ -153,10 +160,11 @@ export async function recordEvent(v: Visitor, kind: VisitEventKind, path: string
         country: v.country,
         device: v.device,
         furthestStep: step,
+        userId: member,
       })
       .onConflictDoUpdate({
         target: [visits.visitorId, visits.day],
-        set: { lastAt: sql`now()`, furthestStep: sql`greatest(${visits.furthestStep}, ${step})` },
+        set: { lastAt: sql`now()`, furthestStep: sql`greatest(${visits.furthestStep}, ${step})`, userId: sql`coalesce(${visits.userId}, ${member})` },
       });
     await db.execute(sql`
       update ${leads} set furthest_step = greatest(${leads.furthestStep}, ${step}), last_seen = now()

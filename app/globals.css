@@ -128,6 +128,14 @@ label:has(> input[type="checkbox"]) {
   animation: save-pulse 1s ease-in-out infinite;
 }
 
+/* The note overlay rises into place once; motion-safe only, set on the dialog. */
+@keyframes note-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
 /* Picking one series out of a chart: the rest fade rather than disappear. */
 .series-fade {
   transition: opacity 0.15s ease;

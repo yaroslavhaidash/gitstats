@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { messages, users } from "@/db/schema";
 
@@ -18,14 +18,26 @@ export function thread(userId: number): Promise<Message[]> {
     .orderBy(asc(messages.createdAt), asc(messages.id));
 }
 
-/** Whether the maintainer has written something this member has not opened yet: the nav's dot. */
-export async function hasUnread(userId: number): Promise<boolean> {
-  const [row] = await db
-    .select({ id: messages.id })
+export type Note = { id: number; body: string; createdAt: Date; seenAt: Date | null };
+
+/**
+ * The maintainer's messages this member has not opened yet, oldest first: the nav's dot and the note
+ * strip while there are any, and the note overlay while one of them has not been closed (`seenAt`).
+ */
+export function unreadNotes(userId: number): Promise<Note[]> {
+  return db
+    .select({ id: messages.id, body: messages.body, createdAt: messages.createdAt, seenAt: messages.seenAt })
     .from(messages)
     .where(and(eq(messages.userId, userId), eq(messages.fromAdmin, true), isNull(messages.readAt)))
-    .limit(1);
-  return row !== undefined;
+    .orderBy(asc(messages.createdAt), asc(messages.id));
+}
+
+/** The member closed the overlay: the maintainer's messages up to `upToId` stop opening it; they stay unread. */
+export async function markSeen(userId: number, upToId: number): Promise<void> {
+  await db
+    .update(messages)
+    .set({ seenAt: new Date() })
+    .where(and(eq(messages.userId, userId), eq(messages.fromAdmin, true), isNull(messages.seenAt), lte(messages.id, upToId)));
 }
 
 /** Marks the other side's messages in a thread as read by `reader`. */

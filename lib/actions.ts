@@ -16,7 +16,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { encrypt } from "./crypto";
 import { countStep } from "./funnel";
 import { MCP_TOKEN_PREFIX } from "./mcp";
-import { postMessage } from "./messages";
+import { markSeen, postMessage, type PostResult } from "./messages";
 import { checkAuthorize, issueCode, publicOrigin, withParams, type AuthorizeParams } from "./oauth";
 import { fetchTokenLogin, GitHubAuthError } from "./github";
 import { newShareNonce } from "./share";
@@ -112,6 +112,21 @@ export async function sendMessage(formData: FormData): Promise<void> {
   // The redirect lands on the page the form is on; without this a production build keeps showing the old thread.
   revalidatePath("/dashboard/inbox");
   redirect(result === "ok" ? "/dashboard/inbox" : `/dashboard/inbox?error=${result}`);
+}
+
+/** The member closed the note overlay: it stops opening for the notes it showed, which stay unread. */
+export async function closeNotes(upToId: number): Promise<void> {
+  const userId = await requireUserId();
+  if (Number.isInteger(upToId)) await markSeen(userId, upToId);
+}
+
+/** A reply typed into the note overlay: lands in the member's own thread and closes the overlay like "Later". */
+export async function replyToNotes(upToId: number, formData: FormData): Promise<PostResult> {
+  const userId = await requireUserId();
+  const result = await postMessage(userId, false, formData.get("body"));
+  if (result === "ok" && Number.isInteger(upToId)) await markSeen(userId, upToId);
+  // No revalidation: it would re-render the nav without the overlay before it can say "sent".
+  return result;
 }
 
 /** The maintainer writes into one member's thread. */

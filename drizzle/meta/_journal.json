@@ -246,6 +246,13 @@
       "when": 1790372595371,
       "tag": "0034_signup_source",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790623359828,
+      "tag": "0035_message_seen",
+      "breakpoints": true
     }
   ]
 }

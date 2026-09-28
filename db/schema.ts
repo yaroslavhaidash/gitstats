@@ -511,6 +511,7 @@ export const lookedUpHandles = pgTable("looked_up_handles", {
 /**
  * One thread per member, between that member and the maintainer; members never message each other.
  * `read_at` is when the other side read it: the member for `from_admin` rows, the maintainer otherwise.
+ * `seen_at` is when a member closed the note overlay on a maintainer's message without opening the inbox.
  */
 export const messages = pgTable(
   "messages",
@@ -523,6 +524,7 @@ export const messages = pgTable(
     body: text("body").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     readAt: timestamp("read_at", { withTimezone: true }),
+    seenAt: timestamp("seen_at", { withTimezone: true }),
   },
   (t) => [index("messages_user_idx").on(t.userId, t.createdAt), check("messages_body_len", sql`char_length(${t.body}) between 1 and 2000`)],
 );

@@ -14,7 +14,7 @@ import { fmtDateTime } from "@/lib/format";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { hasUnread } from "@/lib/messages";
+import { unreadNotes } from "@/lib/messages";
 import { claimFirstSnapshot, firstSnapshotRunning, runFirstSnapshot } from "@/lib/snapshot";
 import { countStep } from "@/lib/funnel";
 import { hasLinkedMachine, syncWarnings } from "@/lib/stats";
@@ -25,7 +25,7 @@ export const instant = false;
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const session = await auth();
   if (!session) redirect("/");
-  const [crews, mates, counts, warnings, first, admin, [me], linked, unread] = await Promise.all([
+  const [crews, mates, counts, warnings, first, admin, [me], linked, notes] = await Promise.all([
     userCrews(session.user.id),
     crewmates(session.user.id),
     footerCounts(),
@@ -34,7 +34,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     isAdmin(session.user.id),
     db.select({ firstSnapshot: users.firstSnapshot, lastSnapshotAt: users.lastSnapshotAt, createdAt: users.createdAt }).from(users).where(eq(users.id, session.user.id)),
     hasLinkedMachine(session.user.id),
-    hasUnread(session.user.id),
+    unreadNotes(session.user.id),
   ]);
   // Every first sign-in lands under this layout, so the first page it renders starts the member's
   // first snapshot, once: the claim marks it `running` before the run is scheduled.
@@ -44,7 +44,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     <div className="flex-1 flex flex-col">
       <Hotkeys homePath={homePath} crews={crews} members={mates} />
       <nav className="sticky top-0 z-40 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
-        <MemberNav user={session.user} crews={crews} admin={admin} linked={linked} unread={unread} />
+        <MemberNav user={session.user} crews={crews} admin={admin} linked={linked} notes={notes} />
       </nav>
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <SyncNotice warnings={warnings} />
