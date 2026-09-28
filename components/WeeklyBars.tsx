@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import { CellTip } from "./CellTip";
+import { tickAnchor } from "./dayTicks";
 import { useCellTip } from "./useCellTip";
+import { chartHeight, useChartWidth } from "./useChartWidth";
 import { fmt, fmtDate } from "@/lib/format";
 import type { WeekRow } from "@/lib/stats";
 
 const W = 720;
-const H = 240;
 const PAD = { top: 16, bottom: 28, left: 8, right: 8 };
-const LABEL_EVERY = 4; // every fourth bucket carries a date, and a rule down to it
+/** Room one "05 Oct" needs to itself, in viewBox units (one per CSS pixel). */
+const LABEL_ROOM = 64;
 
 /** Diagonal hatch, one pattern per colour, so pending work reads as "not landed yet". */
 function Hatch({ id, color }: { id: string; color: string }) {
@@ -29,6 +31,8 @@ function Hatch({ id, color }: { id: string; color: string }) {
 export function WeeklyBars({ weeks, totalWeeks, endSunday }: { weeks: WeekRow[]; totalWeeks: number; endSunday: string }) {
   const [hover, setHover] = useState<number | null>(null);
   const { boxRef, point, onMouseMove, clear } = useCellTip();
+  const width = useChartWidth(boxRef, W);
+  const H = chartHeight(width, 1 / 3, 170, 240);
   const byWeek = new Map(weeks.map((w) => [w.weekStart, w]));
   const slots: (WeekRow | null)[] = [];
   const sunday = new Date(`${endSunday}T00:00:00Z`);
@@ -42,7 +46,9 @@ export function WeeklyBars({ weeks, totalWeeks, endSunday }: { weeks: WeekRow[];
   const plotH = H - PAD.top - PAD.bottom;
   const mid = PAD.top + plotH / 2;
   const half = plotH / 2 - 4;
-  const slotW = (W - PAD.left - PAD.right) / totalWeeks;
+  const slotW = (width - PAD.left - PAD.right) / totalWeeks;
+  // Every fourth week on a desktop card; on a phone as many weeks apart as a date needs, so they never touch.
+  const labelEvery = Math.max(4, Math.ceil(LABEL_ROOM / slotW));
   const barW = Math.max(2, slotW - 3);
   const scale = (v: number) => (v / max) * half;
   const active = hover !== null ? slots[hover] : null;
@@ -69,8 +75,12 @@ export function WeeklyBars({ weeks, totalWeeks, endSunday }: { weeks: WeekRow[];
         )}
       </div>
       <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full h-auto block"
+        viewBox={`0 0 ${width} ${H}`}
+        width="100%"
+        height={H}
+        // Until the width is measured the viewBox is wider than the box; slicing crops that one frame instead of shrinking it.
+        preserveAspectRatio="xMinYMin slice"
+        className="block"
         role="img"
         aria-label="Weekly lines added and deleted"
         onMouseMove={onMouseMove}
@@ -82,7 +92,7 @@ export function WeeklyBars({ weeks, totalWeeks, endSunday }: { weeks: WeekRow[];
         </defs>
         {/* One faint rule per labelled column, so a bar high above the axis can be traced to its date. */}
         {slots.map((_, i) =>
-          i % LABEL_EVERY === 0 ? (
+          i % labelEvery === 0 ? (
             <line
               key={`tick-${i}`}
               x1={PAD.left + i * slotW + slotW / 2}
@@ -94,7 +104,7 @@ export function WeeklyBars({ weeks, totalWeeks, endSunday }: { weeks: WeekRow[];
             />
           ) : null,
         )}
-        <line x1={PAD.left} x2={W - PAD.right} y1={mid} y2={mid} stroke="#333" strokeWidth={1} />
+        <line x1={PAD.left} x2={width - PAD.right} y1={mid} y2={mid} stroke="#333" strokeWidth={1} />
         {slots.map((w, i) => {
           const x = PAD.left + i * slotW + (slotW - barW) / 2;
           const a = Math.min(w ? scale(w.additions) : 0, half);
@@ -115,21 +125,16 @@ export function WeeklyBars({ weeks, totalWeeks, endSunday }: { weeks: WeekRow[];
             </g>
           );
         })}
-        {slots.map((_, i) =>
-          i % LABEL_EVERY === 0 ? (
-            <text
-              key={i}
-              x={PAD.left + i * slotW + slotW / 2}
-              y={H - 8}
-              textAnchor="middle"
-              className="fill-faint"
-              fontSize={10}
-              fontFamily="var(--font-mono)"
-            >
-              {fmtDate(new Date(sunday.getTime() - (totalWeeks - 1 - i) * 7 * 86_400_000))}
+        {slots.map((_, i) => {
+          if (i % labelEvery !== 0) return null;
+          const x = PAD.left + i * slotW + slotW / 2;
+          const label = fmtDate(new Date(sunday.getTime() - (totalWeeks - 1 - i) * 7 * 86_400_000));
+          return (
+            <text key={i} x={x} y={H - 8} textAnchor={tickAnchor(x, label, width)} className="fill-faint" fontSize={10} fontFamily="var(--font-mono)">
+              {label}
             </text>
-          ) : null,
-        )}
+          );
+        })}
       </svg>
       <p className="font-mono text-xs text-faint mt-1">default branch{hasPending ? " · pending = unmerged branches, never ranked; ▲ means it runs off the top" : ""}</p>
       {hover !== null && point && (

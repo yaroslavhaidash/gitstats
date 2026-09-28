@@ -14,7 +14,7 @@ const MULTI_LIMIT = 4;
 /** What a line the pointer is not on fades to, so the isolated one reads without the rest vanishing. */
 const DIMMED = 0.2;
 /** Vertical room one end-of-line login needs before the next one may start. */
-const LABEL_GAP = 13;
+const LABEL_GAP = 15;
 /** Width the server draws at; the client re-reads the real one, so a unit is always one CSS pixel. */
 const W = 720;
 const ROW_H = 34;
@@ -86,23 +86,25 @@ function seriesOf(rows: MemberWeekRow[], members: ChartMember[], starts: string[
 }
 
 function Axis({ starts, y, from, to, every, width }: { starts: string[]; y: number; from: number; to: number; every: number; width: number }) {
+  // A label pushed in from an edge (anchored start or end) reaches further towards its neighbour than a
+  // centred one, so each is kept only if it clears the one before it; mono glyphs are ~6 units at this size.
+  const labels: { key: string; x: number; text: string; anchor: "start" | "middle" | "end" }[] = [];
+  for (let i = 0, prevRight = -Infinity; i < starts.length; i += every) {
+    const x = from + (i / (starts.length - 1)) * (to - from);
+    const text = fmtDate(starts[i]);
+    const anchor = tickAnchor(x, text, width);
+    const left = anchor === "start" ? x : anchor === "end" ? x - text.length * 6 : x - text.length * 3;
+    if (left < prevRight + 8) continue;
+    prevRight = left + text.length * 6;
+    labels.push({ key: starts[i], x, text, anchor });
+  }
   return (
     <>
-      {starts.map((w, i) =>
-        i % every === 0 ? (
-          <text
-            key={w}
-            x={from + (i / (starts.length - 1)) * (to - from)}
-            y={y}
-            textAnchor={tickAnchor(from + (i / (starts.length - 1)) * (to - from), fmtDate(w), width)}
-            className="fill-faint"
-            fontSize={10}
-            fontFamily="var(--font-mono)"
-          >
-            {fmtDate(w)}
-          </text>
-        ) : null,
-      )}
+      {labels.map((l) => (
+        <text key={l.key} x={l.x} y={y} textAnchor={l.anchor} className="fill-faint" fontSize={10} fontFamily="var(--font-mono)">
+          {l.text}
+        </text>
+      ))}
     </>
   );
 }
@@ -156,7 +158,10 @@ export function MemberLines({ rows, members, weeks, endSunday, metric }: {
   const labelEvery = Math.max(LABEL_EVERY, Math.ceil(DATE_W / Math.max(1, (right - left) / (starts.length - 1))));
   /** Characters a login fits at roughly 7px per mono glyph. In the rows it also shares the column
    *  with that row's peak, so it gives up the room that number needs rather than running under it. */
-  const names = Math.max(5, Math.floor((nameW - 14 - (small ? PEAK_W : 0)) / 7));
+  // On a phone the column has no room for a login and a peak side by side: the peak drops under the
+  // login (or, in rows too short for two lines, is left to the hover label).
+  const stackPeak = small && nameW - 14 - PEAK_W < 5 * 7;
+  const names = Math.max(5, Math.floor((nameW - 14 - (small && !stackPeak ? PEAK_W : 0)) / 7));
 
   const peak = Math.max(1, ...series.flat());
   const lineTop = 12;
@@ -172,7 +177,7 @@ export function MemberLines({ rows, members, weeks, endSunday, metric }: {
             key={m.userId}
             type="button"
             aria-pressed={pinned === m.userId}
-            className="series-fade flex items-center gap-2 min-w-0 cursor-pointer hover:text-silver"
+            className="series-fade flex items-center gap-2 min-w-0 max-w-full cursor-pointer hover:text-silver"
             style={{ opacity: fade(m.userId) }}
             onMouseEnter={() => setPointed(m.userId)}
             onMouseLeave={() => setPointed(null)}
@@ -219,12 +224,21 @@ export function MemberLines({ rows, members, weeks, endSunday, metric }: {
                 <g key={m.userId} className="series-fade" opacity={fade(m.userId)}>
                   <line x1={left} x2={right} y1={top + rowH - 6} y2={top + rowH - 6} stroke="#1f1f1f" strokeWidth={1} />
                   <path d={`M${path}`} fill="none" stroke={m.hue} strokeWidth={1.5} strokeLinejoin="round" strokeDasharray={m.wrapped ? "5 3" : undefined} />
-                  <text x={8} y={top + rowH / 2 + 3} className="fill-dim" fontSize={11} fontFamily="var(--font-mono)">
+                  <text x={8} y={top + rowH / 2 + (stackPeak ? -4 : 3)} className="fill-dim" fontSize={11} fontFamily="var(--font-mono)">
                     {m.login.length > names ? `${m.login.slice(0, names - 1)}…` : m.login}
                   </text>
-                  <text x={nameW - 10} y={top + rowH / 2 + 3} textAnchor="end" className="fill-faint" fontSize={10} fontFamily="var(--font-mono)">
-                    {fmt(max)}
-                  </text>
+                  {(!stackPeak || rowH >= 26) && (
+                    <text
+                      x={stackPeak ? 8 : nameW - 10}
+                      y={top + rowH / 2 + (stackPeak ? 11 : 3)}
+                      textAnchor={stackPeak ? "start" : "end"}
+                      className="fill-faint"
+                      fontSize={10}
+                      fontFamily="var(--font-mono)"
+                    >
+                      {fmt(max)}
+                    </text>
+                  )}
                 </g>
               );
             })

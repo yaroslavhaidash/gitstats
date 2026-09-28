@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CellTip } from "./CellTip";
 import { useCellTip } from "./useCellTip";
+import { useChartWidth } from "./useChartWidth";
 import type { DailyLineRow } from "@/lib/stats";
 import type { DayChartMode } from "@/lib/window";
 
@@ -34,7 +35,7 @@ const MAX_H: Record<DayChartMode, string> = {
   week: "max-h-[190px]",
   month: "max-h-[452px]",
   days: "max-h-[420px]",
-  months: "max-h-[180px]",
+  months: "", // capped per row instead: see `monthTiles`
 };
 
 const MAX_W: Record<DayChartMode, string> = {
@@ -51,6 +52,11 @@ const MAX_W: Record<DayChartMode, string> = {
  * while the calendar's step down one.
  */
 const WEEK_CELL = { h: CELL_W, fs: 0.74, num: 15 };
+/** The week on a phone: four square cells to a row, at the calendar's type size, instead of seven at a quarter of it. */
+const WEEK_PHONE_CELL = { h: CELL_W, fs: 1, num: 13 };
+const WEEK_PHONE_COLS = 4;
+/** Below this rendered width a row of seven day cells has no room left for its numbers. */
+const NARROW = 520;
 const CAL_CELL = { h: 76, fs: 1, num: 13 };
 const LABEL = 11;
 const DOT = 16;
@@ -178,13 +184,17 @@ export function MonthBlocks({
 }) {
   const [hover, setHover] = useState<Hover>(null);
   const { boxRef, point, onMouseMove, clear } = useCellTip();
+  const measured = useChartWidth(boxRef, TILE_COLS * TILE_W);
   const byDate = new Map(rows.map((r) => [r.date, r]));
+  // Seven month tiles to a row where they fit at about their drawn size; three on a phone, so a tile's text stays legible.
+  const tileCols = Math.max(3, Math.min(TILE_COLS, Math.floor(measured / TILE_W)));
+  const narrow = measured < NARROW;
 
   const body =
     mode === "week"
-      ? weekRow(byDate, to, today, hover, setHover)
+      ? weekRow(byDate, to, today, narrow, hover, setHover)
       : mode === "months"
-        ? monthTiles(rows, from, to, hover, setHover)
+        ? monthTiles(rows, from, to, tileCols, hover, setHover)
         : dayBlocks(byDate, from, to, today, mode === "month", hover, setHover);
 
   return (
@@ -201,7 +211,9 @@ export function MonthBlocks({
       </div>
       <svg
         viewBox={`0 0 ${body.width + EDGE_PAD * 2} ${body.height + EDGE_PAD * 2}`}
-        className={`block w-full h-auto mx-auto ${MAX_H[mode]} ${MAX_W[mode]}`}
+        className={`block w-full h-auto mx-auto ${mode === "week" && narrow ? "" : MAX_H[mode]} ${MAX_W[mode]}`}
+        // A row of month tiles never renders taller than 90px, which is what the old two-row cap of 180px allowed.
+        style={mode === "months" ? { maxHeight: (body.height / TILE_H) * 90 } : undefined}
         role="img"
         aria-label={`Lines added and deleted per ${mode === "months" ? "month" : "day"}`}
         onMouseMove={onMouseMove}
@@ -223,22 +235,27 @@ function weekRow(
   byDate: Map<string, DailyLineRow>,
   to: string,
   today: string,
+  narrow: boolean,
   hover: Hover,
   setHover: (h: Hover) => void,
 ): Body {
   const d = new Date(`${to}T00:00:00Z`);
   const monday = new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86_400_000);
-  const width = 7 * (CELL_W + GAP) - GAP;
-  const height = HEAD + WEEK_CELL.h;
+  const cols = narrow ? WEEK_PHONE_COLS : 7;
+  const cell = narrow ? WEEK_PHONE_CELL : WEEK_CELL;
+  const pitch = HEAD + cell.h + GAP;
+  const width = cols * (CELL_W + GAP) - GAP;
+  const height = Math.ceil(7 / cols) * pitch - GAP;
   const content = Array.from({ length: 7 }, (_, i) => {
     const day = new Date(monday.getTime() + i * 86_400_000);
     const date = day.toISOString().slice(0, 10);
-    const x = i * (CELL_W + GAP);
-    const y = HEAD;
+    const x = (i % cols) * (CELL_W + GAP);
+    const top = Math.floor(i / cols) * pitch;
+    const y = top + HEAD;
     const row = byDate.get(date);
     return (
       <g key={date}>
-        <text x={x + CELL_W / 2} y={20} textAnchor="middle" fontSize={LABEL * WEEK_CELL.fs} fontFamily="var(--font-mono)" className="fill-faint">
+        <text x={x + CELL_W / 2} y={top + 20} textAnchor="middle" fontSize={LABEL * cell.fs} fontFamily="var(--font-mono)" className="fill-faint">
           {MON_FIRST[i]}
         </text>
         <DayCell
@@ -246,7 +263,7 @@ function weekRow(
           y={y}
           day={day.getUTCDate()}
           row={row}
-          cell={WEEK_CELL}
+          cell={cell}
           future={date > today}
           active={hover?.x === x && hover?.y === y}
           onEnter={() => setHover({ x, y, text: dayLabel(date, row) })}
@@ -328,7 +345,7 @@ function dayBlocks(
 }
 
 /** One tile per month for a year or any long range: day cells would be unreadable. */
-function monthTiles(rows: DailyLineRow[], from: string, to: string, hover: Hover, setHover: (h: Hover) => void): Body {
+function monthTiles(rows: DailyLineRow[], from: string, to: string, maxCols: number, hover: Hover, setHover: (h: Hover) => void): Body {
   const totals = new Map<string, { additions: number; deletions: number; commits: number }>();
   for (const r of rows) {
     const key = r.date.slice(0, 7);
@@ -339,14 +356,14 @@ function monthTiles(rows: DailyLineRow[], from: string, to: string, hover: Hover
     totals.set(key, t);
   }
   const keys = monthsBetween(from, to).slice(-MAX_TILES);
-  const cols = Math.min(TILE_COLS, keys.length);
+  const cols = Math.min(maxCols, keys.length);
   const width = cols * TILE_W;
-  const height = Math.ceil(keys.length / TILE_COLS) * TILE_H;
+  const height = Math.ceil(keys.length / cols) * TILE_H;
   const content = keys.map((key, i) => {
     const [y, m] = key.split("-").map(Number);
     const t = totals.get(key);
-    const x = (i % TILE_COLS) * TILE_W;
-    const top = Math.floor(i / TILE_COLS) * TILE_H;
+    const x = (i % cols) * TILE_W;
+    const top = Math.floor(i / cols) * TILE_H;
     const text = `${MONTHS[m - 1]} ${y} · ${t ? `+${t.additions} −${t.deletions} · ${t.commits} commits` : "no lines counted"}`;
     const active = hover?.x === x && hover?.y === top;
     return (

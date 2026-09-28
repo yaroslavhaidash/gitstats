@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { fmt } from "@/lib/format";
 import { HUES } from "@/lib/palette";
 import type { LanguageRow } from "@/lib/stats";
+import { useChartWidth } from "./useChartWidth";
 
 const NAMED = HUES.length - 1;
 const W = 720;
@@ -14,6 +15,9 @@ type Slice = { name: string; lines: number; additions: number; deletions: number
 
 export function LanguageShare({ rows }: { rows: LanguageRow[] }) {
   const [hover, setHover] = useState<number | null>(null);
+  // Drawn one unit per pixel, so a percentage inside a segment keeps its 11px on a phone.
+  const box = useRef<HTMLDivElement>(null);
+  const width = useChartWidth(box, W);
   const named = rows.filter((r) => r.lines > 0);
   const total = named.reduce((sum, r) => sum + r.lines, 0);
   if (total === 0) return <p className="font-mono text-sm text-dim">&gt; no lines in this window_</p>;
@@ -30,7 +34,7 @@ export function LanguageShare({ rows }: { rows: LanguageRow[] }) {
   );
   const segments = rest.lines > 0 ? [...head, rest] : head;
 
-  const span = W - GAP * (segments.length - 1);
+  const span = width - GAP * (segments.length - 1);
   let offset = 0;
   const placed: (Slice & { x: number; w: number; label: string; hue: string })[] = [];
   for (const [i, s] of segments.entries()) {
@@ -42,8 +46,8 @@ export function LanguageShare({ rows }: { rows: LanguageRow[] }) {
   const widest = Math.max(...placed.map((s) => s.lines));
 
   return (
-    <div onMouseLeave={() => setHover(null)}>
-      <svg viewBox={`0 0 ${W} ${BAR_H}`} className="block w-full h-auto" role="img" aria-label="Share of lines touched per language">
+    <div ref={box} onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${width} ${BAR_H}`} width="100%" height={BAR_H} preserveAspectRatio="xMinYMin slice" className="block" role="img" aria-label="Share of lines touched per language">
         {placed.map((s, i) => (
           <g key={s.name} opacity={hover !== null && hover !== i ? 0.5 : 1} onMouseEnter={() => setHover(i)}>
             <rect x={s.x} y={0} width={Math.max(1, s.w)} height={BAR_H} fill={s.hue} />

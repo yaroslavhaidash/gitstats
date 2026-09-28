@@ -2,16 +2,19 @@
 
 import { useState } from "react";
 import { CellTip } from "./CellTip";
+import { tickAnchor } from "./dayTicks";
 import { useCellTip } from "./useCellTip";
+import { chartHeight, useChartWidth } from "./useChartWidth";
 import { fmt, fmtDate } from "@/lib/format";
 import { hue } from "@/lib/palette";
 import type { RepoMemberRow, RepoWeekRow } from "@/lib/stats";
 
 const W = 720;
-const H = 240;
 const PAD = { top: 20, bottom: 28, left: 8, right: 8 };
-/** Above this many bars the per-bar totals collide, so only the hover label carries numbers. */
-const LABEL_LIMIT = 16;
+/** Below this many units per bar the per-bar totals collide, so only the hover label carries numbers. */
+const TOTAL_ROOM = 26;
+/** Room one "05 Oct" needs to itself, in viewBox units (one per CSS pixel). */
+const LABEL_ROOM = 64;
 
 type Slot = { sunday: string; total: number; parts: { userId: number; commits: number }[] };
 
@@ -19,6 +22,8 @@ type Slot = { sunday: string; total: number; parts: { userId: number; commits: n
 export function MemberBars({ members, weeks, totalWeeks, endSunday }: { members: RepoMemberRow[]; weeks: RepoWeekRow[]; totalWeeks: number; endSunday: string }) {
   const [hover, setHover] = useState<number | null>(null);
   const { boxRef, point, onMouseMove, clear } = useCellTip();
+  const width = useChartWidth(boxRef, W);
+  const H = chartHeight(width, 1 / 3, 170, 240);
   const order = members.map((m) => m.userId);
   const byWeek = new Map<string, Map<number, number>>();
   for (const w of weeks) {
@@ -38,7 +43,8 @@ export function MemberBars({ members, weeks, totalWeeks, endSunday }: { members:
   const max = Math.max(1, ...slots.map((s) => s.total));
   const plotH = H - PAD.top - PAD.bottom;
   const baseline = PAD.top + plotH;
-  const slotW = (W - PAD.left - PAD.right) / totalWeeks;
+  const slotW = (width - PAD.left - PAD.right) / totalWeeks;
+  const labelEvery = Math.max(4, Math.ceil(LABEL_ROOM / slotW));
   const barW = Math.max(2, slotW - 3);
   const active = hover !== null ? slots[hover] : null;
   const named = new Map(members.map((m) => [m.userId, m.name ?? m.login]));
@@ -55,14 +61,18 @@ export function MemberBars({ members, weeks, totalWeeks, endSunday }: { members:
         <li className="w-full sm:w-auto sm:ml-auto text-faint">commits per week</li>
       </ul>
       <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full h-auto block"
+        viewBox={`0 0 ${width} ${H}`}
+        width="100%"
+        height={H}
+        // Until the width is measured the viewBox is wider than the box; slicing crops that one frame instead of shrinking it.
+        preserveAspectRatio="xMinYMin slice"
+        className="block"
         role="img"
         aria-label="Weekly commits per member"
         onMouseMove={onMouseMove}
         onMouseLeave={clear}
       >
-        <line x1={PAD.left} x2={W - PAD.right} y1={baseline} y2={baseline} stroke="#333" strokeWidth={1} />
+        <line x1={PAD.left} x2={width - PAD.right} y1={baseline} y2={baseline} stroke="#333" strokeWidth={1} />
         {slots.map((s, i) => {
           const x = PAD.left + i * slotW + (slotW - barW) / 2;
           let y = baseline;
@@ -75,7 +85,7 @@ export function MemberBars({ members, weeks, totalWeeks, endSunday }: { members:
                 y -= h;
                 return <rect key={p.userId} x={x} y={y} width={barW} height={h} fill={hue(j)} />;
               })}
-              {totalWeeks <= LABEL_LIMIT && s.total > 0 && (
+              {slotW >= TOTAL_ROOM && s.total > 0 && (
                 <text x={x + barW / 2} y={y - 5} textAnchor="middle" className="fill-dim" fontSize={10} fontFamily="var(--font-mono)">
                   {s.total}
                 </text>
@@ -83,13 +93,15 @@ export function MemberBars({ members, weeks, totalWeeks, endSunday }: { members:
             </g>
           );
         })}
-        {slots.map((s, i) =>
-          i % 4 === 0 ? (
-            <text key={s.sunday} x={PAD.left + i * slotW + slotW / 2} y={H - 8} textAnchor="middle" className="fill-faint" fontSize={10} fontFamily="var(--font-mono)">
+        {slots.map((s, i) => {
+          if (i % labelEvery !== 0) return null;
+          const x = PAD.left + i * slotW + slotW / 2;
+          return (
+            <text key={s.sunday} x={x} y={H - 8} textAnchor={tickAnchor(x, fmtDate(s.sunday), width)} className="fill-faint" fontSize={10} fontFamily="var(--font-mono)">
               {fmtDate(s.sunday)}
             </text>
-          ) : null,
-        )}
+          );
+        })}
       </svg>
       {active && point && (
         <CellTip point={point} className="panel px-3 py-2 font-mono text-xs">
