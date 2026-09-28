@@ -49,7 +49,7 @@ export default async function Setup({ searchParams }: { searchParams: Promise<{ 
 
       <div className="grid gap-6 mb-10">
         {STEPS.map((s, i) => (
-          <div key={s.tag} className={`relative border-2 p-6 transition-colors ${i === current ? "border-silver" : i < current ? "border-dark opacity-60" : "border-dark"}`}>
+          <div key={s.tag} className={`relative min-w-0 border-2 p-6 transition-colors ${i === current ? "border-silver" : i < current ? "border-dark opacity-60" : "border-dark"}`}>
             <span className="absolute -top-3 left-4 bg-void tag">{s.tag}</span>
             <h2 className="font-sans font-bold text-lg mt-2 mb-2">{s.title}</h2>
             <p className="font-mono text-xs text-dim leading-relaxed mb-4">{s.body}</p>

@@ -1,6 +1,6 @@
-/** Placeholder block for content that is still loading. The pulse stops under reduced motion. */
+/** Placeholder block for content that is still loading. The pulse stops under reduced motion. Never wider than its box. */
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-[#222222] animate-pulse motion-reduce:animate-none ${className}`} />;
+  return <div className={`max-w-full bg-[#222222] animate-pulse motion-reduce:animate-none ${className}`} />;
 }
 
 /** Tag + title + one line of sub-copy, next to the window tabs — the header every board shares. */
@@ -20,29 +20,45 @@ export function SkeletonHeader() {
   );
 }
 
-/** The leaderboard: header strip plus member rows, in the same columns as `Leaderboard`. */
+/** The leaderboard in the same shape as `Leaderboard`: member cards below 1024px, table rows above. */
 export function SkeletonBoard({ rows = 5 }: { rows?: number }) {
   return (
-    <div className="panel">
-      <div className="border-b-2 border-dark px-4 py-3">
-        <Skeleton className="h-3 w-full" />
-      </div>
-      <div className="divide-y divide-dark">
+    <>
+      <div className="grid sm:grid-cols-2 gap-3 lg:hidden">
         {Array.from({ length: rows }, (_, i) => (
-          <div key={i} className="px-4 py-3 flex items-center gap-4">
-            <Skeleton className="h-3 w-4 shrink-0" />
-            <Skeleton className="h-7 w-7 shrink-0" />
-            <Skeleton className="h-4 w-28 shrink-0" />
-            <div className="flex-1 hidden sm:flex items-center justify-end gap-6">
-              {Array.from({ length: 6 }, (_, c) => (
-                <Skeleton key={c} className="h-4 w-12" />
-              ))}
+          <div key={i} className="panel p-4">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-3 w-4 shrink-0" />
+              <Skeleton className="h-7 w-7 shrink-0" />
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-6 w-16 ml-auto shrink-0" />
             </div>
-            <Skeleton className="h-6 w-24 sm:w-40 shrink-0 ml-auto sm:ml-0" />
+            <Skeleton className="h-3 w-48 mt-4" />
+            <Skeleton className="h-20 w-36 mt-3" />
           </div>
         ))}
       </div>
-    </div>
+      <div className="panel hidden lg:block">
+        <div className="border-b-2 border-dark px-4 py-3">
+          <Skeleton className="h-3 w-full" />
+        </div>
+        <div className="divide-y divide-dark">
+          {Array.from({ length: rows }, (_, i) => (
+            <div key={i} className="px-4 py-3 flex items-center gap-4">
+              <Skeleton className="h-3 w-4 shrink-0" />
+              <Skeleton className="h-7 w-7 shrink-0" />
+              <Skeleton className="h-4 w-28 shrink-0" />
+              <div className="flex-1 flex items-center justify-end gap-6">
+                {Array.from({ length: 6 }, (_, c) => (
+                  <Skeleton key={c} className="h-4 w-12" />
+                ))}
+              </div>
+              <Skeleton className="h-6 w-40 shrink-0" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }
 

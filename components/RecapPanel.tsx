@@ -95,7 +95,7 @@ export function RecapPanel({
             name="crew"
             defaultValue={crewId ?? undefined}
             aria-label="crew to place you in"
-            className="bg-void border-2 border-dark px-3 py-2 font-mono text-xs focus:border-silver outline-none cursor-pointer"
+            className="max-w-full min-w-0 bg-void border-2 border-dark px-3 py-2 font-mono text-xs focus:border-silver outline-none cursor-pointer"
           >
             {crews.map((c) => (
               <option key={c.id} value={c.id}>

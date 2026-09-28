@@ -35,7 +35,8 @@ export function Overlaps({
           const named = r.members.some((m) => m.userId === viewerId || nameVisible(m, r));
           return (
             <li key={r.nodeId} className="px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-              <span className="min-w-0 flex-1 break-all">
+              {/* A whole line for the name on a phone, so it is not squeezed into a column beside the avatars. */}
+              <span className="min-w-0 flex-1 basis-full sm:basis-0 break-all">
                 {named && linkRepos ? (
                   <Link href={`/dashboard/r/${encodeURIComponent(r.nodeId)}?${windowQuery(window)}${src ? `&src=${encodeURIComponent(src)}` : ""}`} className="text-white hover:text-alert">
                     {r.nameWithOwner}

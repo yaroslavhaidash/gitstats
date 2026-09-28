@@ -52,7 +52,7 @@ export function RangePicker({ current, basePath, query = "" }: { current: Window
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={`flex items-center gap-2 font-mono text-xs uppercase border-2 px-3 py-2 transition-colors cursor-pointer ${
+        className={`flex items-center gap-2 min-h-11 sm:min-h-0 font-mono text-xs uppercase border-2 px-3 py-2 transition-colors cursor-pointer ${
           active ? "bg-silver text-void border-silver font-bold" : "border-dark hover:text-alert"
         }`}
       >

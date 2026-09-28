@@ -375,14 +375,14 @@ export default async function UserPage({
         </div>
       )}
       <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
-        <div className="flex items-center gap-5">
-          <Image src={user.avatarUrl} alt="" width={64} height={64} className="border-2 border-silver" unoptimized />
-          <div>
-            <div className="tag mb-2">DEV // {user.githubLogin.toUpperCase()}</div>
-            <h1 className="font-sans font-bold text-4xl leading-none">{user.name ?? user.githubLogin}</h1>
+        <div className="flex items-center gap-5 min-w-0">
+          <Image src={user.avatarUrl} alt="" width={64} height={64} className="border-2 border-silver shrink-0" unoptimized />
+          <div className="min-w-0">
+            <div className="tag mb-2 max-w-full [overflow-wrap:anywhere]">DEV // {user.githubLogin.toUpperCase()}</div>
+            <h1 className="font-sans font-bold text-4xl leading-none [overflow-wrap:anywhere]">{user.name ?? user.githubLogin}</h1>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <MetricTabs current={metric} basePath={`/dashboard/u/${user.githubLogin}`} query={windowQuery(window)} />
           <WindowTabs current={window} basePath={`/dashboard/u/${user.githubLogin}`} query={suffix} />
           <RangePicker current={window} basePath={`/dashboard/u/${user.githubLogin}`} query={suffix} />

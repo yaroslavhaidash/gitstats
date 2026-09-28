@@ -94,7 +94,7 @@ export default async function GlobalBoard({ searchParams }: { searchParams: Prom
           <h1 className="font-sans font-bold text-4xl">All hands.</h1>
           <p className="font-mono text-xs text-faint mt-2">aggregate numbers · profiles open if the member allows it</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <MetricTabs current={metric} basePath="/dashboard/global" query={windowQuery(window)} />
           <WindowTabs current={window} basePath="/dashboard/global" query={suffix} />
           <RangePicker current={window} basePath="/dashboard/global" query={suffix} />

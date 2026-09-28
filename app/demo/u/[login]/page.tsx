@@ -69,7 +69,7 @@ export default async function DemoUserPage({
             <Link href="/demo" className="font-mono text-xs text-faint hover:text-alert mt-2 inline-block">← back to the demo board</Link>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <MetricTabs current={metric} basePath={`/demo/u/${user.login}`} query={windowQuery(window)} />
           <WindowTabs current={window} basePath={`/demo/u/${user.login}`} query={suffix} />
           <RangePicker current={window} basePath={`/demo/u/${user.login}`} query={suffix} />

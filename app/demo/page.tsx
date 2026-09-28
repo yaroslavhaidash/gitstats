@@ -52,7 +52,7 @@ export default async function DemoBoard({ searchParams }: { searchParams: Promis
           <h1 className="font-sans font-bold text-4xl">{crew.name}</h1>
           <p className="font-mono text-xs text-faint mt-2">four invented developers, two years of invented commits</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <MetricTabs current={metric} basePath="/demo" query={windowQuery(window)} />
           <WindowTabs current={window} basePath="/demo" query={suffix} />
           <RangePicker current={window} basePath="/demo" query={suffix} />

@@ -143,8 +143,9 @@ async function Charts({ crew, window, metric, viewerId }: { crew: Crew; window: 
         )}
       </section>
 
+      {/* min-w-0: a grid item grows to its widest line otherwise, and a long login in a legend is one. */}
       <div className="grid lg:grid-cols-2 gap-8 mt-8">
-        <section className="panel p-6">
+        <section className="panel p-6 min-w-0">
           <h2 className="font-sans font-bold text-lg mb-1">Weekly {metric} per member</h2>
           <p className="font-mono text-xs text-faint mb-4">
             last {timelines.weekCount} weeks{members.length > 4 ? " · one row per member, each scaled to its own peak" : " · hover a line to isolate it, click to pin"}
@@ -155,7 +156,7 @@ async function Charts({ crew, window, metric, viewerId }: { crew: Crew; window: 
             <MemberLines rows={timelines.weeks} members={members} weeks={timelines.weekCount} endSunday={timelines.weekEnd} metric={metric} />
           )}
         </section>
-        <section className="panel p-6">
+        <section className="panel p-6 min-w-0">
           <h2 className="font-sans font-bold text-lg mb-1">Daily {metric} by member</h2>
           <p className="font-mono text-xs text-faint mb-4">
             {windowLabel(window)}
@@ -222,7 +223,7 @@ export default async function CrewBoard({
             invite: <CopyText text={inviteLink} className="text-silver text-xs" />
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <MetricTabs current={metric} basePath={`/dashboard/c/${crew.code}`} query={windowQuery(window)} />
           <WindowTabs current={window} basePath={`/dashboard/c/${crew.code}`} query={metric === "lines" ? "" : `&m=${metric}`} />
           <RangePicker current={window} basePath={`/dashboard/c/${crew.code}`} query={metric === "lines" ? "" : `&m=${metric}`} />

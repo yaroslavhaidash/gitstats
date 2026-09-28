@@ -68,7 +68,7 @@ export default async function RepoPage({
             )}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <WindowTabs current={window} basePath={basePath} />
           <RangePicker current={window} basePath={basePath} />
         </div>
@@ -96,31 +96,34 @@ export default async function RepoPage({
         {members.length === 0 ? (
           <p className="font-mono text-sm text-dim p-6">&gt; nothing {label}_</p>
         ) : (
-          <table className="w-full font-mono text-sm">
-            <thead>
-              <tr className="text-xs text-faint uppercase tracking-wide border-b border-dark">
-                <th className="text-left px-4 py-2 font-normal">member</th>
-                <th className="text-right px-4 py-2 font-normal">commits</th>
-                <th className="text-right px-4 py-2 font-normal">added</th>
-                <th className="text-right px-4 py-2 font-normal">deleted</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-dark">
-              {members.map((m) => (
-                <tr key={m.userId} className="hover:bg-dark/40">
-                  <td className="px-4 py-2">
-                    <Link href={`/dashboard/u/${m.login}?${windowQuery(window)}${query.src ? `&src=${encodeURIComponent(query.src)}` : ""}`} className="flex items-center gap-3 text-white hover:text-alert">
-                      <Image src={m.avatarUrl} alt="" width={24} height={24} className="border border-dark shrink-0" unoptimized />
-                      <span className="truncate">{m.name ?? m.login}</span>
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2 text-right text-white font-bold">{fmt(m.commits)}</td>
-                  <td className="px-4 py-2 text-right text-green">+{fmt(m.additions)}</td>
-                  <td className="px-4 py-2 text-right text-alert">−{fmt(m.deletions)}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full font-mono text-sm">
+              <thead>
+                <tr className="text-xs text-faint uppercase tracking-wide border-b border-dark">
+                  <th className="text-left px-2 sm:px-4 py-2 font-normal">member</th>
+                  <th className="text-right px-2 sm:px-4 py-2 font-normal">commits</th>
+                  <th className="text-right px-2 sm:px-4 py-2 font-normal">added</th>
+                  <th className="text-right px-2 sm:px-4 py-2 font-normal">deleted</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-dark">
+                {members.map((m) => (
+                  <tr key={m.userId} className="hover:bg-dark/40">
+                    {/* max-w-0 + w-full: the name column takes what the numbers leave and truncates, instead of widening the page. */}
+                    <td className="px-2 sm:px-4 py-2 max-w-0 w-full">
+                      <Link href={`/dashboard/u/${m.login}?${windowQuery(window)}${query.src ? `&src=${encodeURIComponent(query.src)}` : ""}`} className="flex items-center gap-3 min-w-0 text-white hover:text-alert">
+                        <Image src={m.avatarUrl} alt="" width={24} height={24} className="border border-dark shrink-0" unoptimized />
+                        <span className="truncate">{m.name ?? m.login}</span>
+                      </Link>
+                    </td>
+                    <td className="px-2 sm:px-4 py-2 text-right text-white font-bold">{fmt(m.commits)}</td>
+                    <td className="px-2 sm:px-4 py-2 text-right text-green">+{fmt(m.additions)}</td>
+                    <td className="px-2 sm:px-4 py-2 text-right text-alert">−{fmt(m.deletions)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </>
