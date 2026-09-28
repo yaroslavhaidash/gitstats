@@ -11,6 +11,7 @@ import { userCrews } from "@/lib/crews";
 import { fmt, fmtDateTime } from "@/lib/format";
 import { FUNNEL_STEPS, funnelDays } from "@/lib/funnel";
 import { inbox, markRead, thread } from "@/lib/messages";
+import { NavSheet, SheetLinks } from "@/components/NavSheet";
 
 /** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
 export const instant = false;
@@ -80,24 +81,32 @@ export default async function Admin({
   const placements = [...new Set(Object.keys(funnelTotals).flatMap((s) => (s.startsWith("signin_start:") || s.startsWith("signin_new:") ? [s.slice(s.indexOf(":") + 1)] : [])))]
     .map((p) => ({ p, start: funnelTotals[`signin_start:${p}`] ?? 0, fresh: funnelTotals[`signin_new:${p}`] ?? 0 }))
     .sort((a, b) => b.start - a.start);
+  const sections = (
+    <>
+      <a href="#funnel" className="hover:text-alert transition-colors">[FUNNEL]</a>
+      <a href="#visitors" className="hover:text-alert transition-colors">[VISITORS]</a>
+      <a href="#runs" className="hover:text-alert transition-colors">[RUNS]</a>
+      <a href="#inbox" className="hover:text-alert transition-colors">[INBOX]{threads.some((t) => t.unread > 0) && <span className="inline-block w-2 h-2 bg-alert ml-1 align-middle" />}</a>
+      <a href="#members" className="hover:text-alert transition-colors">[MEMBERS]</a>
+      <a href="#crews" className="hover:text-alert transition-colors">[CREWS]</a>
+      <a href="#archive" className="hover:text-alert transition-colors">[ARCHIVE]</a>
+      <a href="#log" className="hover:text-alert transition-colors">[LOG]</a>
+    </>
+  );
   return (
     <main className="flex-1">
       <nav className="sticky top-0 z-40 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Logo href={homePath} />
-          <div className="hidden md:flex gap-6 font-mono text-sm">
-            <a href="#funnel" className="hover:text-alert transition-colors">[FUNNEL]</a>
-            <a href="#visitors" className="hover:text-alert transition-colors">[VISITORS]</a>
-            <a href="#runs" className="hover:text-alert transition-colors">[RUNS]</a>
-            <a href="#inbox" className="hover:text-alert transition-colors">[INBOX]{threads.some((t) => t.unread > 0) && <span className="inline-block w-2 h-2 bg-alert ml-1 align-middle" />}</a>
-            <a href="#members" className="hover:text-alert transition-colors">[MEMBERS]</a>
-            <a href="#crews" className="hover:text-alert transition-colors">[CREWS]</a>
-            <a href="#archive" className="hover:text-alert transition-colors">[ARCHIVE]</a>
-            <a href="#log" className="hover:text-alert transition-colors">[LOG]</a>
+          <div className="hidden lg:flex gap-6 font-mono text-sm">{sections}</div>
+          <div className="flex items-center gap-2">
+            <NavSheet className="lg:hidden">
+              <SheetLinks>{sections}</SheetLinks>
+            </NavSheet>
+            <Link href={homePath} className="font-mono text-xs border border-silver px-3 py-1 hover:bg-silver hover:text-void transition-colors">
+              BOARD
+            </Link>
           </div>
-          <Link href={homePath} className="font-mono text-xs border border-silver px-3 py-1 hover:bg-silver hover:text-void transition-colors">
-            BOARD
-          </Link>
         </div>
       </nav>
 

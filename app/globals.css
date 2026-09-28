@@ -136,6 +136,14 @@ label:has(> input[type="checkbox"]) {
   }
 }
 
+/* The narrow-screen nav sheet slides in from the right edge; motion-safe only, set on the dialog. */
+@keyframes sheet-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
 /* Picking one series out of a chart: the rest fade rather than disappear. */
 .series-fade {
   transition: opacity 0.15s ease;

@@ -13,6 +13,7 @@ import { DemoLink, SignInButton } from "@/components/Tracked";
 import { signInWithGitHub } from "@/lib/actions";
 import { posts } from "@/lib/blog";
 import { DEMO_LOGINS } from "@/lib/demo";
+import { NavSheet, SheetLinks } from "@/components/NavSheet";
 import { openGraphFor, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
 /** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
@@ -104,6 +105,18 @@ const LIMITS = [
   ["your git email", "Local counting matches commits to the emails in your GitHub profile and git config; add others in the CLI."],
 ];
 
+/** The landing's own sections, in the bar from 768px and in the menu sheet below it. */
+const NAV_LINKS = (
+  <>
+    <DemoLink where="nav" className="hover:text-alert transition-colors">[DEMO]</DemoLink>
+    <a href="#how" className="hover:text-alert transition-colors">[HOW]</a>
+    <a href="#safe" className="hover:text-alert transition-colors">[SAFE]</a>
+    <a href="#metrics" className="hover:text-alert transition-colors">[METRICS]</a>
+    <a href="#faq" className="hover:text-alert transition-colors">[FAQ]</a>
+    <a href="/docs" className="hover:text-alert transition-colors">[DOCS]</a>
+  </>
+);
+
 export default async function Landing() {
   if (await auth()) redirect("/dashboard");
   return (
@@ -112,19 +125,22 @@ export default async function Landing() {
       <nav className="fixed w-full z-40 top-0 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Logo />
-          <div className="hidden md:flex gap-8 font-mono text-sm">
-            <DemoLink where="nav" className="hover:text-alert transition-colors">[DEMO]</DemoLink>
-            <a href="#how" className="hover:text-alert transition-colors">[HOW]</a>
-            <a href="#safe" className="hover:text-alert transition-colors">[SAFE]</a>
-            <a href="#metrics" className="hover:text-alert transition-colors">[METRICS]</a>
-            <a href="#faq" className="hover:text-alert transition-colors">[FAQ]</a>
-            <a href="/docs" className="hover:text-alert transition-colors">[DOCS]</a>
+          <div className="hidden md:flex gap-8 font-mono text-sm">{NAV_LINKS}</div>
+          <div className="flex items-center gap-2">
+            <form action={signInWithGitHub}>
+              <SignInButton where="landing_nav" className="h-11 md:h-auto font-mono text-xs border border-silver px-3 md:py-1 hover:bg-silver hover:text-void transition-colors">
+                SIGN_IN
+              </SignInButton>
+            </form>
+            <NavSheet className="md:hidden">
+              <SheetLinks>{NAV_LINKS}</SheetLinks>
+              <form action={signInWithGitHub} className="mt-auto p-4 border-t-2 border-dark">
+                <SignInButton where="landing_nav_menu" className="btn-brutal w-full cursor-pointer">
+                  SIGN IN WITH GITHUB
+                </SignInButton>
+              </form>
+            </NavSheet>
           </div>
-          <form action={signInWithGitHub}>
-            <SignInButton where="landing_nav" className="font-mono text-xs border border-silver px-3 py-1 hover:bg-silver hover:text-void transition-colors">
-              SIGN_IN
-            </SignInButton>
-          </form>
         </div>
       </nav>
 

@@ -16,7 +16,7 @@ export function CrewSwitcher({ crews }: { crews: NavCrew[] }) {
   const path = usePathname();
   if (!collapses(crews)) {
     return crews.length === 0 ? null : (
-      <ViewLink href={`/dashboard/c/${crews[0].code}`} className="hidden md:block hover:text-alert transition-colors whitespace-nowrap uppercase">
+      <ViewLink href={`/dashboard/c/${crews[0].code}`} className="hover:text-alert transition-colors whitespace-nowrap uppercase">
         [{crews[0].name}]
       </ViewLink>
     );
@@ -24,7 +24,6 @@ export function CrewSwitcher({ crews }: { crews: NavCrew[] }) {
   const current = crews.find((c) => path.startsWith(`/dashboard/c/${c.code}`));
   return (
     <NavMenu
-      className="hidden md:block"
       label={
         <>
           [<span className="inline-block max-w-40 truncate align-bottom uppercase">{current ? current.name : "crews"}</span> ▾]

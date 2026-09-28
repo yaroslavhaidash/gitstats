@@ -3,14 +3,15 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
- * The nav's one dropdown: `[MENU ▾]` on a phone, `[<CREW> ▾]` on a desktop with several crews.
+ * The desktop nav's dropdowns: `[<CREW> ▾]` with several crews, and the account menu (`right`, so it
+ * opens leftwards from the end of the bar).
  *
  * A bare `<details>` stays open until its own summary is clicked again, so opening it and then
  * clicking anywhere else leaves a panel hanging over the page. The open state is held here instead,
  * and while it is open a document-level `pointerdown` listener closes it on the first click that
  * lands outside — attached only while open, so a closed menu costs nothing.
  */
-export function NavMenu({ label, className = "", children }: { label: ReactNode; className?: string; children: ReactNode }) {
+export function NavMenu({ label, className = "", right = false, children }: { label: ReactNode; className?: string; right?: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDetailsElement>(null);
   const [open, setOpen] = useState(false);
 
@@ -37,7 +38,7 @@ export function NavMenu({ label, className = "", children }: { label: ReactNode;
           than the viewport, so a long crew name reads in full on a desktop and truncates on a phone. */}
       <div
         onClick={() => setOpen(false)}
-        className="absolute left-0 top-full mt-2 z-50 panel bg-void grid divide-y divide-dark w-max min-w-[max(14rem,100%)] max-w-[calc(100vw-2rem)]"
+        className={`absolute ${right ? "right-0" : "left-0"} top-full mt-2 z-50 panel bg-void grid divide-y divide-dark w-max min-w-[max(14rem,100%)] max-w-[calc(100vw-2rem)]`}
       >
         {children}
       </div>
