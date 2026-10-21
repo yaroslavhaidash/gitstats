@@ -15,6 +15,9 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "gitstats", version: "1.0.0" },
     instructions: "Read-only coding stats from gitstats.org for the member who owns the token: their totals, days, repos, crews and crew boards.",
+    // The tool list is fixed per deploy, so there is never a change to announce. Left at the SDK's
+    // default (true), clients open a `subscriptions/listen` stream on connect and hold it open.
+    capabilities: { tools: { listChanged: false } },
   },
 );
 
@@ -33,7 +36,30 @@ const authed = withMcpAuth(
   { required: true, resourceMetadataPath: PROTECTED_RESOURCE_PATH, requiredScopes: [SCOPE] },
 );
 
+/** Tool calls are a few Postgres reads; nothing on this route should run anywhere near this. */
+export const maxDuration = 30;
+
+/**
+ * `subscriptions/listen` is answered with a stream that stays open until the client goes away, and
+ * the function is billed for every second of it. The server announces no list changes, so a client
+ * that asks anyway gets a plain refusal instead of a stream with nothing to say.
+ */
+async function isListen(request: Request): Promise<{ id: unknown } | null> {
+  if (request.method !== "POST" || !(request.headers.get("content-type") ?? "").includes("application/json")) return null;
+  try {
+    const body: unknown = await request.clone().json();
+    if (body !== null && typeof body === "object" && "method" in body && body.method === "subscriptions/listen") {
+      return { id: "id" in body ? body.id : null };
+    }
+  } catch {
+    // Not JSON: the handler answers it as it would without this check.
+  }
+  return null;
+}
+
 async function route(request: Request): Promise<Response> {
+  const listen = await isListen(request);
+  if (listen) return Response.json({ jsonrpc: "2.0", id: listen.id, error: { code: -32601, message: "Method not found: this server sends no notifications" } });
   // Spent before the lookup, like the CLI endpoints: a made-up token gets a fresh per-token bucket,
   // so the address limit is what bounds those; the per-token one is the documented 60 a minute.
   const byIp = rateLimit("mcpIp", clientIp(request));
