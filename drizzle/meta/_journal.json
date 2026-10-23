@@ -253,6 +253,13 @@
       "when": 1790623359828,
       "tag": "0035_message_seen",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792708138724,
+      "tag": "0036_drop_device_issued_token",
+      "breakpoints": true
     }
   ]
 }

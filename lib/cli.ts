@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, randomInt } from "node:crypto";
-import { and, eq, gte, lt, sql, type SQL } from "drizzle-orm";
+import { and, eq, gte, isNotNull, isNull, lt, sql, type SQL } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { db } from "@/db";
 import { cliTokens, dailyLocal, deviceCodes, repos, users, weeklyStats } from "@/db/schema";
@@ -73,6 +73,36 @@ export function hashToken(token: string): string {
 
 export async function purgeExpiredDeviceCodes(): Promise<void> {
   await db.delete(deviceCodes).where(lt(deviceCodes.expiresAt, new Date()));
+}
+
+export type DeviceClaim =
+  | { status: "expired" }
+  | { status: "pending" }
+  | { status: "ok"; token: string; userId: number };
+
+/**
+ * The CLI's poll. The machine token is minted here, after the member has confirmed on /link, and
+ * the raw value exists only in this return value: it is never written anywhere, only its sha256
+ * in `cli_tokens`. An abandoned link (confirmed, never polled) therefore leaves no usable secret,
+ * just an approved code that expires. Deleting the approved row with `returning` is the claim, so
+ * two concurrent polls can't both mint a token.
+ */
+export async function claimDevice(pollSecret: string): Promise<DeviceClaim> {
+  const [row] = await db.select().from(deviceCodes).where(eq(deviceCodes.pollSecret, pollSecret)).limit(1);
+  if (!row || row.expiresAt < new Date()) return { status: "expired" };
+  if (!row.userId) return { status: "pending" };
+  const [claimed] = await db
+    .delete(deviceCodes)
+    .where(and(eq(deviceCodes.id, row.id), isNotNull(deviceCodes.userId)))
+    .returning({ userId: deviceCodes.userId, machine: deviceCodes.machine });
+  if (!claimed?.userId) return { status: "expired" };
+  const token = newSecret();
+  // A previous link attempt from the same machine that never synced is dead weight; replace it.
+  await db
+    .delete(cliTokens)
+    .where(and(eq(cliTokens.userId, claimed.userId), eq(cliTokens.machine, claimed.machine), isNull(cliTokens.lastSyncAt)));
+  await db.insert(cliTokens).values({ userId: claimed.userId, tokenHash: hashToken(token), machine: claimed.machine });
+  return { status: "ok", token, userId: claimed.userId };
 }
 
 /** The per-user HMAC key the CLI hashes remote URLs with. Created on first pairing. */

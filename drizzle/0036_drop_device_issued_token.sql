@@ -1,0 +1,1 @@
+ALTER TABLE "device_codes" DROP COLUMN "issued_token";

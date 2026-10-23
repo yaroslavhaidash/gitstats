@@ -12,7 +12,7 @@ import { logAdmin, requireAdmin, snapshotChainUrl, triggerSnapshotChain } from "
 import { cliTokens, crewMembers, crews, deviceCodes, mcpTokens, oauthGrants, repoNameOverrides, userTokens, users, type RepoNames, type StreakMode } from "@/db/schema";
 import { STATS_TAG } from "./cache";
 import { hashToken, newSecret } from "./cli";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { encrypt } from "./crypto";
 import { countStep } from "./funnel";
 import { MCP_TOKEN_PREFIX } from "./mcp";
@@ -253,11 +253,9 @@ export async function confirmDevice(formData: FormData): Promise<void> {
   const code = typeof raw === "string" ? raw.toUpperCase() : "";
   const [device] = await db.select().from(deviceCodes).where(eq(deviceCodes.code, code)).limit(1);
   if (!device || device.expiresAt < new Date() || device.userId) redirect(`/link?code=${code}`);
-  const token = newSecret();
-  // A previous link attempt from the same machine that never synced is dead weight; replace it.
-  await db.delete(cliTokens).where(and(eq(cliTokens.userId, session.user.id), eq(cliTokens.machine, device.machine), isNull(cliTokens.lastSyncAt)));
-  await db.insert(cliTokens).values({ userId: session.user.id, tokenHash: hashToken(token), machine: device.machine });
-  await db.update(deviceCodes).set({ userId: session.user.id, issuedToken: token }).where(eq(deviceCodes.id, device.id));
+  // Approval only: the machine token is minted when the CLI collects it (`claimDevice`), so no raw
+  // token is ever stored while the code waits for the next poll.
+  await db.update(deviceCodes).set({ userId: session.user.id }).where(eq(deviceCodes.id, device.id));
   await countStep("cli_linked");
   const visitor = await currentVisitor();
   if (visitor) await recordEvent(visitor, "cli_linked", "/link");

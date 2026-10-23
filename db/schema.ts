@@ -191,9 +191,8 @@ export const deviceCodes = pgTable("device_codes", {
   code: text("code").notNull().unique(),
   pollSecret: text("poll_secret").notNull().unique(),
   machine: text("machine").notNull(),
+  /** Set when the member confirms on /link; the CLI's next poll then mints and collects the token. */
   userId: integer("user_id").references(() => users.id),
-  /** Issued once the user confirms; handed to the CLI on its next poll, then cleared. */
-  issuedToken: text("issued_token"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
 
