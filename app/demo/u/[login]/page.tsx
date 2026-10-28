@@ -18,10 +18,10 @@ import { WindowTabs } from "@/components/WindowTabs";
 import { YearCalendar } from "@/components/YearCalendar";
 import { userStats } from "@/lib/cached";
 import { demoMembers } from "@/lib/demo";
-import { fmt, pctDelta } from "@/lib/format";
+import { fmt, fmtMonth, pctDelta } from "@/lib/format";
 import { openGraphFor, SITE_URL } from "@/lib/site";
 import { nameVisible } from "@/lib/stats";
-import { dayChartMode, parseMetric, parseWindow, rangeDays, windowLabel, windowQuery, windowRange } from "@/lib/window";
+import { dayChartMode, daySeriesMode, isAllTime, parseMetric, parseWindow, rangeDays, windowLabel, windowQuery, windowRange } from "@/lib/window";
 
 /** Per request: reads the URL. The stats behind it are cached in lib/cached.ts. */
 export const instant = false;
@@ -52,6 +52,9 @@ export default async function DemoUserPage({
   const metric = parseMetric(query.m);
   const suffix = metric === "lines" ? "" : `&m=${metric}`;
   const label = windowLabel(window);
+  const allTime = isAllTime(window);
+  // All time against all time a week ago is a fraction of a percent for everyone, so it shows none.
+  const delta = (now: number, was: number) => (allTime ? undefined : pctDelta(now, was));
   // A crewmate's view of a demo member: private numbers count, private names show, nothing is owned.
   const { row, before, weeks, chartWeeks, chartEnd, repoRows, dailyLines, languages, year, weekdays, weekdayLines, span, repoWeeks, mixWeeks, mixEnd } =
     await userStats(user.id, window, false, true, "crew");
@@ -77,15 +80,17 @@ export default async function DemoUserPage({
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-[2px] bg-dark border-2 border-dark">
-        <StatTile label="commits" value={fmt(row.commits)} delta={pctDelta(row.commits, before?.commits ?? 0)} />
-        <StatTile label="added" value={`+${fmt(row.additions)}`} delta={pctDelta(row.additions, before?.additions ?? 0)} tone="green" />
-        <StatTile label="deleted" value={`−${fmt(row.deletions)}`} delta={pctDelta(row.deletions, before?.deletions ?? 0)} tone="alert" />
-        <StatTile label="active repos" value={String(row.activeRepos)} delta={pctDelta(row.activeRepos, before?.activeRepos ?? 0)} />
+        <StatTile label="commits" value={fmt(row.commits)} delta={delta(row.commits, before?.commits ?? 0)} />
+        <StatTile label="added" value={`+${fmt(row.additions)}`} delta={delta(row.additions, before?.additions ?? 0)} tone="green" />
+        <StatTile label="deleted" value={`−${fmt(row.deletions)}`} delta={delta(row.deletions, before?.deletions ?? 0)} tone="alert" />
+        <StatTile label="active repos" value={String(row.activeRepos)} delta={delta(row.activeRepos, before?.activeRepos ?? 0)} />
         <StatTile label="streak" value={`${row.streak}d`} />
         <StatTile label="stars" value={fmt(row.stars)} sub={row.topLanguage ? `top language · ${row.topLanguage}` : undefined} tone="amber" />
       </div>
       <div className="font-mono text-xs text-faint mt-2 mb-8">
-        <p>&gt; percentages compare against the {rangeDays(windowRange(window))} days before this window</p>
+        <p>
+          {allTime ? `> all time · since ${fmtMonth(span.from)}` : `> percentages compare against the ${rangeDays(windowRange(window))} days before this window`}
+        </p>
       </div>
 
       <div className="grid lg:grid-cols-[2fr_1fr] gap-8 mb-8">
@@ -102,14 +107,16 @@ export default async function DemoUserPage({
       </div>
 
       <section className="panel p-6 mb-8">
-        <h2 className="font-sans font-bold text-lg mb-1">Lines per {mode === "months" ? "month" : "day"}</h2>
-        <p className="font-mono text-xs text-faint mb-4">{window.kind === "preset" ? `${label} · ${windowLabel({ kind: "range", ...span })}` : label}</p>
+        <h2 className="font-sans font-bold text-lg mb-1">Lines per {mode === "months" ? "month" : mode === "years" ? "year" : "day"}</h2>
+        <p className="font-mono text-xs text-faint mb-4">
+          {allTime ? `${label} · since ${fmtMonth(span.from)}` : window.kind === "preset" ? `${label} · ${windowLabel({ kind: "range", ...span })}` : label}
+        </p>
         <MonthBlocks rows={dailyLines} from={span.from} to={span.to} mode={mode} today={span.to} />
       </section>
 
       <section className="panel p-6 mb-8">
         <h2 className="font-sans font-bold text-lg mb-1">{metric === "lines" ? "Lines" : "Commits"} per day · trend</h2>
-        <p className="font-mono text-xs text-faint mb-4">{label} · one bar per day · counted on linked computers</p>
+        <p className="font-mono text-xs text-faint mb-4">{label} · one bar per {daySeriesMode(span) === "months" ? "month" : "day"} · counted on linked computers</p>
         {dailyLines.length === 0 ? (
           <EmptyNote inset>no lines per day {label}</EmptyNote>
         ) : (

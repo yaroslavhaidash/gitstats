@@ -3,6 +3,10 @@
 What shipped, newest first, one line per change. `/changelog` renders this file, so keep the shape exactly:
 `## YYYY-MM-DD` for a day, then `- **Title** — sentence.` for each entry.
 
+## 2026-10-28
+
+- **ALL time** — a fourth window next to week, month and year on the boards, your page, the badge, share cards and MCP: everything since your first year on GitHub, plus what your linked computers counted, with one tile per year on your page.
+
 ## 2026-09-19
 
 - **SEO and share cards** — per-page titles and canonical URLs, a generated Open Graph card, `robots.txt`, `sitemap.xml`, structured data on the landing page, and this changelog.

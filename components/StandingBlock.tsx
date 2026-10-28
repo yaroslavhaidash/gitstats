@@ -32,7 +32,7 @@ export function StandingBlock({ standing, metric, label, beforeLabel, newcomer }
       <p className="font-mono text-xs text-faint mt-3">
         &gt; {byPercentile && `#${standing.rank} of ${standing.total} · `}
         {newcomer ? (
-          <span>first {label.startsWith("this ") ? label.slice(5) : "period"} on the board</span>
+          <span>first {label.startsWith("this ") ? label.slice(5) : label === "all time" ? "week" : "period"} on the board</span>
         ) : move === null ? (
           <span>no ranking to compare against {beforeLabel}</span>
         ) : move === 0 ? (

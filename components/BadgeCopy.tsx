@@ -9,7 +9,7 @@ import { BadgeTabs } from "./BadgeTabs";
 import { CopyText } from "./CopyText";
 
 /**
- * The README badge Markdown, click to copy, under LINES/COMMITS and WEEK/MONTH/YEAR toggles; `where` says which copy
+ * The README badge Markdown, click to copy, under LINES/COMMITS and WEEK/MONTH/YEAR/ALL toggles; `where` says which copy
  * button it was. With `preview` the badge itself is drawn above the snippet for the picked window.
  */
 export function BadgeCopy({ login, where, preview = false }: { login: string; where: string; preview?: boolean }) {

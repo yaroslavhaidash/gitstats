@@ -2,7 +2,7 @@ import { and, between, desc, eq, gte, inArray, isNotNull, sql, type SQL } from "
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { cliTokens, dailyContributions, dailyLocal, repoNameOverrides, repos, snapshotRuns, users, userTokens, weeklyStats, type RepoNames } from "@/db/schema";
-import { daysAgo, periodBounds, shiftDate, sundayOf, weekRange, type Metric, type Range, type Window } from "./window";
+import { ALL_FROM, daysAgo, periodBounds, shiftDate, sundayOf, weekRange, type Metric, type Range, type Window } from "./window";
 
 export const HEATMAP_DAYS = 84;
 /** The share card gives the strip the whole card width, so it carries half a year instead of 12 weeks. */
@@ -774,6 +774,45 @@ export async function rangeTotals(userIds: number[] | null, range: Range, viewer
   return totals;
 }
 
+/**
+ * The first day anything is known for these members as `viewer` may see it: their earliest calendar
+ * day, counted day or GitHub week, never before `ALL_FROM`. All-time totals sum from `ALL_FROM`, but
+ * anything drawn per period starts here, so a chart is not a decade of empty tiles. Null when there
+ * is nothing at all.
+ */
+export async function dataStart(userIds: number[], viewer: BoardViewer): Promise<string | null> {
+  const first = (column: SQL) => ({ date: sql<string | null>`min(${column})::text` });
+  const [[calendar], [local], [weekly]] = await Promise.all([
+    db.select(first(sql`${dailyContributions.date}`)).from(dailyContributions).where(inArray(dailyContributions.userId, userIds)),
+    db
+      .select(first(sql`${dailyLocal.date}`))
+      .from(dailyLocal)
+      .innerJoin(repos, eq(repos.githubNodeId, dailyLocal.repoNodeId))
+      .innerJoin(users, eq(users.id, dailyLocal.userId))
+      .where(and(inArray(dailyLocal.userId, userIds), sharedRepo(viewer))),
+    db
+      .select(first(sql`${weeklyStats.weekStart}`))
+      .from(weeklyStats)
+      .innerJoin(repos, eq(repos.githubNodeId, weeklyStats.repoNodeId))
+      .innerJoin(users, eq(users.id, weeklyStats.userId))
+      .where(and(inArray(weeklyStats.userId, userIds), sharedRepo(viewer))),
+  ]);
+  const dates = [calendar?.date, local?.date, weekly?.date].filter((d): d is string => typeof d === "string");
+  if (dates.length === 0) return null;
+  const earliest = dates.reduce((a, b) => (a < b ? a : b));
+  return earliest < ALL_FROM ? ALL_FROM : earliest;
+}
+
+/** Logins among these members whose older years the nightly history backfill has not finished writing. */
+export async function historyPendingLogins(userIds: number[] | null): Promise<string[]> {
+  const rows = await db
+    .select({ login: users.githubLogin })
+    .from(users)
+    .where(and(scope(userIds), eq(users.isDemo, false), sql`${users.historyStatus} is distinct from 'done'`))
+    .orderBy(users.githubLogin);
+  return rows.map((r) => r.login);
+}
+
 /** One total a record is about: the period's first day and its lines and commits. */
 export type PeriodTotal = { start: string; lines: number; commits: number };
 
@@ -848,9 +887,9 @@ async function longestStreaks(userId: number, viewer: BoardViewer): Promise<{ da
  */
 export async function userRecords(userId: number, viewer: BoardViewer, now = new Date()): Promise<Records> {
   const today = daysAgo(0, now);
-  const [first] = await db.select({ week: sql<string | null>`min(${weeklyStats.weekStart})::text` }).from(weeklyStats).where(eq(weeklyStats.userId, userId));
+  const first = await dataStart([userId], viewer);
   const [{ days }, runs] = await Promise.all([
-    first?.week ? placedDays([userId], first.week, today, sharedRepo(viewer), now) : Promise.resolve({ days: [] as UserDay[] }),
+    first ? placedDays([userId], first, today, sharedRepo(viewer), now) : Promise.resolve({ days: [] as UserDay[] }),
     longestStreaks(userId, viewer),
   ]);
   const weeks = bucket(days, mondayOf);

@@ -1,7 +1,7 @@
 import { SITE_URL } from "./site";
 import { PRESETS, type Metric, type Preset } from "./window";
 
-/** `?w=week|month|year`; anything else is a rolling year, which never resets to +0 −0. */
+/** `?w=week|month|year|all`; anything else is a rolling year, which never resets to +0 −0. */
 export function badgeWindow(w: string | null | undefined): Preset {
   return (PRESETS as readonly string[]).includes(w ?? "") ? (w as Preset) : "year";
 }

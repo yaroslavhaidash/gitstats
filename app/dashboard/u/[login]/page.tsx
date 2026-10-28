@@ -38,8 +38,8 @@ import { propsView } from "@/lib/props";
 import { firstSnapshotRunning } from "@/lib/snapshot";
 import { nameVisible, type BoardViewer } from "@/lib/stats";
 import { backTarget, inviteTarget, sharesCrew, userByLogin, userCrews } from "@/lib/crews";
-import { fmt, pctDelta } from "@/lib/format";
-import { dayChartMode, lastWeekRange, parseMetric, parseWindow, rangeDays, viewQuery, windowLabel, windowQuery, windowRange, type Metric, type Window } from "@/lib/window";
+import { fmt, fmtMonth, pctDelta } from "@/lib/format";
+import { dayChartMode, daySeriesMode, isAllTime, lastWeekRange, parseMetric, parseWindow, rangeDays, viewQuery, windowLabel, windowQuery, windowRange, type Metric, type Window } from "@/lib/window";
 
 /** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
 export const instant = false;
@@ -90,6 +90,7 @@ async function Stats({
   // The layout says "counting" above; a page of zeros under it would only contradict it.
   if (isOwner && firstSnapshotRunning(user)) return null;
   const label = windowLabel(window);
+  const allTime = isAllTime(window);
   const lastWeek = lastWeekRange();
   const showRecap = isOwner && (share === "recap" || RECAP_DAYS.includes(new Date().getUTCDay()));
   const crews = showRecap ? await userCrews(user.id) : [];
@@ -98,10 +99,13 @@ async function Stats({
     { row, before, weeks, chartWeeks, chartEnd, repoRows, dailyLines, languages, year, weekdays, weekdayLines, span, nearest, hiddenNames, repoWeeks, mixWeeks, mixEnd },
     records,
     recap,
+    machines,
   ] = await Promise.all([
     userStats(user.id, window, isOwner, includePrivate, viewer),
     memberRecords(user.id, isOwner ? "own" : viewer),
     showRecap ? recapStats(user.id, lastWeek, metric, recapCrewId) : null,
+    // All time says where its private part comes from, which is only ever a linked computer.
+    allTime ? db.select({ id: cliTokens.id }).from(cliTokens).where(eq(cliTokens.userId, user.id)).then((r) => r.length) : 0,
   ]);
   const mode = dayChartMode(window);
   // The highest milestone the current streak has reached. Recording it as it is shown makes the banner
@@ -146,7 +150,8 @@ async function Stats({
       : Object.fromEntries(SHARE_FLAGS.map((o) => [flagsOf(o), mintShareToken({ userId: user.id, window, metric, options: o }, user.shareNonce)]));
   // Nothing on either side of the comparison is not a change of zero percent; it is no comparison,
   // and a row of "—" under every tile only invites the reader to look for the percentages.
-  const delta = (now: number, was: number) => (now === 0 && was === 0 ? undefined : pctDelta(now, was));
+  // All time against all time a week ago is a fraction of a percent for everyone, so it shows none.
+  const delta = (now: number, was: number) => (allTime || (now === 0 && was === 0) ? undefined : pctDelta(now, was));
   // Anywhere at all, not just in this window: a card minted from an account with no history says
   // "#4 of 4 on gitstats" over a blank 26-week grid.
   const hasAnything = row.commits > 0 || row.additions + row.deletions > 0 || nearest !== null || year.some((n) => n > 0);
@@ -166,7 +171,15 @@ async function Stats({
         <StatTile label="streak" value={`${row.streak}d`} suffix={user.streakMode === "weekdays" ? "· weekdays" : undefined} />
         <StatTile label="stars" value={fmt(row.stars)} sub={row.topLanguage ? `top language · ${row.topLanguage}` : undefined} tone="amber" />
       </div>
-      {anyTile && (
+      {allTime ? (
+        <div className={`font-mono text-xs text-faint mt-2 ${row.commits === 0 ? "mb-4" : "mb-8"}`}>
+          <p>
+            &gt; all time · since {fmtMonth(span.from)} · public repos: GitHub&apos;s full history ·{" "}
+            {machines > 0 ? `private: what ${machines} linked computer${machines === 1 ? "" : "s"} counted` : "no computer linked, private work is not here"}
+          </p>
+          {user.historyStatus !== "done" && <p className="text-amber">&gt; older years still counting · fills in tonight</p>}
+        </div>
+      ) : anyTile && (
         <div className={`font-mono text-xs text-faint mt-2 ${row.commits === 0 ? "mb-4" : "mb-8"}`}>
           <p>&gt; percentages compare against the {rangeDays(windowRange(window))} days before this window</p>
           {/* The tiles count whole weekly buckets, the day chart draws days; on a short window that gap is one visible Sunday. */}
@@ -235,15 +248,17 @@ async function Stats({
       </div>
 
       <section className="panel p-6 mb-8">
-        <h2 className="font-sans font-bold text-lg mb-1">Lines per {mode === "months" ? "month" : "day"}</h2>
-        <p className="font-mono text-xs text-faint mb-4">{window.kind === "preset" ? `${label} · ${windowLabel({ kind: "range", ...span })}` : label}</p>
+        <h2 className="font-sans font-bold text-lg mb-1">Lines per {mode === "months" ? "month" : mode === "years" ? "year" : "day"}</h2>
+        <p className="font-mono text-xs text-faint mb-4">
+          {allTime ? `${label} · since ${fmtMonth(span.from)}` : window.kind === "preset" ? `${label} · ${windowLabel({ kind: "range", ...span })}` : label}
+        </p>
         <MonthBlocks rows={dailyLines} from={span.from} to={span.to} mode={mode} today={span.to} />
       </section>
 
       <section className="panel p-6 mb-8">
         <h2 className="font-sans font-bold text-lg mb-1">{metric === "lines" ? "Lines" : "Commits"} per day · trend</h2>
         <p className="font-mono text-xs text-faint mb-4">
-          {label} · one bar per day · {placed ? "linked computers count the days; GitHub only reports whole weeks" : "counted on linked computers"}
+          {label} · one bar per {daySeriesMode(span) === "months" ? "month" : "day"} · {placed ? "linked computers count the days; GitHub only reports whole weeks" : "counted on linked computers"}
         </p>
         {dailyLines.length === 0 ? (
           <EmptyNote inset href={isOwner ? "/dashboard/setup" : undefined} cta={isOwner ? "SETUP" : undefined}>

@@ -3,6 +3,8 @@ import { crewTag, GLOBAL_TAG, STATS_TAG, userTag } from "./cache";
 import { crewMemberIds, userCrews } from "./crews";
 import {
   boardRows,
+  dataStart,
+  historyPendingLogins,
   rankBy,
   hiddenRepoNames,
   standing,
@@ -47,7 +49,7 @@ import {
   type Standing,
   type WeekRow,
 } from "./stats";
-import { chartWeeks, daysAgo, periodBounds, raceWeeks, shiftDate, windowRange, yearChart, type Metric, type Preset, type Range, type Window } from "./window";
+import { chartWeeks, daysAgo, isAllTime, periodBounds, raceWeeks, shiftDate, windowRange, yearChart, type Metric, type Preset, type Range, type Window } from "./window";
 
 /**
  * Every Postgres read behind a board or a user page goes through this file. The session lookup
@@ -73,6 +75,25 @@ export async function globalBoard(window: Window): Promise<RankedRow[]> {
   cacheLife("hours");
   cacheTag(STATS_TAG, GLOBAL_TAG);
   return ranked(null, window, "global");
+}
+
+/** Members of a board whose older years are still being written, for the all-time view's amber line. */
+export async function historyCounting(crewId: number | null): Promise<string[]> {
+  "use cache: remote";
+  cacheLife("hours");
+  cacheTag(STATS_TAG, crewId === null ? GLOBAL_TAG : crewTag(crewId));
+  return historyPendingLogins(crewId === null ? null : await crewMemberIds(crewId));
+}
+
+/**
+ * The days a window's charts draw. All time sums from `ALL_FROM`, but a chart starts where these
+ * members' data does (today when there is none), so it is not a decade of empty tiles.
+ */
+async function drawnSpan(userIds: number[], window: Window, viewer: BoardViewer): Promise<Range> {
+  const span = windowRange(window);
+  if (!isAllTime(window)) return span;
+  const start = (await dataStart(userIds, viewer)) ?? span.to;
+  return start > span.from ? { from: start, to: span.to } : span;
 }
 
 /** The dashboard footer's live counts; invalidated with everything else on the `stats` tag. */
@@ -180,6 +201,7 @@ export type UserStats = {
   weekdays: number[];
   /** Average lines touched (added + deleted) per weekday over the same window, Sunday first. */
   weekdayLines: number[];
+  /** The days the day charts draw: the window, except that all time starts at the member's first data. */
   span: Range;
   /** Node ids whose name this member hides from everyone. */
   hiddenNames: string[];
@@ -189,7 +211,7 @@ export type UserStats = {
 
 /** The first preset wider than this window that has any commits, for an empty window's fallback link. */
 async function nearestWindow(userId: number, window: Window, includePrivate: boolean) {
-  if (window.kind === "preset" && window.value === "year") return null;
+  if (window.kind === "preset" && (window.value === "year" || window.value === "all")) return null;
   const wider = window.kind === "preset" && window.value === "month" ? (["year"] as const) : (["month", "year"] as const);
   const counts = await widerCommits(userId, includePrivate);
   for (const preset of wider) if (counts[preset] > 0) return { preset, commits: counts[preset] };
@@ -200,10 +222,11 @@ export async function userStats(userId: number, window: Window, isOwner: boolean
   "use cache: remote";
   cacheLife("hours");
   cacheTag(STATS_TAG, userTag(userId));
-  const { current: span, previous } = periodBounds(window);
+  const { previous } = periodBounds(window);
   const chart = yearChart();
   // The member's own page is never gated by the matrix; everyone else reads their column of it.
   const reader: BoardViewer = isOwner ? "own" : viewer;
+  const span = await drawnSpan([userId], window, reader);
   // One merged-calendar fetch feeds both the year strip and the weekday profile's commits mode.
   const calendarFrom = span.from < daysAgo(YEAR_DAYS) ? span.from : daysAgo(YEAR_DAYS);
   const mixFrom = shiftDate(chart.endSunday, -(MIX_WEEKS - 1) * 7);
@@ -315,7 +338,7 @@ export async function crewTimelines(crewId: number, window: Window): Promise<Cre
   const ids = await crewMemberIds(crewId);
   const chart = yearChart();
   const weekFrom = shiftDate(chart.endSunday, -(MIX_WEEKS - 1) * 7);
-  const day = windowRange(window);
+  const day = await drawnSpan(ids, window, "crew");
   // The race runs day by day over a span that tracks the window; the per-member day chart runs over
   // the window itself. One fetch covers the union of the two, and each card slices out what it draws.
   const race = raceWeeks(window);

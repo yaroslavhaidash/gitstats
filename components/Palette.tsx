@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { withMetric, withView } from "@/lib/window";
+import { PRESETS, withMetric, withView } from "@/lib/window";
 import { guardNavigation } from "./UnsavedGuard";
 
 export type PaletteCrew = { id: number; name: string; code: string };
@@ -48,9 +48,9 @@ export function Palette({
 
   const items = useMemo<Item[]>(() => {
     // Everything that lands on a board or a profile takes the reader's window and metric with it.
-    const windows: Item[] = ["week", "month", "year"].map((w) => ({
+    const windows: Item[] = PRESETS.map((w) => ({
       kind: "window",
-      label: w,
+      label: w === "all" ? "all time" : w,
       hint: "this page",
       href: withMetric(`${pathname}?w=${w}`, params),
     }));

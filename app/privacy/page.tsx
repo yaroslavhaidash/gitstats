@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 const STORED: [string, string][] = [
   ["who you are", "Your GitHub login, numeric id, node id, display name and avatar URL, taken from the GitHub profile you sign in with, plus the date you joined."],
-  ["your public activity", "What GitHub already publishes about you: your contribution calendar and, per repo you have committed to, weekly commits and lines added and deleted. Collected nightly with a token that belongs to this server, never yours."],
+  ["your public activity", "What GitHub already publishes about you: your contribution calendar and, per repo you have committed to, weekly commits and lines added and deleted, back to your first year on GitHub so ALL can add it up. Collected nightly with a token that belongs to this server, never yours."],
   ["the numbers a linked computer sends", "Per repo and per week and per day: commits, lines added, lines deleted, and the same again for work that is still on an unmerged branch. A guessed main language per repo."],
   ["hashed repo identities", "A linked computer never sends a repo's URL. It sends an HMAC-SHA256 of the normalised remote, keyed with a secret unique to your account, so the same repo from two of your machines counts once. The key is stored here, which means the server can confirm a guess about one specific URL; it cannot turn a hash back into a URL or list your repos."],
   ["repo names, only if you ask", "Names are off until you run gitstats names on. Public repos are matched by hash to names GitHub already publishes."],

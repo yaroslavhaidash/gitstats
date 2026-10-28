@@ -15,7 +15,7 @@ import { demoCrew } from "@/lib/demo";
 import { HUES, hue } from "@/lib/palette";
 import { openGraphFor, SITE_URL } from "@/lib/site";
 import { rankBy } from "@/lib/stats";
-import { daySeriesMode, parseMetric, parseWindow, previousLabel, windowLabel, windowQuery } from "@/lib/window";
+import { daySeriesMode, isAllTime, parseMetric, parseWindow, previousLabel, windowLabel, windowQuery } from "@/lib/window";
 
 /** Per request: reads the URL. The stats behind it are cached in lib/cached.ts. */
 export const instant = false;
@@ -70,7 +70,7 @@ export default async function DemoBoard({ searchParams }: { searchParams: Promis
         </Link>
       )}
 
-      <Leaderboard rows={rows} linkUsers beforeLabel={previousLabel(window)} metric={metric} userBase="/demo/u" />
+      <Leaderboard rows={rows} linkUsers beforeLabel={isAllTime(window) ? null : previousLabel(window)} metric={metric} userBase="/demo/u" />
 
       <section className="panel p-6 mt-8">
         <h2 className="font-sans font-bold text-lg mb-1">Race · last {timelines.raceWeeks} weeks</h2>
@@ -94,7 +94,7 @@ export default async function DemoBoard({ searchParams }: { searchParams: Promis
           <h2 className="font-sans font-bold text-lg mb-1">Daily {metric} by member</h2>
           <p className="font-mono text-xs text-faint mb-4">
             {windowLabel(window)}
-            {daySeriesMode({ from: timelines.dayFrom, to: timelines.dayTo }) === "weeks" ? " · by week" : ""}
+            {{ days: "", weeks: " · by week", months: " · by month" }[daySeriesMode({ from: timelines.dayFrom, to: timelines.dayTo })]}
           </p>
           <MemberDaily rows={timelines.days} members={members} from={timelines.dayFrom} to={timelines.dayTo} metric={metric} />
         </section>

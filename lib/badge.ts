@@ -4,7 +4,7 @@ import { users } from "@/db/schema";
 import { demoMembers } from "./demo";
 import { fmt } from "./format";
 import { boardRows } from "./stats";
-import type { Metric, Preset } from "./window";
+import { windowLabel, type Metric, type Preset } from "./window";
 
 /**
  * The profile README badge. It reads Postgres like every page and shows what a stranger opening the
@@ -79,7 +79,8 @@ export function statsBadge(s: BadgeStats): string {
   const del = `−${fmt(s.deletions)}`;
   const commits = fmt(s.commits);
   const headlineLabel = s.metric === "commits" ? `${commits} commits` : `${add} ${del} lines`;
-  const label = `${s.login} on gitstats: ${headlineLabel} this ${s.window}, ${s.streak} day streak${s.topLanguage ? `, top language ${s.topLanguage}` : ""}`;
+  const when = windowLabel({ kind: "preset", value: s.window });
+  const label = `${s.login} on gitstats: ${headlineLabel} ${when}, ${s.streak} day streak${s.topLanguage ? `, top language ${s.topLanguage}` : ""}`;
   // Mono glyphs are 0.6em wide, so the deletions start right after the additions whatever their length.
   const delX = 18 + (add.length + 1) * 0.6 * 22;
   const headline =
@@ -92,7 +93,7 @@ export function statsBadge(s: BadgeStats): string {
     `<text x="60" y="38" font-family="${MONO}" font-size="16" font-weight="700" fill="#e0e2e5">${escape(s.login)}</text>
 <text x="${W - 18}" y="38" text-anchor="end" font-family="${MONO}" font-size="11" fill="#8b93a4">gitstats.org</text>
 ${headline}
-<text x="${W - 18}" y="84" text-anchor="end" font-family="${MONO}" font-size="12" fill="#8b93a4">${s.metric} this ${s.window}</text>
+<text x="${W - 18}" y="84" text-anchor="end" font-family="${MONO}" font-size="12" fill="#8b93a4">${s.metric} ${when}</text>
 <text x="18" y="104" font-family="${MONO}" font-size="12" fill="#e0e2e5">${s.streak}d streak${s.topLanguage ? ` · ${escape(s.topLanguage)}` : ""}</text>`,
   );
 }

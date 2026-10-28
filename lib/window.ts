@@ -1,4 +1,4 @@
-export const PRESETS = ["week", "month", "year"] as const;
+export const PRESETS = ["week", "month", "year", "all"] as const;
 export type Preset = (typeof PRESETS)[number];
 
 /** Either one of the presets or an explicit `?from=&to=` range. */
@@ -72,6 +72,7 @@ export function windowRange(window: Window, now = new Date()): Range {
   const to = isoDate(now);
   if (window.value === "week") return { from: weekStart(now), to };
   if (window.value === "month") return { from: monthStart(now), to };
+  if (window.value === "all") return { from: ALL_FROM, to };
   return { from: daysAgo(YEAR_DAYS - 1, now), to };
 }
 
@@ -87,12 +88,13 @@ export function weekRange(window: Window, now = new Date()): Range {
 
 /**
  * The period immediately before this one: the previous calendar week or month (cut at the same
- * point in it, so a Wednesday is compared against a Wednesday), or the previous 365 days. A preset
+ * point in it, so a Wednesday is compared against a Wednesday), or the previous 365 days. All time
+ * is compared against all time as it stood a week ago, which is what a rank movement means there. A preset
  * shifts `now` instead of turning into a range so its bucket rule stays identical on both sides.
  */
 export function previousPeriod(window: Window, now = new Date()): { window: Window; now: Date } {
   if (window.kind === "preset") {
-    if (window.value === "week") return { window, now: new Date(now.getTime() - 7 * 86_400_000) };
+    if (window.value === "week" || window.value === "all") return { window, now: new Date(now.getTime() - 7 * 86_400_000) };
     if (window.value === "year") return { window, now: new Date(now.getTime() - YEAR_DAYS * 86_400_000) };
     // Same day number one month back, clamped to that month's length (31 Mar → 28 Feb).
     const days = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0)).getUTCDate();
@@ -120,25 +122,29 @@ export function previousPeriodEnd(window: Window, now = new Date()): Date {
 }
 
 /** How the lines-per-day panel draws this window. */
-export type DayChartMode = "week" | "month" | "days" | "months";
+export type DayChartMode = "week" | "month" | "days" | "months" | "years";
 
 /** Longer than this a range gives up on day cells and shows one tile per month. */
 const DAY_CELL_LIMIT = 62;
 
 export function dayChartMode(window: Window): DayChartMode {
-  if (window.kind === "preset") return window.value === "year" ? "months" : window.value;
+  if (window.kind === "preset") return window.value === "year" ? "months" : window.value === "all" ? "years" : window.value;
   return rangeDays(window) > DAY_CELL_LIMIT ? "months" : "days";
 }
 
 /** Past this many days one bar per day is a hairline, so a per-day chart buckets to weeks instead. */
 const DAY_SERIES_LIMIT = 92;
 
-/** How a per-member day chart draws a span: a bar per day, or a bar per week once it is too long. */
-export type DaySeriesMode = "days" | "weeks";
+/** Past this many days even one bar per week is a hairline, so the chart buckets to calendar months. */
+const WEEK_SERIES_LIMIT = 730;
+
+/** How a per-member day chart draws a span: a bar per day, per week once it is too long, per month beyond two years. */
+export type DaySeriesMode = "days" | "weeks" | "months";
 
 /** Asked by the chart and by the caption above it, so the two can never disagree. */
 export function daySeriesMode(range: Range): DaySeriesMode {
-  return rangeDays(range) > DAY_SERIES_LIMIT ? "weeks" : "days";
+  const days = rangeDays(range);
+  return days > WEEK_SERIES_LIMIT ? "months" : days > DAY_SERIES_LIMIT ? "weeks" : "days";
 }
 
 /** The lines-per-week chart is yearly context: 52 buckets ending on this week's Sunday, always. */
@@ -151,14 +157,14 @@ export function yearChart(now = new Date()): { weeks: number; endSunday: string 
 /** How many weekly buckets a window-driven weekly chart draws, and the Sunday it ends on. */
 export function chartWeeks(window: Window, now = new Date()): { weeks: number; endSunday: string } {
   if (window.kind === "preset") {
-    return { weeks: window.value === "year" ? 52 : 12, endSunday: sundayOf(isoDate(now)) };
+    return { weeks: window.value === "year" || window.value === "all" ? 52 : 12, endSunday: sundayOf(isoDate(now)) };
   }
   return { weeks: Math.max(8, Math.ceil(rangeDays(window) / 7)), endSunday: sundayOf(window.to) };
 }
 
 /** Reads as a noun phrase after a word: "Repos this week", "Repos 01 Jun – 30 Jun". */
 export function windowLabel(window: Window): string {
-  if (window.kind === "preset") return `this ${window.value}`;
+  if (window.kind === "preset") return window.value === "all" ? "all time" : `this ${window.value}`;
   // A 365-day span crosses a new year, and without it reads as one day to the same day.
   const crossesYears = window.from.slice(0, 4) !== window.to.slice(0, 4);
   return `${fmtShort(window.from, crossesYears)} – ${fmtShort(window.to, crossesYears)}`;
@@ -175,7 +181,16 @@ function fmtShort(date: string, withYear = false): string {
 
 /** How the momentum arrow names the period it compares against. */
 export function previousLabel(window: Window): string {
-  return window.kind === "preset" ? `last ${window.value}` : "the period before";
+  if (window.kind === "range") return "the period before";
+  return window.value === "all" ? "a week ago" : `last ${window.value}`;
+}
+
+/**
+ * All time against all time a week ago grows by a fraction of a percent for everyone, so the momentum
+ * arrow and the tile deltas say nothing there and are left out. Rank movement still means something.
+ */
+export function isAllTime(window: Window): boolean {
+  return window.kind === "preset" && window.value === "all";
 }
 
 /** What the comparison charts count. Lines is the default: a commit is whatever someone calls a commit. */
@@ -198,9 +213,9 @@ export function windowQuery(window: Window): string {
 /**
  * How far back the race runs. It is deliberately longer than the window — a week's worth of frames is
  * not a race — but it scales with it, because a fixed half-year barely changes between visits and the
- * early frames are mostly dead air. Week races the month, month the quarter, year the half-year.
+ * early frames are mostly dead air. Week races the month, month the quarter, year and all time the half-year.
  */
-const RACE_WEEKS: Record<Preset, number> = { week: 4, month: 12, year: 26 };
+const RACE_WEEKS: Record<Preset, number> = { week: 4, month: 12, year: 26, all: 26 };
 const RACE_MIN = 4;
 const RACE_MAX = 26;
 

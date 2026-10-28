@@ -32,7 +32,7 @@ function Identity({ row }: { row: BoardRow }) {
  * the right with its momentum arrow; the other figures in one quiet line; the 12-week strip under it.
  * About a third of the height of the six-cell grid it replaced, so a crew of five fits on two screens.
  */
-function Card({ row, rank, beforeLabel, metric, wrap, own }: { row: RankedRow; rank: number; beforeLabel: string; metric: Metric; wrap: (row: BoardRow, children: React.ReactNode) => React.ReactNode; own: boolean }) {
+function Card({ row, rank, beforeLabel, metric, wrap, own }: { row: RankedRow; rank: number; beforeLabel: string | null; metric: Metric; wrap: (row: BoardRow, children: React.ReactNode) => React.ReactNode; own: boolean }) {
   const big = metric === "lines" ? fmtRank(row.additions + row.deletions) : fmt(row.commits);
   return (
     <div className={`border-2 p-4 min-w-0 ${own ? "bg-alert/10 border-alert" : "bg-void border-dark"}`}>
@@ -43,7 +43,7 @@ function Card({ row, rank, beforeLabel, metric, wrap, own }: { row: RankedRow; r
           <span className="block font-sans font-bold text-2xl leading-none text-white">{big}</span>
           <span className="flex items-center justify-end gap-1.5 mt-1 text-[11px] text-faint uppercase tracking-wide">
             {metric}
-            <Momentum commits={row.commits} before={row.prevCommits} label={beforeLabel} />
+            {beforeLabel !== null && <Momentum commits={row.commits} before={row.prevCommits} label={beforeLabel} />}
           </span>
         </span>
       </div>
@@ -81,7 +81,8 @@ export function Leaderboard({
   linkUsers: boolean;
   /** The board these rows are on, so each profile can offer the way back to it. */
   src?: string;
-  beforeLabel: string;
+  /** What the momentum arrow compares against; null leaves the arrow out (all time, where it never moves). */
+  beforeLabel: string | null;
   metric: Metric;
   /** Where a member's row links. The demo board renders the same table under its own path. */
   userBase?: string;
@@ -120,7 +121,9 @@ export function Leaderboard({
               <th className="text-right px-4 py-3 font-normal">total</th>
               <th className="text-right px-4 py-3 font-normal">repos</th>
               <th className="text-right px-4 py-3 font-normal">streak</th>
-              <th className="text-center px-4 py-3 font-normal" title="momentum: commits this period against the period of the same length before it">momentum</th>
+              {beforeLabel !== null && (
+                <th className="text-center px-4 py-3 font-normal" title="momentum: commits this period against the period of the same length before it">momentum</th>
+              )}
               <th className="text-right px-4 py-3 font-normal">stars</th>
               <th className="text-left px-4 py-3 font-normal">lang</th>
               <th className="text-left px-4 py-3 font-normal">last 12 weeks</th>
@@ -140,9 +143,11 @@ export function Leaderboard({
                 <td className={`px-4 py-3 text-right ${metric === "lines" ? "text-white font-bold" : "text-silver"}`}>{fmtRank(r.additions + r.deletions)}</td>
                 <td className="px-4 py-3 text-right">{r.activeRepos}</td>
                 <td className="px-4 py-3 text-right">{r.streak}d</td>
-                <td className="px-4 py-3 text-center">
-                  <Momentum commits={r.commits} before={r.prevCommits} label={beforeLabel} />
-                </td>
+                {beforeLabel !== null && (
+                  <td className="px-4 py-3 text-center">
+                    <Momentum commits={r.commits} before={r.prevCommits} label={beforeLabel} />
+                  </td>
+                )}
                 <td className="px-4 py-3 text-right text-amber">{fmt(r.stars)}</td>
                 <td className="px-4 py-3 text-dim">{r.topLanguage ?? "—"}</td>
                 <td className="px-4 py-3">

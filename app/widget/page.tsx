@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 };
 
 const SHOWS: [string, string][] = [
-  ["lines or commits this year", "Lines added in green and deleted in red, or your commit count, over the last 365 days, or this month or this week if you pick one."],
+  ["lines or commits this year", "Lines added in green and deleted in red, or your commit count, over the last 365 days, or this month, this week or all time if you pick one."],
   ["streak", "How many days in a row you have committed."],
   ["top language", "The main language of the repos you committed to most in that window."],
 ];
@@ -40,7 +40,7 @@ export default async function Widget({ searchParams }: { searchParams: Promise<{
         <div className="tag mb-4">WIDGET</div>
         <h1 className="font-sans font-bold text-4xl mb-3">GitHub stats widget for your README</h1>
         <p className="font-mono text-sm text-dim leading-relaxed mb-10">
-          One image in your GitHub profile README with your lines or commits over the last year, this month or this week, your
+          One image in your GitHub profile README with your lines or commits over the last year, this month, this week or all time, your
           streak and your top language. It links to your public page on gitstats.
         </p>
 

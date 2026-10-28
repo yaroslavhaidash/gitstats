@@ -20,6 +20,11 @@ export function fmtDate(d: Date | string): string {
   return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
 }
 
+/** A calendar month: "Mar 2019". */
+export function fmtMonth(d: string): string {
+  return new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
+}
+
 export function fmtDateTime(d: Date): string {
   return d.toISOString().replace("T", " ").slice(0, 16) + " UTC";
 }

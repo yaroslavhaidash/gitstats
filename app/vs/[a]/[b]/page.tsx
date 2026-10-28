@@ -19,7 +19,7 @@ import { countStep } from "@/lib/funnel";
 import { openGraphFor } from "@/lib/site";
 import { visitorLead } from "@/lib/visits";
 import { vsSide, type VsSide } from "@/lib/vs";
-import { PRESETS, windowLabel, type Preset, type Window } from "@/lib/window";
+import { windowLabel, type Preset, type Window } from "@/lib/window";
 
 /** Per request: reads the URL. The stats behind it are cached in lib/cached.ts. */
 export const instant = false;
@@ -31,9 +31,15 @@ async function visitorIp(): Promise<string> {
   return h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
 }
 
-/** Presets only, year by default: a pair is a first look, and a year is the fairest one. */
+/**
+ * Presets only, year by default: a pair is a first look, and a year is the fairest one. No all time:
+ * a side that is not a member is one cached GitHub call covering a year, and more would cost a call
+ * per year per lookup.
+ */
+const VS_PRESETS: readonly Preset[] = ["week", "month", "year"];
+
 function vsWindow(w: string | undefined): Window {
-  return { kind: "preset", value: (PRESETS as readonly string[]).includes(w ?? "") ? (w as Preset) : "year" };
+  return { kind: "preset", value: VS_PRESETS.includes(w as Preset) ? (w as Preset) : "year" };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -165,7 +171,7 @@ export default async function VsPage({ params, searchParams }: Props) {
             {l.login} <span className="text-alert">vs</span> {r.login}
           </h1>
         </div>
-        <WindowTabs current={window} basePath={`/vs/${l.login}/${r.login}`} />
+        <WindowTabs current={window} basePath={`/vs/${l.login}/${r.login}`} presets={VS_PRESETS} />
       </div>
       {publicOnly && (
         <SignedOut>

@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { PRESETS, type Window } from "@/lib/window";
+import { PRESETS, type Preset, type Window } from "@/lib/window";
 
-/** On a phone the week/month/year row shares the second row of the view controls with RANGE, 44px tall. */
-export function WindowTabs({ current, basePath, query = "" }: { current: Window; basePath: string; query?: string }) {
+/** On a phone the week/month/year/all row shares the second row of the view controls with RANGE, 44px tall. */
+export function WindowTabs({ current, basePath, query = "", presets = PRESETS }: { current: Window; basePath: string; query?: string; presets?: readonly Preset[] }) {
   return (
     <div className="flex flex-1 sm:flex-none font-mono text-xs border-2 border-dark divide-x-2 divide-dark">
-      {PRESETS.map((w) => {
+      {presets.map((w) => {
         const active = current.kind === "preset" && current.value === w;
         return (
           <Link

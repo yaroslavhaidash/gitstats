@@ -1,8 +1,9 @@
-import { fmtDate } from "@/lib/format";
+import { fmtDate, fmtMonth } from "@/lib/format";
 
 const FULL = 80; // "01 Sept" plus breathing room, in viewBox units
 const SHORT = 30; // "31" plus the room it needs not to crowd its neighbours
 const DOTTED = 10; // below this a number per day collides, but a mark per day still fits
+const MONTH = 90; // "Sept 2019" plus breathing room
 
 export type DayTick = { index: number; label: string | null };
 
@@ -22,8 +23,18 @@ export function tickAnchor(x: number, label: string, width: number): "start" | "
  * there is room for it, then the day of the month, then a number every other day with a dot marking
  * the ones in between, and finally a date every few days. `slotW` is what one day owns in viewBox
  * units, so the same span is labelled differently in a full-width card and in a half-width one.
+ * `byMonth` is for charts that bucket a long span by calendar month: a "Mar 2019" every few bars.
  */
-export function dayTicks(dates: string[], slotW: number): DayTick[] {
+export function dayTicks(dates: string[], slotW: number, byMonth = false): DayTick[] {
+  // Month buckets are keyed by their first day, so a day number would read "1" under every bar.
+  if (byMonth) {
+    const every = Math.max(1, Math.ceil(MONTH / Math.max(1, slotW)));
+    return dates.flatMap((d, index) => {
+      const wanted = (dates.length - 1 - index) % every === 0;
+      // As below: a label too close to the left edge is anchored there and would run into the next one.
+      return wanted && (index === 0 || index * slotW > MONTH / 2) ? [{ index, label: fmtMonth(d) }] : [];
+    });
+  }
   const day = (d: string) => String(Number(d.slice(8, 10)));
   if (slotW >= FULL) return dates.map((d, index) => ({ index, label: fmtDate(d) }));
   if (slotW >= SHORT) return dates.map((d, index) => ({ index, label: day(d) }));

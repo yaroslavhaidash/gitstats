@@ -59,7 +59,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           <span>&gt; last snapshot: {counts.lastSnapshotAt ? fmtDateTime(counts.lastSnapshotAt) : "never"}</span>
           <Link href="/docs" className="hover:text-alert">docs</Link>
           <Link href="/dashboard/inbox" className="hover:text-alert">send feedback</Link>
-          <span className="ml-auto hidden sm:inline">keys: / palette · 1/2/3 window · g global · h home</span>
+          <span className="ml-auto hidden sm:inline">keys: / palette · 1/2/3/4 window · g global · h home</span>
         </div>
       </footer>
     </div>

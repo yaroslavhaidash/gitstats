@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { CellTip } from "./CellTip";
 import { useCellTip } from "./useCellTip";
-import { fmt, fmtDate } from "@/lib/format";
+import { fmt, fmtDate, fmtMonth } from "@/lib/format";
 import type { MemberDayRow } from "@/lib/stats";
 import { daySeriesMode, rangeDays, shiftDate, sundayOf, type Metric } from "@/lib/window";
 import { dayTicks, tickAnchor } from "./dayTicks";
@@ -43,7 +43,8 @@ function Hatch({ id, color }: { id: string; color: string }) {
  * side in leaderboard order, because that is the comparison the card is for. Past that the bars are
  * too thin to sit beside each other, so each member takes a row of their own — all sharing one y
  * scale, so a tall row really is a busier member — and a crosshair reads every row at the day under
- * the pointer. Spans longer than a quarter bucket to weeks rather than draw less than was asked for.
+ * the pointer. Spans longer than a quarter bucket to weeks rather than draw less than was asked for,
+ * and spans longer than two years to calendar months.
  *
  * Commits are the merged calendar — GitHub's public days plus the private-repo days each member
  * shares with their crew. Lines are counted per day where a linked computer counted them and placed
@@ -61,11 +62,15 @@ export function MemberDaily({ rows, members, from, to, metric }: {
   const { boxRef, point, onMouseMove, clear } = useCellTip();
   const width = useChartWidth(boxRef, W);
   const days = Array.from({ length: rangeDays({ from, to }) }, (_, i) => shiftDate(from, i));
-  const byWeek = daySeriesMode({ from, to }) === "weeks";
-  // One bucket per day, or per GitHub week (Sunday-opening) once the window is longer than a quarter.
-  const buckets = byWeek ? [...new Set(days.map(sundayOf))] : days;
+  const mode = daySeriesMode({ from, to });
+  const byWeek = mode === "weeks";
+  const byMonth = mode === "months";
+  // One bucket per day, per GitHub week (Sunday-opening) once the window is longer than a quarter,
+  // or per calendar month (keyed by its 1st) past two years.
+  const keyOf = (d: string) => (byMonth ? `${d.slice(0, 7)}-01` : sundayOf(d));
+  const buckets = mode === "days" ? days : [...new Set(days.map(keyOf))];
   const bucketAt = new Map(buckets.map((b, i) => [b, i]));
-  const column = new Map(days.map((d, i) => [d, byWeek ? (bucketAt.get(sundayOf(d)) ?? -1) : i]));
+  const column = new Map(days.map((d, i) => [d, mode === "days" ? i : (bucketAt.get(keyOf(d)) ?? -1)]));
   const row = new Map(members.map((m, i) => [m.userId, i]));
   const counts = members.map(() => buckets.map(() => 0));
   /** The part of the bucket above that was placed from a weekly total; commits are never placed. */
@@ -97,7 +102,7 @@ export function MemberDaily({ rows, members, from, to, metric }: {
   const slotW = (right - left) / buckets.length;
   const at = (i: number) => left + i * slotW + slotW / 2;
   const base = PAD.top + plotH;
-  const ticks = dayTicks(buckets, slotW);
+  const ticks = dayTicks(buckets, slotW, byMonth);
   const fill = (m: ChartMember) => (m.wrapped ? `url(#mix-${m.userId})` : m.hue);
 
   // Grouped, the members split what one bucket gives them; in rows each member has it to themselves.
@@ -123,7 +128,7 @@ export function MemberDaily({ rows, members, from, to, metric }: {
         preserveAspectRatio="xMinYMin slice"
         className="block"
         role="img"
-        aria-label={`${metric === "lines" ? "Lines" : "Commits"} per ${byWeek ? "week" : "day"} per crew member`}
+        aria-label={`${metric === "lines" ? "Lines" : "Commits"} per ${byMonth ? "month" : byWeek ? "week" : "day"} per crew member`}
         onMouseMove={onMouseMove}
         onMouseLeave={clear}
       >
@@ -233,7 +238,7 @@ export function MemberDaily({ rows, members, from, to, metric }: {
         <CellTip point={point} className="panel px-3 py-2 font-mono text-xs">
           <div className="text-faint">
             {byWeek ? "week of " : ""}
-            {fmtDate(buckets[hover])}
+            {byMonth ? fmtMonth(buckets[hover]) : fmtDate(buckets[hover])}
           </div>
           {members.every((_m, k) => counts[k][hover] === 0) ? (
             <div className="text-dim">nothing</div>

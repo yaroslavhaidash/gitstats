@@ -9,9 +9,9 @@ import { Section } from "@/components/Section";
 import { SkeletonBoard } from "@/components/Skeleton";
 import { StandingBlock } from "@/components/StandingBlock";
 import { WindowTabs } from "@/components/WindowTabs";
-import { globalBoard } from "@/lib/cached";
+import { globalBoard, historyCounting } from "@/lib/cached";
 import { accountCreatedAt, rankBy, standing } from "@/lib/stats";
-import { parseMetric, parseWindow, previousLabel, previousPeriodEnd, viewQuery, windowLabel, windowQuery, type Metric, type Window } from "@/lib/window";
+import { isAllTime, parseMetric, parseWindow, previousLabel, previousPeriodEnd, viewQuery, windowLabel, windowQuery, type Metric, type Window } from "@/lib/window";
 
 /** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
 export const instant = false;
@@ -34,7 +34,8 @@ function blocksFor(index: number, total: number): { from: number; to: number }[]
 
 /** Everything behind a Postgres read, so the header and the tabs above are on screen before it answers. */
 async function Board({ userId, window, metric, all }: { userId: number; window: Window; metric: Metric; all: boolean }) {
-  const [board, createdAt] = await Promise.all([globalBoard(window), accountCreatedAt(userId)]);
+  const allTime = isAllTime(window);
+  const [board, createdAt, counting] = await Promise.all([globalBoard(window), accountCreatedAt(userId), allTime ? historyCounting(null) : []]);
   const rows = rankBy(board, metric);
   const me = standing(rows, metric, userId);
   // An account that did not exist through the previous period has nowhere to have moved from, so
@@ -51,6 +52,11 @@ async function Board({ userId, window, metric, all }: { userId: number; window: 
           you are the only one here so far · an invite link is the fastest way to fill this board
         </EmptyNote>
       )}
+      {counting.length > 0 && (
+        <p className="font-mono text-xs text-amber mb-4">
+          &gt; older years still counting for {counting.length} member{counting.length === 1 ? "" : "s"} · fills in tonight
+        </p>
+      )}
       {me && rows.length > 1 && <StandingBlock standing={me} metric={metric} label={windowLabel(window)} beforeLabel={beforeLabel} newcomer={newcomer} />}
       {blocks.map((block, i) => (
         <div key={block.from}>
@@ -61,7 +67,7 @@ async function Board({ userId, window, metric, all }: { userId: number; window: 
             rows={rows.slice(block.from, block.to + 1)}
             linkUsers
             src="global"
-            beforeLabel={beforeLabel}
+            beforeLabel={allTime ? null : beforeLabel}
             metric={metric}
             rankOffset={block.from}
             highlightUserId={userId}

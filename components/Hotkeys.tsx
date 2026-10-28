@@ -6,7 +6,7 @@ import { Palette, type PaletteCrew, type PaletteMember } from "./Palette";
 import { guardNavigation } from "./UnsavedGuard";
 import { withMetric, withView } from "@/lib/window";
 
-/** 1/2/3 switch the time window, g jumps to the global board, h to your first crew, / opens the palette. */
+/** 1/2/3/4 switch the time window, g jumps to the global board, h to your first crew, / opens the palette. */
 export function Hotkeys({ homePath, crews, members }: { homePath: string; crews: PaletteCrew[]; members: PaletteMember[] }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -20,7 +20,7 @@ export function Hotkeys({ homePath, crews, members }: { homePath: string; crews:
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const target = e.target;
       if (target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
-      const windows: Record<string, string> = { "1": "week", "2": "month", "3": "year" };
+      const windows: Record<string, string> = { "1": "week", "2": "month", "3": "year", "4": "all" };
       if (e.key === "/") {
         e.preventDefault();
         setPalette(true);

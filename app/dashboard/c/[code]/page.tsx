@@ -19,13 +19,13 @@ import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { cliTokens } from "@/db/schema";
-import { crewBoard, crewOverlaps, crewTimelines } from "@/lib/cached";
+import { crewBoard, crewOverlaps, crewTimelines, historyCounting } from "@/lib/cached";
 import { cliUpdateStuck, MIN_CLI_VERSION } from "@/lib/cli";
 import { leaveCrewAction } from "@/lib/actions";
 import { rankBy } from "@/lib/stats";
 import { crewByCode, crewMemberIds, isMember } from "@/lib/crews";
 import { HUES, hue } from "@/lib/palette";
-import { daySeriesMode, parseMetric, parseWindow, previousLabel, viewQuery, windowLabel, windowQuery, type Metric, type Window } from "@/lib/window";
+import { daySeriesMode, isAllTime, parseMetric, parseWindow, previousLabel, viewQuery, windowLabel, windowQuery, type Metric, type Window } from "@/lib/window";
 
 /** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
 export const instant = false;
@@ -67,7 +67,9 @@ async function Board({
   hasMachines: boolean;
   query: { renamed?: string; recoded?: string; removed?: string; error?: string };
 }) {
-  const rows = rankBy(await crewBoard(crew.id, window), metric);
+  const allTime = isAllTime(window);
+  const [board, counting] = await Promise.all([crewBoard(crew.id, window), allTime ? historyCounting(crew.id) : []]);
+  const rows = rankBy(board, metric);
   return (
     <>
       {manage && (
@@ -88,7 +90,10 @@ async function Board({
           {hasMachines ? " · your linked computer syncs daily" : ""}
         </EmptyNote>
       )}
-      <Leaderboard rows={rows} linkUsers src={`c:${crew.code}`} beforeLabel={previousLabel(window)} metric={metric} />
+      {counting.length > 0 && (
+        <p className="font-mono text-xs text-amber mb-4">&gt; older years still counting for {counting.join(", ")} · fills in tonight</p>
+      )}
+      <Leaderboard rows={rows} linkUsers src={`c:${crew.code}`} beforeLabel={allTime ? null : previousLabel(window)} metric={metric} />
     </>
   );
 }
@@ -160,7 +165,7 @@ async function Charts({ crew, window, metric, viewerId }: { crew: Crew; window: 
           <h2 className="font-sans font-bold text-lg mb-1">Daily {metric} by member</h2>
           <p className="font-mono text-xs text-faint mb-4">
             {windowLabel(window)}
-            {daySeriesMode({ from: timelines.dayFrom, to: timelines.dayTo }) === "weeks" ? " · by week" : ""}
+            {{ days: "", weeks: " · by week", months: " · by month" }[daySeriesMode({ from: timelines.dayFrom, to: timelines.dayTo })]}
             {metric === "lines" ? (placed ? " · linked computers count the days; GitHub only reports whole weeks" : " · counted on linked computers") : ""}
           </p>
           {timelines.days.length === 0 ? (

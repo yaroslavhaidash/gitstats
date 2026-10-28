@@ -35,7 +35,8 @@ const MAX_H: Record<DayChartMode, string> = {
   week: "max-h-[190px]",
   month: "max-h-[452px]",
   days: "max-h-[420px]",
-  months: "", // capped per row instead: see `monthTiles`
+  months: "", // capped per row instead: see `periodTiles`
+  years: "",
 };
 
 const MAX_W: Record<DayChartMode, string> = {
@@ -43,6 +44,7 @@ const MAX_W: Record<DayChartMode, string> = {
   month: "",
   days: "",
   months: "",
+  years: "",
 };
 
 /**
@@ -92,6 +94,11 @@ function monthsBetween(from: string, to: string): string[] {
     keys.push(d.toISOString().slice(0, 10).slice(0, 7));
   }
   return keys;
+}
+
+function yearsBetween(from: string, to: string): string[] {
+  const first = Number(from.slice(0, 4));
+  return Array.from({ length: Number(to.slice(0, 4)) - first + 1 }, (_, i) => String(first + i));
 }
 
 function dayLabel(date: string, row: DailyLineRow | undefined): string {
@@ -167,7 +174,8 @@ function DayCell({
 
 /**
  * Lines the CLI counted, drawn at the resolution the window deserves: one row of days for a week,
- * one calendar for a month, up to three for a short custom range, and one tile per month beyond that.
+ * one calendar for a month, up to three for a short custom range, one tile per month beyond that, and
+ * one tile per year for all time.
  */
 export function MonthBlocks({
   rows,
@@ -189,12 +197,13 @@ export function MonthBlocks({
   // Seven month tiles to a row where they fit at about their drawn size; three on a phone, so a tile's text stays legible.
   const tileCols = Math.max(3, Math.min(TILE_COLS, Math.floor(measured / TILE_W)));
   const narrow = measured < NARROW;
+  const placed = mode === "years" && rows.some((r) => r.spreadAdditions + r.spreadDeletions > 0);
 
   const body =
     mode === "week"
       ? weekRow(byDate, to, today, narrow, hover, setHover)
-      : mode === "months"
-        ? monthTiles(rows, from, to, tileCols, hover, setHover)
+      : mode === "months" || mode === "years"
+        ? periodTiles(rows, from, to, mode === "years", tileCols, hover, setHover)
         : dayBlocks(byDate, from, to, today, mode === "month", hover, setHover);
 
   return (
@@ -207,21 +216,35 @@ export function MonthBlocks({
         <span className="flex items-center gap-2">
           <span className="w-3 h-3 bg-alert inline-block" /> deleted
         </span>
+        {placed && (
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-3 inline-block" style={{ background: "repeating-linear-gradient(45deg, #666 0 2px, #050505 2px 4px)" }} /> placed from a
+            week
+          </span>
+        )}
         <span className="w-full sm:w-auto sm:ml-auto text-faint">lines per day · weeks GitHub reports are laid over their days</span>
       </div>
       <svg
         viewBox={`0 0 ${body.width + EDGE_PAD * 2} ${body.height + EDGE_PAD * 2}`}
         className={`block w-full h-auto mx-auto ${mode === "week" && narrow ? "" : MAX_H[mode]} ${MAX_W[mode]}`}
         // A row of month tiles never renders taller than 90px, which is what the old two-row cap of 180px allowed.
-        style={mode === "months" ? { maxHeight: (body.height / TILE_H) * 90 } : undefined}
+        style={mode === "months" || mode === "years" ? { maxHeight: (body.height / TILE_H) * 90 } : undefined}
         role="img"
-        aria-label={`Lines added and deleted per ${mode === "months" ? "month" : "day"}`}
+        aria-label={`Lines added and deleted per ${mode === "months" ? "month" : mode === "years" ? "year" : "day"}`}
         onMouseMove={onMouseMove}
         onMouseLeave={() => {
           setHover(null);
           clear();
         }}
       >
+        {placed && (
+          <defs>
+            <pattern id="tile-placed" width={4} height={4} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <rect width={4} height={4} fill="#050505" />
+              <rect width={2} height={4} fill="#8b93a4" />
+            </pattern>
+          </defs>
+        )}
         <g transform={`translate(${EDGE_PAD}, ${EDGE_PAD})`}>{body.content}</g>
       </svg>
     </div>
@@ -344,18 +367,24 @@ function dayBlocks(
   return { content, width, height };
 }
 
-/** One tile per month for a year or any long range: day cells would be unreadable. */
-function monthTiles(rows: DailyLineRow[], from: string, to: string, maxCols: number, hover: Hover, setHover: (h: Hover) => void): Body {
-  const totals = new Map<string, { additions: number; deletions: number; commits: number }>();
+/**
+ * One tile per month for a year or any long range, one per year for all time: day cells would be
+ * unreadable. A year tile carries a strip under its numbers whose hatched part is the share of its
+ * lines placed from GitHub's weekly figures rather than counted per day, since most old history is.
+ */
+function periodTiles(rows: DailyLineRow[], from: string, to: string, byYear: boolean, maxCols: number, hover: Hover, setHover: (h: Hover) => void): Body {
+  const keyOf = (date: string) => (byYear ? date.slice(0, 4) : date.slice(0, 7));
+  const totals = new Map<string, { additions: number; deletions: number; commits: number; spread: number }>();
   for (const r of rows) {
-    const key = r.date.slice(0, 7);
-    const t = totals.get(key) ?? { additions: 0, deletions: 0, commits: 0 };
+    const key = keyOf(r.date);
+    const t = totals.get(key) ?? { additions: 0, deletions: 0, commits: 0, spread: 0 };
     t.additions += r.additions;
     t.deletions += r.deletions;
     t.commits += r.commits;
+    t.spread += r.spreadAdditions + r.spreadDeletions;
     totals.set(key, t);
   }
-  const keys = monthsBetween(from, to).slice(-MAX_TILES);
+  const keys = byYear ? yearsBetween(from, to) : monthsBetween(from, to).slice(-MAX_TILES);
   const cols = Math.min(maxCols, keys.length);
   const width = cols * TILE_W;
   const height = Math.ceil(keys.length / cols) * TILE_H;
@@ -364,7 +393,10 @@ function monthTiles(rows: DailyLineRow[], from: string, to: string, maxCols: num
     const t = totals.get(key);
     const x = (i % cols) * TILE_W;
     const top = Math.floor(i / cols) * TILE_H;
-    const text = `${MONTHS[m - 1]} ${y} · ${t ? `+${t.additions} −${t.deletions} · ${t.commits} commits` : "no lines counted"}`;
+    const lines = t ? t.additions + t.deletions : 0;
+    const placedShare = t && byYear && lines > 0 ? Math.min(1, t.spread / lines) : 0;
+    const name = byYear ? String(y) : `${MONTHS[m - 1]} ${y}`;
+    const text = `${name} · ${t ? `+${t.additions} −${t.deletions} · ${t.commits} commits` : "no lines counted"}${placedShare > 0 ? ` · ${Math.round(placedShare * 100)}% placed from weekly figures` : ""}`;
     const active = hover?.x === x && hover?.y === top;
     return (
       <g key={key} onMouseEnter={() => setHover({ x, y: top, text })}>
@@ -379,7 +411,7 @@ function monthTiles(rows: DailyLineRow[], from: string, to: string, maxCols: num
           strokeWidth={1}
         />
         <text x={x + 8} y={top + 18} fontSize={11} fontFamily="var(--font-mono)" className="fill-dim">
-          {MONTHS[m - 1]} {String(y).slice(2)}
+          {byYear ? y : `${MONTHS[m - 1]} ${String(y).slice(2)}`}
         </text>
         {t ? (
           <>
@@ -397,8 +429,14 @@ function monthTiles(rows: DailyLineRow[], from: string, to: string, maxCols: num
               −{tiny(t.deletions)}
             </text>
             <text x={x + TILE_W - 8} y={top + 18} textAnchor="end" fontSize={11} fontFamily="var(--font-mono)" className="fill-dim">
-              ·{t.commits}
+              ·{byYear ? tiny(t.commits) : t.commits}
             </text>
+            {placedShare > 0 && (
+              <>
+                <rect x={x + 8} y={top + TILE_H - 11} width={(TILE_W - 16) * (1 - placedShare)} height={4} fill="#8b93a4" />
+                <rect x={x + 8 + (TILE_W - 16) * (1 - placedShare)} y={top + TILE_H - 11} width={(TILE_W - 16) * placedShare} height={4} fill="url(#tile-placed)" />
+              </>
+            )}
           </>
         ) : (
           <text x={x + TILE_W / 2} y={top + 50} textAnchor="middle" fontSize={16} fontFamily="var(--font-mono)" className="fill-faint">

@@ -9,7 +9,7 @@ import { hashToken } from "./cli";
 import { crewByCode, crewMemberIds, isMember, sharesCrew, userByLogin, userCrews } from "./crews";
 import { countStep } from "./funnel";
 import { PERCENTILE_FROM, rankBy, standing, userDailyLines, userRepos, type BoardViewer } from "./stats";
-import { parseMetric, parseWindow, windowLabel, windowRange, type Metric, type Window } from "./window";
+import { isAllTime, parseMetric, parseWindow, windowLabel, windowRange, type Metric, type Window } from "./window";
 
 /**
  * The read-only MCP tools. The token's owner is the viewer: every tool calls the helper the matching
@@ -28,7 +28,10 @@ export async function mcpTokenOwner(rawToken: string): Promise<{ id: number; use
 }
 
 const windowArgs = {
-  window: z.enum(["week", "month", "year"]).optional().describe("week = Monday to today, month = the 1st to today, year = the last 365 days. Default week."),
+  window: z
+    .enum(["week", "month", "year", "all"])
+    .optional()
+    .describe("week = Monday to today, month = the 1st to today, year = the last 365 days, all = everything since 2000-01-01. Default week."),
   from: z.string().optional().describe("Start of a custom range, YYYY-MM-DD. Needs `to`; overrides `window`."),
   to: z.string().optional().describe("End of a custom range, YYYY-MM-DD, inclusive."),
 };
@@ -76,14 +79,17 @@ async function summary(userId: number, window: Window, metric: Metric, isOwner: 
     globalBoard: place
       ? { metric, rank: place.rank, of: place.total, topPercent: place.total >= PERCENTILE_FROM ? place.percentile : null }
       : null,
-    previousPeriod: {
-      ...was,
-      changePercent: {
-        commits: pct(row.commits, was.commits),
-        lines: pct(row.additions + row.deletions, was.additions + was.deletions),
-        activeRepos: pct(row.activeRepos, was.activeRepos),
-      },
-    },
+    // All time against all time a week ago grows by a fraction of a percent for everyone: no comparison.
+    previousPeriod: isAllTime(window)
+      ? null
+      : {
+          ...was,
+          changePercent: {
+            commits: pct(row.commits, was.commits),
+            lines: pct(row.additions + row.deletions, was.additions + was.deletions),
+            activeRepos: pct(row.activeRepos, was.activeRepos),
+          },
+        },
   };
 }
 
@@ -121,6 +127,8 @@ export function registerTools(server: McpServer, ownerOf: (clientId: string | un
     },
     run(async (userId, args: WindowArgs & { metric?: string }) => {
       const window = windowOf(args);
+      // Thousands of day rows are no use to an assistant; my_summary or my_repos answer for all time.
+      if (isAllTime(window)) return refuse("my_daily does not take window all: ask for a range of up to 400 days with from and to, or use my_summary for all time");
       const metric = parseMetric(args.metric);
       const span = windowRange(window);
       const rows = await userDailyLines(userId, span.from, span.to, true);

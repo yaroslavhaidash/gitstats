@@ -5,9 +5,9 @@ import { CellTip } from "./CellTip";
 import { dayTicks, tickAnchor } from "./dayTicks";
 import { useCellTip } from "./useCellTip";
 import { chartHeight, useChartWidth } from "./useChartWidth";
-import { fmt, fmtDate } from "@/lib/format";
+import { fmt, fmtDate, fmtMonth } from "@/lib/format";
 import type { DailyLineRow } from "@/lib/stats";
-import { rangeDays, shiftDate, type Metric } from "@/lib/window";
+import { daySeriesMode, rangeDays, shiftDate, type Metric } from "@/lib/window";
 
 /** Width the server draws at; the client re-reads the real one, so a unit is always one CSS pixel. */
 const W = 1200;
@@ -30,15 +30,19 @@ function Hatch({ id, color }: { id: string; color: string }) {
   );
 }
 
-/** Every day in the span, so a quiet day is a gap in the series rather than a missing bar. */
-function buckets(rows: DailyLineRow[], from: string, to: string): Bucket[] {
+/**
+ * Every day in the span, so a quiet day is a gap in the series rather than a missing bar; or every
+ * calendar month, keyed by its 1st, when `byMonth`.
+ */
+function buckets(rows: DailyLineRow[], from: string, to: string, byMonth: boolean): Bucket[] {
+  const key = (d: string) => (byMonth ? `${d.slice(0, 7)}-01` : d);
   const slots = new Map<string, Bucket>();
   for (let i = 0; i < rangeDays({ from, to }); i++) {
-    const d = shiftDate(from, i);
-    slots.set(d, { date: d, additions: 0, deletions: 0, commits: 0, spreadAdditions: 0, spreadDeletions: 0, spreadCommits: 0 });
+    const d = key(shiftDate(from, i));
+    if (!slots.has(d)) slots.set(d, { date: d, additions: 0, deletions: 0, commits: 0, spreadAdditions: 0, spreadDeletions: 0, spreadCommits: 0 });
   }
   for (const r of rows) {
-    const slot = slots.get(r.date);
+    const slot = slots.get(key(r.date));
     if (!slot) continue;
     slot.additions += r.additions;
     slot.deletions += r.deletions;
@@ -53,14 +57,16 @@ function buckets(rows: DailyLineRow[], from: string, to: string): Bucket[] {
 /**
  * Lines per day: additions rise above the baseline in green, deletions fall below in red, one bar
  * per day whatever the window — a year is 365 thin bars rather than weekly buckets, because the card
- * at the top of the page already draws the year by week, and from a different source.
+ * at the top of the page already draws the year by week, and from a different source. Past two years
+ * (all time) a bar per day is a hairline, so it draws one per calendar month instead.
  */
 export function DailyLines({ rows, from, to, metric }: { rows: DailyLineRow[]; from: string; to: string; metric: Metric }) {
   const [hover, setHover] = useState<number | null>(null);
   const { boxRef, point, onMouseMove, clear } = useCellTip();
   const width = useChartWidth(boxRef, W);
   const H = chartHeight(width, 0.26, 170, 290);
-  const slots = buckets(rows, from, to);
+  const byMonth = daySeriesMode({ from, to }) === "months";
+  const slots = buckets(rows, from, to, byMonth);
   const plotH = H - PAD.top - PAD.bottom;
   /**
    * One scale for both directions, with the baseline where the two peaks meet rather than halfway
@@ -87,6 +93,7 @@ export function DailyLines({ rows, from, to, metric }: { rows: DailyLineRow[]; f
   const ticks = dayTicks(
     slots.map((b) => b.date),
     slotW,
+    byMonth,
   );
   const active = hover !== null ? slots[hover] : null;
 
@@ -123,7 +130,7 @@ export function DailyLines({ rows, from, to, metric }: { rows: DailyLineRow[]; f
         preserveAspectRatio="xMinYMin slice"
         className="block"
         role="img"
-        aria-label={metric === "lines" ? "Lines added and deleted per day" : "Commits per day"}
+        aria-label={`${metric === "lines" ? "Lines added and deleted" : "Commits"} per ${byMonth ? "month" : "day"}`}
         onMouseMove={onMouseMove}
         onMouseLeave={clear}
       >
@@ -171,7 +178,7 @@ export function DailyLines({ rows, from, to, metric }: { rows: DailyLineRow[]; f
       </svg>
       {hover !== null && point && (
         <CellTip point={point} className="panel px-3 py-2 font-mono text-xs">
-          <div className="text-faint">{fmtDate(active?.date ?? from)}</div>
+          <div className="text-faint">{byMonth ? fmtMonth(active?.date ?? from) : fmtDate(active?.date ?? from)}</div>
           {metric === "lines" && <div className="text-green">+{fmt(active?.additions ?? 0)}</div>}
           {metric === "lines" && <div className="text-alert">−{fmt(active?.deletions ?? 0)}</div>}
           <div className="text-dim">{fmt(active?.commits ?? 0)} commits</div>
