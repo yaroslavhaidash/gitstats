@@ -1,0 +1,1 @@
+ALTER TABLE "repos" ADD COLUMN "gone_at" timestamp with time zone;

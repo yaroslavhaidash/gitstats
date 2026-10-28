@@ -305,9 +305,10 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
 
   const nodeIds = [...activeRepos.keys()];
   const known = nodeIds.length > 0
-    ? await db.select({ id: repos.githubNodeId, statsFetchedFor: repos.statsFetchedFor }).from(repos).where(inArray(repos.githubNodeId, nodeIds))
+    ? await db.select({ id: repos.githubNodeId, statsFetchedFor: repos.statsFetchedFor, goneAt: repos.goneAt }).from(repos).where(inArray(repos.githubNodeId, nodeIds))
     : [];
   const statsFetchedFor = new Map(known.map((r) => [r.id, r.statsFetchedFor]));
+  const goneAt = new Map(known.flatMap((r) => (r.goneAt ? [[r.id, r.goneAt] as const] : [])));
 
   if (activeRepos.size > 0) {
     await db
@@ -362,7 +363,15 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
   const local = await locallyOwnedPairs();
   let pending: ActiveRepo[] = [];
   let reposSkipped = 0;
+  let reposGone = 0;
   for (const repo of activeRepos.values()) {
+    // A deleted or blocked repo would only answer 404 again. A push GitHub reports after that
+    // answer means it is back, and it is fetched like any other.
+    const gone = goneAt.get(repo.nodeId);
+    if (gone && (repo.pushedAt === null || new Date(repo.pushedAt).getTime() <= gone.getTime())) {
+      reposGone += 1;
+      continue;
+    }
     const last = statsFetchedFor.get(repo.nodeId);
     if (!onlyUserIds && !forceFetch.has(repo.nodeId) && repo.pushedAt !== null && last && last.getTime() === new Date(repo.pushedAt).getTime()) {
       reposSkipped += 1;
@@ -375,7 +384,7 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
   // Private ones are left out: reading them needs their owner's PAT, which only discovery loads.
   const carried = onlyUserIds ? [] : await carriedPending(new Set(activeRepos.keys()));
   pending.push(...carried);
-  log(`stats: ${pending.length} repos to fetch (${carried.length} carried from an earlier run), skipped ${reposSkipped} with unchanged pushed_at`);
+  log(`stats: ${pending.length} repos to fetch (${carried.length} carried from an earlier run), skipped ${reposSkipped} with unchanged pushed_at and ${reposGone} gone`);
 
   // Pass 0 hits every repo once (which makes GitHub start computing); later
   // passes retry only the ones that answered 202, with growing delays.
@@ -407,9 +416,11 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
           continue;
         }
         if (result.status === "gone") {
-          // Not pending any more either, or every later run would carry it and log this again.
-          await db.update(repos).set({ statsPending: false }).where(eq(repos.githubNodeId, repo.nodeId));
-          errors.push({ scope: `repo:${repo.nameWithOwner}`, message: "repository not reachable (deleted or blocked)" });
+          // Deleted or blocked on GitHub: nothing to act on, so not an error. Its weekly rows stay,
+          // and it is neither pending nor fetched again, or every later run would ask once more.
+          await db.update(repos).set({ statsPending: false, goneAt: new Date() }).where(eq(repos.githubNodeId, repo.nodeId));
+          log(`${repo.nameWithOwner}: not reachable (deleted or blocked), marked gone`);
+          reposGone += 1;
           continue;
         }
         const rows = result.stats.flatMap((stat) => {
@@ -430,7 +441,7 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
         }
         await db
           .update(repos)
-          .set({ statsPending: false, statsFetchedFor: repo.pushedAt === null ? null : new Date(repo.pushedAt) })
+          .set({ statsPending: false, statsFetchedFor: repo.pushedAt === null ? null : new Date(repo.pushedAt), goneAt: null })
           .where(eq(repos.githubNodeId, repo.nodeId));
         reposProcessed += 1;
       } catch (error) {
@@ -478,7 +489,7 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
   };
   log(
     `run ${run.id}${chainId ? ` (chain ${chainId})` : ""} done in ${summary.durationMs}ms: ${usersProcessed} users, ${usersPending} users pending, ` +
-      `${reposProcessed} repos, ${reposSkipped} skipped, ${pending.length} pending, ${historyPending} history pending, ${errors.length} errors. ` +
+      `${reposProcessed} repos, ${reposSkipped} skipped, ${reposGone} gone, ${pending.length} pending, ${historyPending} history pending, ${errors.length} errors. ` +
       `quota graphql=${rateLimit.graphql?.remaining ?? "?"}/${rateLimit.graphql?.limit ?? "?"} rest=${rateLimit.rest?.remaining ?? "?"}/${rateLimit.rest?.limit ?? "?"}`,
   );
   return summary;

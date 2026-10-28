@@ -97,6 +97,8 @@ export const repos = pgTable("repos", {
   pushedAt: timestamp("pushed_at", { withTimezone: true }),
   /** The `pushed_at` the last successful `stats/contributors` fetch covered; equal means nothing changed, so skip it. */
   statsFetchedFor: timestamp("stats_fetched_for", { withTimezone: true }),
+  /** When GitHub last answered 404/451 for it. Not fetched again until GitHub reports a push after this; its rows stay. */
+  goneAt: timestamp("gone_at", { withTimezone: true }),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
