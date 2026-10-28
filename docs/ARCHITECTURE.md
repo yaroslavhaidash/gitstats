@@ -182,6 +182,19 @@ What changed, and what it costs:
 - **The shell costs HTTP statuses.** Once it is sent the status is a 200, so a page's own `redirect()` becomes a client-side redirect and `notFound()` a soft 404 with `noindex` (Next's documented trade-off). What must be a real status is answered in `proxy.ts` before rendering, and the `/gh` and `/vs` lookups are route handlers; `/join/<bad>`, `/s/<bad>`, an unknown `/link` code and similar are soft 404s now.
 - Postgres is still not the cost: `EXPLAIN ANALYZE` of the widest reads executes in 0.4–1.3 ms, and in-region round trips are close to free.
 
+**All time, uncached (measured 2026-10-28).** Ten runs each of the `lib/stats.ts` reads behind the cached functions, from a script on a laptop in Europe against Neon `us-east-1`, so every figure carries a round trip; budget 1.5 s each, no SQL fast path needed.
+
+| read | rows in range | first | median |
+|---|---|---|---|
+| network floor (`select 1`) | | 629 | 132 |
+| `globalBoard(all)` (board + a week ago) | 1,241 weekly · 1,284 counted days · 3,575 calendar | 910 | 397 |
+| `crewBoard(all)`, largest real crew (4) | 550 · 1,284 · 589 | 289 | 347 |
+| `crewBoard(all)`, demo crew (4) | 1,487 · 6,356 · 2,138 | 589 | 549 |
+| `userStats(all)` reads, member with the most rows | 179 · 475 · 29 | 930 | 686 |
+| `memberRecords`, same member | | 362 | 350 |
+
+The demo crew holds about five times the counted days of every real member together and stays at 0.55 s, so the read grows slowly with rows. Real counted days were still at their one-year size when this ran (CLI 0.4.0 had shipped that day); rerun the same reads if they grow past about 50k.
+
 ## Invariants to keep
 - Pages never call GitHub. Snapshot and ingest are the only writers of stats.
 - **A period total is a sum of days.** `periodBounds` in `lib/window.ts` gives the current and previous day ranges (week = Monday to today against last Monday to the same weekday; month = the 1st to today against the same days last month; year rolling). `rangeTotals` in `lib/stats.ts` sums `placedDays` over a range: counted `daily_local` days, plus GitHub-only weeks placed onto their elapsed days, so a range that cuts a week gets only its part. Boards, momentum, the page tiles and deltas, the badge and MCP all read these two; none sums weekly buckets. Per-repo and per-language totals (the repo list and `my_repos`, the language share, top language, repo pages, crew overlaps) come from the same `placedDays` pass, each repo getting its counted days plus its part of the placed amounts (largest remainder), so a repo list adds up to the tile exactly. Only the weekly charts still read weekly buckets.
