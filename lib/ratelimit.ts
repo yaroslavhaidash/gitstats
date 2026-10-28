@@ -14,8 +14,8 @@ export const LIMITS = {
   device: { capacity: 10, windowMs: 60_000 },
   /** The CLI polls this every 3s while the user confirms in the browser. */
   poll: { capacity: 60, windowMs: 60_000 },
-  /** A scheduled sync runs every 6 hours; six an hour is already generous. */
-  ingest: { capacity: 6, windowMs: 3_600_000 },
+  /** A scheduled sync runs every 6 hours; a first sync with full histories is 1 + N chunked POSTs. */
+  ingest: { capacity: 20, windowMs: 3_600_000 },
   unlink: { capacity: 6, windowMs: 3_600_000 },
   /** Ingest and unlink per address, spent before the token lookup: made-up tokens each get a fresh
    *  per-token bucket, so this is what bounds them. Sized for a household or office of machines. */

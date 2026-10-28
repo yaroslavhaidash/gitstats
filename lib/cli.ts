@@ -4,6 +4,7 @@ import type { BatchItem } from "drizzle-orm/batch";
 import { db } from "@/db";
 import { cliTokens, dailyLocal, deviceCodes, repos, users, weeklyStats } from "@/db/schema";
 import { revalidateForUsers } from "./cache";
+import { ALL_FROM } from "./window";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const DEVICE_CODE_TTL_MS = 10 * 60_000;
@@ -138,6 +139,11 @@ export type IngestRepo = {
   /** Commits and lines per UTC day, for the calendar and the daily charts. */
   days: IngestDay[];
   pending: IngestPending;
+  /**
+   * Where this repo's replace starts when the CLI sent its full history (already clamped to
+   * `ALL_FROM`); null for the usual last-year upload, which starts at the request's default.
+   */
+  since: string | null;
 };
 
 const EMPTY_PENDING: IngestPending = { weeks: [], days: [] };
@@ -172,21 +178,54 @@ function parsePending(value: unknown): IngestPending | null {
   return { weeks, days };
 }
 
-export function parseIngestRepos(input: unknown): IngestRepo[] | null {
+/** Per-repo bounds: the usual last-year upload, and a full history (2000 to now). */
+const YEAR_BOUNDS = { weeks: 60, days: 400 };
+const HISTORY_BOUNDS = { weeks: 1_400, days: 9_800 };
+/** Across one request, which keeps a body around 2 MB, under Vercel's 4.5 MB. */
+const MAX_REQUEST_WEEKS = 5_000;
+const MAX_REQUEST_DAYS = 20_000;
+
+function isCalendarDay(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const d = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+}
+
+/**
+ * A repo's optional `since`: a history upload only when it is before the request's default, floored
+ * at `ALL_FROM`. A later one is never honoured, since the rows between the default and it would be
+ * deleted and not re-sent. Undefined for a malformed value.
+ */
+function parseSince(value: unknown, defaultSince: string): string | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string" || !isCalendarDay(value)) return undefined;
+  if (value >= defaultSince) return null;
+  return value < ALL_FROM ? ALL_FROM : value;
+}
+
+export function parseIngestRepos(input: unknown, defaultSince: string): IngestRepo[] | null {
   if (!Array.isArray(input) || input.length > 500) return null;
   const out: IngestRepo[] = [];
+  let totalWeeks = 0;
+  let totalDays = 0;
   for (const r of input) {
     if (typeof r !== "object" || r === null) return null;
     const o = r as Record<string, unknown>;
     if (typeof o.remoteHash !== "string" || !/^[a-f0-9]{64}$/.test(o.remoteHash)) return null;
     if (o.name !== null && (typeof o.name !== "string" || o.name.length > 200)) return null;
     if (o.language !== null && typeof o.language !== "string") return null;
-    if (!Array.isArray(o.weeks) || o.weeks.length > 60 || !o.weeks.every(isWeek)) return null;
+    const since = parseSince(o.since, defaultSince);
+    if (since === undefined) return null;
+    const bounds = since === null ? YEAR_BOUNDS : HISTORY_BOUNDS;
+    if (!Array.isArray(o.weeks) || o.weeks.length > bounds.weeks || !o.weeks.every(isWeek)) return null;
     const days: unknown = o.days ?? [];
-    if (!Array.isArray(days) || days.length > 400 || !days.every(isDay)) return null;
+    if (!Array.isArray(days) || days.length > bounds.days || !days.every(isDay)) return null;
+    totalWeeks += o.weeks.length;
+    totalDays += days.length;
+    if (totalWeeks > MAX_REQUEST_WEEKS || totalDays > MAX_REQUEST_DAYS) return null;
     const pending = parsePending(o.pending);
     if (!pending) return null;
-    out.push({ remoteHash: o.remoteHash, name: o.name, language: o.language, weeks: o.weeks, days, pending });
+    out.push({ remoteHash: o.remoteHash, name: o.name, language: o.language, weeks: o.weeks, days, pending, since });
   }
   return out;
 }
@@ -223,14 +262,25 @@ type Statement = BatchItem<"pg">;
  * separate requests, and a failure between them left the window empty until the next sync.
  */
 const REPOS_PER_BATCH = 25;
+/** A batch also flushes at about this many rows, so a few full histories do not make one huge transaction. */
+const ROWS_PER_BATCH = 5_000;
+/** Rows per INSERT. `daily_local` binds 9 values a row, and Postgres allows 65,535 per statement. */
+const ROWS_PER_INSERT = 2_000;
+
+function chunks<T>(rows: T[]): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < rows.length; i += ROWS_PER_INSERT) out.push(rows.slice(i, i + ROWS_PER_INSERT));
+  return out;
+}
 
 /**
  * Recount semantics: the CLI sends the whole window each time, so we replace this user's rows for
- * that repo in the window and mark them `local`. Nothing shared between users is mutated: a repo
+ * that repo in the window and mark them `local`. The window starts at `defaultSince`, or at the
+ * repo's own `since` for a full-history upload, which replaces the whole series of that pair. Nothing shared between users is mutated: a repo
  * the GitHub path already knows is matched by HMAC of its github.com URL, and only this user's
  * rows for it switch source. Other users keep their GitHub-sourced rows for the same repo.
  */
-export async function ingest(userId: number, since: string, incoming: IngestRepo[]): Promise<{ repos: number; weeks: number }> {
+export async function ingest(userId: number, defaultSince: string, incoming: IngestRepo[]): Promise<{ repos: number; weeks: number }> {
   const salt = await userHashSalt(userId);
   const known = await db
     .select({ id: repos.githubNodeId, name: repos.nameWithOwner })
@@ -240,14 +290,21 @@ export async function ingest(userId: number, since: string, incoming: IngestRepo
   let weeks = 0;
   let batch: Statement[] = [];
   let reposInBatch = 0;
+  let rowsInBatch = 0;
   /** One HTTP request and one transaction, so a repo's delete and insert can never land apart. */
   async function flush(): Promise<void> {
     if (batch.length === 0) return;
     await db.batch([batch[0], ...batch.slice(1)]);
     batch = [];
     reposInBatch = 0;
+    rowsInBatch = 0;
   }
   for (const r of incoming) {
+    const since = r.since ?? defaultSince;
+    const rows = mergePending(r.weeks, r.pending.weeks, "weekStart", since);
+    const dayRows = mergePending(r.days, r.pending.days, "date", since);
+    // Flushed before, never between: this repo's statements all go in the batch they start in.
+    if (rowsInBatch > 0 && rowsInBatch + rows.length + dayRows.length > ROWS_PER_BATCH) await flush();
     let nodeId = byHmac.get(r.remoteHash);
     if (!nodeId) {
       nodeId = `local:${r.remoteHash}`;
@@ -260,14 +317,13 @@ export async function ingest(userId: number, since: string, incoming: IngestRepo
       );
     }
     batch.push(db.delete(weeklyStats).where(and(eq(weeklyStats.userId, userId), eq(weeklyStats.repoNodeId, nodeId), gte(weeklyStats.weekStart, since))));
-    const rows = mergePending(r.weeks, r.pending.weeks, "weekStart", since).map((w) => ({ userId, repoNodeId: nodeId, source: "local" as const, ...w }));
-    if (rows.length > 0) batch.push(db.insert(weeklyStats).values(rows));
+    for (const chunk of chunks(rows)) batch.push(db.insert(weeklyStats).values(chunk.map((w) => ({ userId, repoNodeId: nodeId, source: "local" as const, ...w }))));
     weeks += rows.length;
     batch.push(db.delete(dailyLocal).where(and(eq(dailyLocal.userId, userId), eq(dailyLocal.repoNodeId, nodeId), gte(dailyLocal.date, since))));
-    const dayRows = mergePending(r.days, r.pending.days, "date", since).map((d) => ({ userId, repoNodeId: nodeId, ...d }));
-    if (dayRows.length > 0) batch.push(db.insert(dailyLocal).values(dayRows));
+    for (const chunk of chunks(dayRows)) batch.push(db.insert(dailyLocal).values(chunk.map((d) => ({ userId, repoNodeId: nodeId, ...d }))));
     reposInBatch += 1;
-    if (reposInBatch >= REPOS_PER_BATCH) await flush();
+    rowsInBatch += rows.length + dayRows.length;
+    if (reposInBatch >= REPOS_PER_BATCH || rowsInBatch >= ROWS_PER_BATCH) await flush();
   }
   await flush();
   await revalidateForUsers([userId]);

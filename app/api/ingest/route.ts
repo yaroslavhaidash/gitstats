@@ -21,13 +21,14 @@ export async function POST(request: Request) {
   if (!owner) return new NextResponse("Unauthorized", { status: 401 });
   const body: unknown = await request.json().catch(() => null);
   const fields = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
-  const repos = parseIngestRepos(fields.repos ?? null);
+  const defaultSince = daysAgo(365);
+  const repos = parseIngestRepos(fields.repos ?? null, defaultSince);
   if (!repos) {
     await db.update(cliTokens).set({ lastSyncAt: new Date(), lastSyncError: "malformed payload" }).where(eq(cliTokens.id, owner.id));
     return new NextResponse("Bad request", { status: 400 });
   }
   const cliVersion = parseCliVersion(fields.cliVersion);
-  const result = await ingest(owner.userId, daysAgo(365), repos);
+  const result = await ingest(owner.userId, defaultSince, repos);
   await db
     .update(cliTokens)
     .set({ lastSyncAt: new Date(), lastSyncRepos: result.repos, lastSyncError: null, cliVersion })

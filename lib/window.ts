@@ -5,6 +5,12 @@ export type Preset = (typeof PRESETS)[number];
 export type Window = { kind: "preset"; value: Preset } | { kind: "range"; from: string; to: string };
 export type Range = { from: string; to: string };
 
+/**
+ * The earliest day anything is counted from. Git allows any author date, and imported history is
+ * real, but a 1970 date is almost always a clock bug; GitHub itself starts in 2008.
+ */
+export const ALL_FROM = "2000-01-01";
+
 /** The year preset stays rolling; week and month are calendar-aligned. */
 const YEAR_DAYS = 365;
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
