@@ -78,7 +78,7 @@ export default async function Docs() {
           </p>
           <ol className="font-mono text-xs text-dim leading-relaxed list-decimal pl-5 space-y-2">
             <li>A browser tab opens asking you to confirm the link for this computer. It opens in whichever browser your OS calls default, so check the account named on that page before you confirm. If it is not you, hit <span className="text-silver">not you? sign out first</span>. The terminal then prints the account it paired as on its own line. To settle it up front: <span className="text-silver">{NPX} link --user &lt;your-login&gt;</span> refuses the pairing if the browser confirms as anyone else.</li>
-            <li>It scans your home folder for git repos and counts your commits for the last year.</li>
+            <li>It scans your home folder for git repos and counts your commits for the last year. The first sync after linking also counts each repo&apos;s full history, once.</li>
             <li>It prints every repo it found with totals and asks <span className="text-silver">Upload? [Y/n]</span>. Nothing is sent before you answer.</li>
             <li>It installs a background sync (macOS launchd, Windows Task Scheduler, Linux systemd user timer) that re-runs every day, also after the machine was off.</li>
           </ol>
