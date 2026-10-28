@@ -56,8 +56,9 @@ export async function GET(request: Request) {
   // Repos count as unfinished work too: each invocation only fetches stats for what it discovered,
   // and a repo left at 202 has no user pending behind it, so the chain used to end with the night's
   // backlog untouched. Quota exhaustion still ends the chain: another run would only burn an
-  // invocation to hit the same wall, and what is left over is picked up by tomorrow's chain.
-  const unfinished = summary.usersPending > 0 || summary.reposPending > 0;
+  // invocation to hit the same wall, and what is left over is picked up by tomorrow's chain. History
+  // chains only while it moves: held by its quota reserve, or erroring on a member, it waits a night.
+  const unfinished = summary.usersPending > 0 || summary.reposPending > 0 || (summary.historyPending > 0 && summary.historyAdvanced);
   const chained = unfinished && !summary.quotaExhausted && chainRun < MAX_CHAIN_RUNS;
   if (chained) {
     const next = new URL(url);

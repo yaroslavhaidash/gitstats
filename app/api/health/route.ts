@@ -1,7 +1,7 @@
-import { asc, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { snapshotRuns } from "@/db/schema";
+import { snapshotRuns, users } from "@/db/schema";
 import { realFailures } from "@/lib/snapshot";
 
 /** Unauthenticated liveness check: is Postgres answering, and did the last snapshot finish clean. */
@@ -47,17 +47,22 @@ export async function GET() {
       .where(isNotNull(snapshotRuns.quotaRemaining))
       .orderBy(desc(snapshotRuns.id))
       .limit(1);
+    // Members whose older GitHub years the chain is still writing; 0 once the backfill is through.
+    const [history] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(users)
+      .where(and(eq(users.isDemo, false), or(isNull(users.historyStatus), ne(users.historyStatus, "done"))));
     // `errors` is what a human would act on; `retrying` is GitHub's 202, which the next run clears.
     const failures = run ? realFailures(run.errors).length : 0;
     const lastSnapshot = run ? { id: run.id, finishedAt: run.finishedAt, errors: failures, retrying: run.errors.length - failures } : null;
     return NextResponse.json(
-      { ok: run !== undefined && failures === 0, lastSnapshot, chain, signins, quotaRemaining: quota?.remaining ?? null, db: "ok" },
+      { ok: run !== undefined && failures === 0, lastSnapshot, chain, signins, quotaRemaining: quota?.remaining ?? null, historyPending: history.n, db: "ok" },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch {
     // The message could name the host or the role, so it never leaves the server.
     return NextResponse.json(
-      { ok: false, lastSnapshot: null, chain: null, signins: null, quotaRemaining: null, db: "error" },
+      { ok: false, lastSnapshot: null, chain: null, signins: null, quotaRemaining: null, historyPending: null, db: "error" },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }

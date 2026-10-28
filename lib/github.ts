@@ -29,47 +29,63 @@ export type ContributorStatsResult =
   | { status: "pending" }
   | { status: "gone" };
 
-const CONTRIBUTIONS_QUERY = `
-query($login:String!, $from:DateTime!, $to:DateTime!) {
-  user(login:$login) {
-    contributionsCollection(from:$from, to:$to) {
+const COLLECTION_FIELDS = `
       totalCommitContributions
       restrictedContributionsCount
       contributionCalendar { totalContributions weeks { contributionDays { date contributionCount } } }
       commitContributionsByRepository(maxRepositories:100) {
         repository { id nameWithOwner stargazerCount isPrivate isFork pushedAt primaryLanguage { name } }
         contributions { totalCount }
+      }`;
+
+const CONTRIBUTIONS_QUERY = `
+query($login:String!, $from:DateTime!, $to:DateTime!) {
+  user(login:$login) {
+    contributionsCollection(from:$from, to:$to) {${COLLECTION_FIELDS}
+    }
+  }
+}`;
+
+/** The same collection by node id, which survives a login rename; the history backfill asks this way. */
+const CONTRIBUTIONS_BY_NODE_QUERY = `
+query($id:ID!, $from:DateTime!, $to:DateTime!) {
+  node(id:$id) {
+    ... on User {
+      contributionsCollection(from:$from, to:$to) {${COLLECTION_FIELDS}
       }
     }
   }
 }`;
 
-type ContributionsResponse = {
-  data?: {
-    user: {
-      contributionsCollection: {
-        totalCommitContributions: number;
-        restrictedContributionsCount: number;
-        contributionCalendar: {
-          weeks: { contributionDays: { date: string; contributionCount: number }[] }[];
-        };
-        commitContributionsByRepository: {
-          repository: {
-            id: string;
-            nameWithOwner: string;
-            stargazerCount: number;
-            isPrivate: boolean;
-            isFork: boolean;
-            pushedAt: string | null;
-            primaryLanguage: { name: string } | null;
-          };
-          contributions: { totalCount: number };
-        }[];
-      };
-    } | null;
+const HISTORY_YEARS_QUERY = `
+query($id:ID!) {
+  node(id:$id) { ... on User { createdAt contributionsCollection { contributionYears } } }
+}`;
+
+type CollectionResponse = {
+  totalCommitContributions: number;
+  restrictedContributionsCount: number;
+  contributionCalendar: {
+    weeks: { contributionDays: { date: string; contributionCount: number }[] }[];
   };
-  errors?: { message: string }[];
+  commitContributionsByRepository: {
+    repository: {
+      id: string;
+      nameWithOwner: string;
+      stargazerCount: number;
+      isPrivate: boolean;
+      isFork: boolean;
+      pushedAt: string | null;
+      primaryLanguage: { name: string } | null;
+    };
+    contributions: { totalCount: number };
+  }[];
 };
+
+type GraphQLResponse<T> = { data?: T; errors?: { message: string }[] };
+type ContributionsResponse = GraphQLResponse<{ user: { contributionsCollection: CollectionResponse } | null }>;
+type ContributionsByNodeResponse = GraphQLResponse<{ node: { contributionsCollection?: CollectionResponse } | null }>;
+type HistoryYearsResponse = GraphQLResponse<{ node: { createdAt?: string; contributionsCollection?: { contributionYears: number[] } } | null }>;
 
 type RestContributor = {
   author: { login: string; node_id: string } | null;
@@ -99,46 +115,80 @@ export function readRateLimit(res: Response): RateLimit | null {
   return { remaining, limit, resetAt: new Date(reset * 1000) };
 }
 
+async function graphql<T>(token: string, label: string, query: string, variables: Record<string, string>): Promise<{ body: GraphQLResponse<T>; rateLimit: RateLimit | null }> {
+  const res = await fetch(`${API}/graphql`, {
+    method: "POST",
+    headers: { ...headers(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ query, variables }),
+  });
+  const rateLimit = readRateLimit(res);
+  if (!res.ok) throw new Error(`GraphQL HTTP ${res.status} for ${label}`);
+  const body: GraphQLResponse<T> = await res.json();
+  if (body.errors?.length) throw new Error(`GraphQL ${label}: ${body.errors.map((e) => e.message).join("; ")}`);
+  return { body, rateLimit };
+}
+
+function parseCollection(c: CollectionResponse): Contributions {
+  return {
+    totalCommitContributions: c.totalCommitContributions,
+    restrictedContributionsCount: c.restrictedContributionsCount,
+    days: c.contributionCalendar.weeks.flatMap((w) => w.contributionDays),
+    repos: c.commitContributionsByRepository
+      .filter((r) => !r.repository.isPrivate)
+      .map((r) => ({
+        nodeId: r.repository.id,
+        nameWithOwner: r.repository.nameWithOwner,
+        stargazerCount: r.repository.stargazerCount,
+        isFork: r.repository.isFork,
+        isPrivate: false,
+        primaryLanguage: r.repository.primaryLanguage?.name ?? null,
+        pushedAt: r.repository.pushedAt,
+      })),
+  };
+}
+
 export async function fetchContributions(
   token: string,
   login: string,
   from: Date,
   to: Date,
 ): Promise<{ contributions: Contributions; rateLimit: RateLimit | null }> {
-  const res = await fetch(`${API}/graphql`, {
-    method: "POST",
-    headers: { ...headers(token), "Content-Type": "application/json" },
-    body: JSON.stringify({
-      query: CONTRIBUTIONS_QUERY,
-      variables: { login, from: from.toISOString(), to: to.toISOString() },
-    }),
+  const { body, rateLimit } = await graphql<NonNullable<ContributionsResponse["data"]>>(token, login, CONTRIBUTIONS_QUERY, {
+    login,
+    from: from.toISOString(),
+    to: to.toISOString(),
   });
-  const rateLimit = readRateLimit(res);
-  if (!res.ok) throw new Error(`GraphQL HTTP ${res.status} for ${login}`);
-  const body: ContributionsResponse = await res.json();
-  if (body.errors?.length) throw new Error(`GraphQL ${login}: ${body.errors.map((e) => e.message).join("; ")}`);
   const user = body.data?.user;
   if (!user) throw new Error(`GraphQL ${login}: user not found`);
-  const c = user.contributionsCollection;
-  return {
-    rateLimit,
-    contributions: {
-      totalCommitContributions: c.totalCommitContributions,
-      restrictedContributionsCount: c.restrictedContributionsCount,
-      days: c.contributionCalendar.weeks.flatMap((w) => w.contributionDays),
-      repos: c.commitContributionsByRepository
-        .filter((r) => !r.repository.isPrivate)
-        .map((r) => ({
-          nodeId: r.repository.id,
-          nameWithOwner: r.repository.nameWithOwner,
-          stargazerCount: r.repository.stargazerCount,
-          isFork: r.repository.isFork,
-          isPrivate: false,
-          primaryLanguage: r.repository.primaryLanguage?.name ?? null,
-          pushedAt: r.repository.pushedAt,
-        })),
-    },
-  };
+  return { rateLimit, contributions: parseCollection(user.contributionsCollection) };
+}
+
+/** `fetchContributions` by node id. GitHub caps one collection at a year, so the backfill asks year by year. */
+export async function fetchContributionsByNode(
+  token: string,
+  nodeId: string,
+  from: Date,
+  to: Date,
+): Promise<{ contributions: Contributions; rateLimit: RateLimit | null }> {
+  const { body, rateLimit } = await graphql<NonNullable<ContributionsByNodeResponse["data"]>>(token, nodeId, CONTRIBUTIONS_BY_NODE_QUERY, {
+    id: nodeId,
+    from: from.toISOString(),
+    to: to.toISOString(),
+  });
+  const collection = body.data?.node?.contributionsCollection;
+  if (!collection) throw new Error(`GraphQL ${nodeId}: user not found`);
+  return { rateLimit, contributions: parseCollection(collection) };
+}
+
+/** When the account was made and every year it has contributions in, newest first as GitHub returns them. */
+export async function fetchHistoryYears(
+  token: string,
+  nodeId: string,
+): Promise<{ createdAt: string; years: number[]; rateLimit: RateLimit | null }> {
+  const { body, rateLimit } = await graphql<NonNullable<HistoryYearsResponse["data"]>>(token, nodeId, HISTORY_YEARS_QUERY, { id: nodeId });
+  const node = body.data?.node;
+  if (!node?.createdAt || !node.contributionsCollection) throw new Error(`GraphQL ${nodeId}: user not found`);
+  return { createdAt: node.createdAt, years: node.contributionsCollection.contributionYears, rateLimit };
 }
 
 function unixWeekToDate(w: number): string {

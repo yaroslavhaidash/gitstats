@@ -1,4 +1,4 @@
-import { and, asc, between, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, between, desc, eq, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { dailyContributions, repos, snapshotRuns, userTokens, users, weeklyStats, type FirstSnapshot, type SnapshotError, type SnapshotKind } from "@/db/schema";
 import { purgeExpiredArchives } from "./account";
@@ -10,7 +10,9 @@ import { decrypt } from "./crypto";
 import {
   fetchAccessibleRepos,
   fetchContributions,
+  fetchContributionsByNode,
   fetchContributorStats,
+  fetchHistoryYears,
   GitHubAuthError,
   serverToken,
   type ActiveRepo,
@@ -26,6 +28,11 @@ const BACKFILL_DAYS = 365;
 const DISCOVERY_SHARE = 0.4;
 /** Below this many calls left, stop asking GitHub anything and let the next night's chain resume. */
 export const QUOTA_FLOOR = 300;
+/**
+ * The history backfill stops this far above the floor. It shares the server token with the nightly
+ * run and `/gh` lookups, and is the one thing that can always wait a night.
+ */
+const HISTORY_RESERVE = 1_000;
 /**
  * GitHub answers 202 while it computes a repo's contributor stats. The run records it so the
  * history stays honest, but it means "ask again next run", not "a human is needed" — so neither
@@ -56,6 +63,10 @@ export type SnapshotSummary = {
   reposSkipped: number;
   reposPending: number;
   quotaExhausted: boolean;
+  /** Members whose older GitHub years are not all written yet. */
+  historyPending: number;
+  /** Whether this run wrote any history. A chain continues for history only while it moves. */
+  historyAdvanced: boolean;
   /** `x-ratelimit-remaining` from the last GitHub call, or null when this run made none. */
   quotaRemaining: number | null;
   errors: SnapshotError[];
@@ -270,6 +281,28 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
   }
   const usersPending = onlyUserIds ? 0 : targetUsers.length - reached.length;
 
+  // Older years, after tonight's incremental work and inside the same discovery budget. Targeted
+  // runs (first sign-in, a new token, the admin button) never do it: the chain is the one place.
+  const forceFetch = new Set<string>();
+  let historyAdvanced = false;
+  if (!onlyUserIds && !quotaExhausted) {
+    const history = await runHistoryStep(await historyQueue(), {
+      token: server,
+      fromDate,
+      deadline: discoveryDeadline,
+      remaining: [rateLimit.graphql?.remaining ?? null, rateLimit.rest?.remaining ?? null],
+      note,
+      errors,
+    });
+    historyAdvanced = history.advanced;
+    for (const repo of history.repos) {
+      if (!activeRepos.has(repo.nodeId)) activeRepos.set(repo.nodeId, repo);
+      if (!tokenForRepo.has(repo.nodeId)) tokenForRepo.set(repo.nodeId, server);
+      forceFetch.add(repo.nodeId);
+    }
+  }
+  const historyPending = onlyUserIds ? 0 : (await historyQueue()).length;
+
   const nodeIds = [...activeRepos.keys()];
   const known = nodeIds.length > 0
     ? await db.select({ id: repos.githubNodeId, statsFetchedFor: repos.statsFetchedFor }).from(repos).where(inArray(repos.githubNodeId, nodeIds))
@@ -324,13 +357,14 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
 
   // A repo nobody has pushed to since the last successful fetch would answer with the same numbers,
   // so it is not asked. A targeted run always asks: it exists because a user is new to this repo's
-  // rows, and their rows are exactly what a cached answer would be missing.
+  // rows, and their rows are exactly what a cached answer would be missing. A repo the history step
+  // returned is asked once too: its older weeks were never written.
   const local = await locallyOwnedPairs();
   let pending: ActiveRepo[] = [];
   let reposSkipped = 0;
   for (const repo of activeRepos.values()) {
     const last = statsFetchedFor.get(repo.nodeId);
-    if (!onlyUserIds && repo.pushedAt !== null && last && last.getTime() === new Date(repo.pushedAt).getTime()) {
+    if (!onlyUserIds && !forceFetch.has(repo.nodeId) && repo.pushedAt !== null && last && last.getTime() === new Date(repo.pushedAt).getTime()) {
       reposSkipped += 1;
       continue;
     }
@@ -373,6 +407,8 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
           continue;
         }
         if (result.status === "gone") {
+          // Not pending any more either, or every later run would carry it and log this again.
+          await db.update(repos).set({ statsPending: false }).where(eq(repos.githubNodeId, repo.nodeId));
           errors.push({ scope: `repo:${repo.nameWithOwner}`, message: "repository not reachable (deleted or blocked)" });
           continue;
         }
@@ -380,9 +416,8 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
           const userId = userIdByNodeId.get(stat.authorNodeId);
           // A member whose own machine counts this repo keeps those rows; GitHub's view is not written over them.
           if (userId === undefined || local.has(`${userId}:${repo.nodeId}`)) return [];
-          return stat.weeks
-            .filter((w) => w.weekStart >= fromDate)
-            .map((w) => ({ userId, repoNodeId: repo.nodeId, weekStart: w.weekStart, additions: w.additions, deletions: w.deletions, commits: w.commits, source: "github" as const }));
+          // Every week GitHub reports, not only the window's: older weeks are what the history backfill is for.
+          return stat.weeks.map((w) => ({ userId, repoNodeId: repo.nodeId, weekStart: w.weekStart, additions: w.additions, deletions: w.deletions, commits: w.commits, source: "github" as const }));
         });
         if (rows.length > 0) {
           await db
@@ -434,6 +469,8 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
     reposSkipped,
     reposPending: pending.length,
     quotaExhausted,
+    historyPending,
+    historyAdvanced,
     quotaRemaining,
     errors,
     rateLimit,
@@ -441,10 +478,116 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
   };
   log(
     `run ${run.id}${chainId ? ` (chain ${chainId})` : ""} done in ${summary.durationMs}ms: ${usersProcessed} users, ${usersPending} users pending, ` +
-      `${reposProcessed} repos, ${reposSkipped} skipped, ${pending.length} pending, ${errors.length} errors. ` +
+      `${reposProcessed} repos, ${reposSkipped} skipped, ${pending.length} pending, ${historyPending} history pending, ${errors.length} errors. ` +
       `quota graphql=${rateLimit.graphql?.remaining ?? "?"}/${rateLimit.graphql?.limit ?? "?"} rest=${rateLimit.rest?.remaining ?? "?"}/${rateLimit.rest?.limit ?? "?"}`,
   );
   return summary;
+}
+
+/** Members the history backfill has not finished, in the order it walks them. */
+export async function historyQueue(): Promise<(typeof users.$inferSelect)[]> {
+  return db
+    .select()
+    .from(users)
+    .where(and(eq(users.isDemo, false), or(isNull(users.historyStatus), ne(users.historyStatus, "done"))))
+    .orderBy(asc(users.id));
+}
+
+export type HistoryContext = {
+  token: string;
+  /** The nightly window's first day. History writes only before it, so the two never share a day. */
+  fromDate: string;
+  deadline: number;
+  /** The run's last known GraphQL and REST quota, so history does not start below its reserve. */
+  remaining: (number | null)[];
+  note: (api: "graphql", rl: RateLimit | null) => void;
+  errors: SnapshotError[];
+};
+
+function dayBefore(date: string): string {
+  return new Date(new Date(`${date}T00:00:00Z`).getTime() - 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Writes members' older GitHub years: per contribution year, newest first, the calendar for that
+ * year and the public repos committed to in it. `users.history_before` moves back one year in the
+ * same transaction as that year's calendar, so a crash re-does at most one year. Returns the repos
+ * whose full `stats/contributors` series still has to be fetched: every year's repos, plus, on a
+ * member's first step, the repos GitHub already counted for them (they hold only recent weeks).
+ */
+export async function runHistoryStep(
+  members: (typeof users.$inferSelect)[],
+  ctx: HistoryContext,
+): Promise<{ repos: ActiveRepo[]; advanced: boolean }> {
+  const found = new Map<string, ActiveRepo>();
+  let advanced = false;
+  let held = ctx.remaining.some((r) => r !== null && r < QUOTA_FLOOR + HISTORY_RESERVE);
+  function track(rl: RateLimit | null): void {
+    ctx.note("graphql", rl);
+    if (rl !== null && rl.remaining < QUOTA_FLOOR + HISTORY_RESERVE) held = true;
+  }
+  if (held) log("history: quota under the reserve, waiting for another night");
+
+  for (const member of members) {
+    if (held || Date.now() > ctx.deadline) break;
+    try {
+      const { createdAt, years, rateLimit } = await fetchHistoryYears(ctx.token, member.githubNodeId);
+      track(rateLimit);
+      let before = member.historyBefore ?? ctx.fromDate;
+      if (member.historyStatus === null) {
+        await db.update(users).set({ historyStatus: "running", historyBefore: before }).where(eq(users.id, member.id));
+        const known = await db
+          .selectDistinct({ nodeId: repos.githubNodeId, nameWithOwner: repos.nameWithOwner, isFork: repos.isFork, primaryLanguage: repos.primaryLanguage, stargazerCount: repos.stargazerCount, pushedAt: repos.pushedAt })
+          .from(weeklyStats)
+          .innerJoin(repos, eq(repos.githubNodeId, weeklyStats.repoNodeId))
+          .where(and(eq(weeklyStats.userId, member.id), eq(weeklyStats.source, "github"), eq(repos.isPrivate, false)));
+        for (const r of known) {
+          found.set(r.nodeId, { ...r, isPrivate: false, pushedAt: r.pushedAt === null ? null : r.pushedAt.toISOString() });
+        }
+        advanced = true;
+      }
+      const createdDay = createdAt.slice(0, 10);
+      const left = [...years].sort((a, b) => b - a).filter((y) => `${y}-01-01` < before);
+      let written = 0;
+      for (const year of left) {
+        if (held || Date.now() > ctx.deadline) break;
+        const jan1 = `${year}-01-01`;
+        const fromDay = jan1 > createdDay ? jan1 : createdDay;
+        const lastDay = dayBefore(before);
+        const toDay = `${year}-12-31` < lastDay ? `${year}-12-31` : lastDay;
+        const { contributions, rateLimit: rl } = await fetchContributionsByNode(
+          ctx.token,
+          member.githubNodeId,
+          new Date(`${fromDay}T00:00:00Z`),
+          new Date(`${toDay}T23:59:59Z`),
+        );
+        track(rl);
+        // Same shape as the nightly calendar write: only non-zero days, the range replaced in one transaction.
+        const active = contributions.days.filter((d) => d.contributionCount > 0 && d.date >= fromDay && d.date <= toDay);
+        const clear = db
+          .delete(dailyContributions)
+          .where(and(eq(dailyContributions.userId, member.id), between(dailyContributions.date, fromDay, toDay)));
+        const moveBack = db.update(users).set({ historyBefore: jan1 }).where(eq(users.id, member.id));
+        await db.batch(
+          active.length > 0
+            ? [clear, db.insert(dailyContributions).values(active.map((d) => ({ userId: member.id, date: d.date, contributionCount: d.contributionCount }))), moveBack]
+            : [clear, moveBack],
+        );
+        before = jan1;
+        written += 1;
+        advanced = true;
+        for (const repo of contributions.repos) found.set(repo.nodeId, repo);
+      }
+      if (written === left.length) {
+        await db.update(users).set({ historyStatus: "done" }).where(eq(users.id, member.id));
+        advanced = true;
+      }
+      log(`history ${member.githubLogin}: ${written} of ${left.length} years written, before ${before}${written === left.length ? ", done" : ""}`);
+    } catch (error) {
+      ctx.errors.push({ scope: `history:${member.githubLogin}`, message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return { repos: [...found.values()], advanced };
 }
 
 /** Public repos still marked `stats_pending`, minus the ones this invocation just discovered. */

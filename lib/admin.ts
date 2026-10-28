@@ -2,7 +2,7 @@ import { asc, desc, eq, isNotNull, like, ne, not, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { db } from "@/db";
-import { adminLog, cliTokens, crewMembers, crews, deletedUsersArchive, repos, snapshotRuns, userTokens, users, weeklyStats, type AdminAction, type SnapshotKind } from "@/db/schema";
+import { adminLog, cliTokens, crewMembers, crews, deletedUsersArchive, repos, snapshotRuns, userTokens, users, weeklyStats, type AdminAction, type HistoryStatus, type SnapshotKind } from "@/db/schema";
 import { auth } from "@/auth";
 import { DEMO_CREW_CODE, DEMO_REPO_PREFIX } from "./demo";
 import { requireEnv } from "./env";
@@ -51,6 +51,9 @@ export type AdminUser = {
   name: string | null;
   createdAt: Date;
   lastSnapshotAt: Date | null;
+  /** The older-years backfill: null (not started), running or done, and the date it has written back to. */
+  historyStatus: HistoryStatus | null;
+  historyBefore: string | null;
   /** "button · referrer host · page · utm", whatever of it was recorded at signup; null if nothing was. */
   signup: string | null;
   crews: number;
@@ -131,6 +134,8 @@ export async function adminOverview(): Promise<AdminOverview> {
         name: users.name,
         createdAt: users.createdAt,
         lastSnapshotAt: users.lastSnapshotAt,
+        historyStatus: users.historyStatus,
+        historyBefore: users.historyBefore,
         signupFrom: users.signupFrom,
         signupReferrerHost: users.signupReferrerHost,
         signupLandingPath: users.signupLandingPath,

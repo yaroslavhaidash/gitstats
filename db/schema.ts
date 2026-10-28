@@ -20,6 +20,8 @@ export type RepoNames = "all" | "public_only" | "none";
 export type StreakMode = "all_days" | "weekdays";
 /** A new member's first snapshot: under way, finished, or finished with repos left for the nightly run. */
 export type FirstSnapshot = "running" | "done" | "pending";
+/** The one-time backfill of a member's older GitHub years: started, or every contribution year written. */
+export type HistoryStatus = "running" | "done";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -53,6 +55,13 @@ export const users = pgTable("users", {
   lastSnapshotAt: timestamp("last_snapshot_at", { withTimezone: true }),
   /** The sign-in snapshot's state; null for members who joined before it was tracked. */
   firstSnapshot: text("first_snapshot").$type<FirstSnapshot>(),
+  /** The history backfill's state; null until the nightly chain first reaches the member. */
+  historyStatus: text("history_status").$type<HistoryStatus>(),
+  /**
+   * Exclusive upper bound of what the history backfill still has to write: every day from here on is
+   * written. Starts at the nightly window's first day and moves back a year per finished year.
+   */
+  historyBefore: date("history_before", { mode: "string" }),
   /**
    * Where the account came from, written once at creation from a cookie the sign-in button sets:
    * the button's placement, the external referrer host, the page it was on and its UTM tags. Null

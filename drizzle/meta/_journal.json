@@ -260,6 +260,13 @@
       "when": 1792708138724,
       "tag": "0036_drop_device_issued_token",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793191259300,
+      "tag": "0037_history_backfill",
+      "breakpoints": true
     }
   ]
 }

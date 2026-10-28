@@ -290,7 +290,9 @@ export default async function Admin({
                     {m.name && <span className="text-xs text-dim ml-2">{m.name}</span>}
                     <span className="block text-xs text-faint mt-1">
                       joined {fmtDateTime(m.createdAt)} · {m.crews} {m.crews === 1 ? "crew" : "crews"} ·{" "}
-                      snapshot {m.lastSnapshotAt ? fmtDateTime(m.lastSnapshotAt) : "never"}
+                      snapshot {m.lastSnapshotAt ? fmtDateTime(m.lastSnapshotAt) : "never"} ·{" "}
+                      history {m.historyStatus ?? "not started"}
+                      {m.historyBefore && <> (from {m.historyBefore})</>}
                       {m.signup && <> · via {m.signup}</>}
                     </span>
                   </span>
