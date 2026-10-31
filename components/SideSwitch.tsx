@@ -62,7 +62,7 @@ function Switch({ homes, compact, params }: { homes: Record<Side, string>; compa
           key={side}
           href={side === here ? homes[side] : other}
           aria-current={side === here ? "true" : undefined}
-          className={`flex items-center gap-3 min-h-11 px-3 py-1.5 border-l-4 hover:text-alert transition-colors ${side === here ? "border-silver" : "border-transparent"}`}
+          className={`flex items-center gap-3 min-h-11 px-3 py-1.5 border-l-4 hover:text-alert transition-colors ${side === here ? "border-l-silver" : "border-l-transparent"}`}
         >
           <Mark side={side} />
           <span className="min-w-0 font-mono text-xs">
