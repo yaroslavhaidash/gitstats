@@ -27,6 +27,9 @@ const COMMANDS: [string, string][] = [
   ["emails add <email>", "Count commits made with another email (a work address, an old one). Syncs right away."],
   ["names on", "Also send repo names, so your own page shows them instead of private-xxxx. Whether others see names is a separate setting on your profile."],
   ["names off", "Stop sending names. Already-stored names stay until the next sync replaces them."],
+  ["claude on", "Also count your Claude Code usage from its own logs on this computer. Off by default. It sends only numbers per UTC day per model: input, output, cache-read and cache-write tokens, replies and sessions, never your messages, Claude's answers, paths or project names. The first sync counts every log Claude Code still keeps. Options: --yes (skip the confirmation); `link --claude` turns it on while pairing."],
+  ["claude off", "Stop sending Claude Code usage. What was already sent stays until you delete it."],
+  ["claude", "Print the last 14 days of Claude Code usage from this computer's logs, counted the way a sync counts them. Sends nothing."],
   ["update", "Install the latest published version now. Every sync also checks once a day on its own; config and schedule are untouched."],
   ["unlink", "Revoke this computer on the server, remove the background sync and the local config. Your uploaded numbers stay on the board until you delete your account."],
 ];

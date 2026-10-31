@@ -13,7 +13,7 @@ export const MIN_CLI_VERSION = "0.3.0";
 
 /** The version on npm now; bump it with each publish. Anything below can't be trusted to update
  *  itself (before 0.3.7 the scheduled update needed npm on the scheduler's PATH), so it is nudged. */
-export const LATEST_CLI = "0.4.0";
+export const LATEST_CLI = "0.5.0";
 
 /** The one command that brings any install to the latest, whatever it is running now. */
 export const RELINK_COMMAND = "npx --yes @yaroslavhaidash/gitstats-cli@latest link";
