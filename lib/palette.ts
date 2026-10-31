@@ -16,11 +16,17 @@ export function hue(i: number): string {
  * share card's OG image draws the same cells and cannot import from a client module.
  */
 const HEAT = ["#222222", "#6e2323", "#a82c2c", "#d93636", "#ff5a5a"] as const;
+/** The top of each step but the last: 1–2 contributions, 3–5, 6–9, 10 and up. */
+export const HEAT_STEPS = [2, 5, 9] as const;
+/** Claude Code replies run into the thousands a day, so the same five cells cover a wider range. */
+export const REPLY_STEPS = [150, 500, 1200] as const;
 
-export function heatColor(count: number): string {
-  if (count === 0) return HEAT[0];
-  if (count <= 2) return HEAT[1];
-  if (count <= 5) return HEAT[2];
-  if (count <= 9) return HEAT[3];
-  return HEAT[4];
+/** A day grid's colours, thresholds and what one count is called, when it is not the default red ramp. */
+export type HeatScale = { ramp: readonly string[]; steps: readonly number[]; unit: readonly [one: string, many: string] };
+
+/** A day's cell colour: zero gets the empty cell, then one step per threshold. */
+export function heatColor(count: number, ramp: readonly string[] = HEAT, steps: readonly number[] = HEAT_STEPS): string {
+  if (count === 0) return ramp[0];
+  const step = steps.findIndex((top) => count <= top);
+  return ramp[step < 0 ? steps.length + 1 : step + 1];
 }

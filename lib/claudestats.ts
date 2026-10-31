@@ -2,8 +2,8 @@ import { and, between, eq, gte, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { claudeDaily, users } from "@/db/schema";
 import { CLAUDE_FROM } from "./claude";
-import { HEATMAP_DAYS, lastDays, timelinePosition } from "./stats";
-import { daysAgo, periodBounds, shiftDate, weekStart, type ClaudeMetric, type Range, type Window } from "./window";
+import { HEATMAP_DAYS, lastDays, timelinePosition, type Standing } from "./stats";
+import { daysAgo, periodBounds, shiftDate, weekStart, type ClaudeMetric, type DaySeriesMode, type Range, type Window } from "./window";
 
 /**
  * claudestats reads. Every day here was counted by a member's own machine from Claude Code's logs,
@@ -194,6 +194,23 @@ export function claudeRankBy<T extends { tokens: number; output: number; login: 
   return [...rows].sort((a, b) => b[metric] - a[metric] || b[other] - a[other] || a.login.localeCompare(b.login));
 }
 
+/** The reader's place on a claudestats board, the same sentence `standing` gives gitstats. */
+export function claudeStanding(rows: ClaudeBoardRow[], metric: ClaudeMetric, userId: number): Standing | null {
+  const ranked = claudeRankBy(rows, metric);
+  const index = ranked.findIndex((r) => r.userId === userId);
+  if (index < 0) return null;
+  const before = claudeRankBy(rows.map((r) => ({ ...r, tokens: r.prevTokens, output: r.prevOutput })), metric);
+  const wasIndex = before.findIndex((r) => r.userId === userId);
+  const anyBefore = before.some((r) => r.tokens > 0);
+  return {
+    rank: index + 1,
+    total: ranked.length,
+    percentile: Math.max(1, Math.ceil(((index + 1) / ranked.length) * 100)),
+    value: ranked[index][metric],
+    movement: anyBefore && wasIndex >= 0 ? wasIndex - index : null,
+  };
+}
+
 export type ClaudeDayRow = Sums & { date: string; tokens: number };
 
 /** One member's days in a range, every model summed, only days that have a row; oldest first. */
@@ -205,6 +222,43 @@ export async function claudeDays(userId: number, range: Range): Promise<ClaudeDa
     .groupBy(claudeDaily.date)
     .orderBy(claudeDaily.date);
   return rows.map((r) => ({ ...r, tokens: tokensOf(r) }));
+}
+
+/** A chart bucket: a day, a Monday week or a calendar month, keyed by its first day. */
+export type ClaudeBucket = { start: string; tokens: number; output: number };
+
+/**
+ * A range's days summed into the buckets `daySeriesMode` asks for, every bucket present and zero
+ * where nothing was counted, so a quiet stretch draws as a gap rather than closing up.
+ */
+export function claudeBuckets(days: { date: string; tokens: number; output: number }[], range: Range, mode: DaySeriesMode): ClaudeBucket[] {
+  const keyOf = (date: string) =>
+    mode === "days" ? date : mode === "weeks" ? weekStart(new Date(`${date}T00:00:00Z`)) : `${date.slice(0, 7)}-01`;
+  const out = new Map<string, ClaudeBucket>();
+  for (let d = range.from; d <= range.to; d = shiftDate(d, 1)) {
+    const key = keyOf(d);
+    if (!out.has(key)) out.set(key, { start: key, tokens: 0, output: 0 });
+  }
+  for (const day of days) {
+    const bucket = out.get(keyOf(day.date));
+    if (!bucket) continue;
+    bucket.tokens += day.tokens;
+    bucket.output += day.output;
+  }
+  return [...out.values()];
+}
+
+export type ClaudeMemberDay = { userId: number; date: string; tokens: number; output: number };
+
+/** Several members' days in a range, every model summed; the crew race and its weekly lines read these. */
+export async function claudeMemberDays(userIds: number[], range: Range): Promise<ClaudeMemberDay[]> {
+  if (userIds.length === 0) return [];
+  const rows = await db
+    .select({ userId: claudeDaily.userId, date: claudeDaily.date, ...sums })
+    .from(claudeDaily)
+    .where(and(inArray(claudeDaily.userId, userIds), between(claudeDaily.date, range.from, range.to)))
+    .groupBy(claudeDaily.userId, claudeDaily.date);
+  return rows.map((r) => ({ userId: r.userId, date: r.date, tokens: tokensOf(r), output: r.output }));
 }
 
 export type ClaudeWeekRow = { weekStart: string; tokens: number; output: number };

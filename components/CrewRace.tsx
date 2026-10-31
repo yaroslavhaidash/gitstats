@@ -50,12 +50,14 @@ function cumulative(rows: MemberDayRow[], members: ChartMember[], days: string[]
  * lasts exactly as long as a frame and runs at a constant speed, so one day's movement finishes as
  * the next begins.
  */
-export function CrewRace({ rows, members, from, to, metric }: {
+export function CrewRace({ rows, members, from, to, metric, unit }: {
   rows: MemberDayRow[];
   members: ChartMember[];
   from: string;
   to: string;
   metric: Metric;
+  /** What the series counts when it is not lines or commits (claudestats puts its numbers in `lines`). */
+  unit?: string;
 }) {
   const days = Array.from({ length: rangeDays({ from, to }) }, (_, i) => shiftDate(from, i));
   const totals = cumulative(rows, members, days, metric);
@@ -111,7 +113,7 @@ export function CrewRace({ rows, members, from, to, metric }: {
         preserveAspectRatio="xMinYMin slice"
         className="block"
         role="img"
-        aria-label={`Running total of ${metric} per crew member, day by day`}
+        aria-label={`Running total of ${unit ?? metric} per crew member, day by day`}
       >
         <defs>
           {members

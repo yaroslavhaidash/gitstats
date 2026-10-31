@@ -19,7 +19,7 @@ const MAX_LEN = 7;
  * The angle carries the direction and the shaft length the size of the move, both clamped, because
  * the honest part of this mark is "up, hard" or "down, a little" — the number is on hover.
  */
-export function Momentum({ commits, before, label }: { commits: number; before: number; label: string }) {
+export function Momentum({ commits, before, label, unit = "commits" }: { commits: number; before: number; label: string; unit?: string }) {
   const [on, setOn] = useState(false);
   const { boxRef, point, onMouseMove, clear } = useCellTip();
   const pct = pctDelta(commits, before);
@@ -38,7 +38,7 @@ export function Momentum({ commits, before, label }: { commits: number; before: 
   const tip = `${at(mid + dx)},${at(mid + dy)}`;
   const head = 3.2;
   const wing = (turn: number) => `${at(mid + dx - Math.cos(rad + turn) * head)},${at(mid + dy - Math.sin(rad + turn) * head)}`;
-  const text = pct === null ? (commits > 0 ? "first period with commits" : "nothing either period") : `${pct > 0 ? "+" : ""}${pct}% vs ${label}`;
+  const text = pct === null ? (commits > 0 ? `first period with ${unit}` : "nothing either period") : `${pct > 0 ? "+" : ""}${pct}% vs ${label}`;
 
   return (
     <span className="relative inline-block align-middle" ref={boxRef} onMouseMove={onMouseMove} onMouseLeave={() => (setOn(false), clear())}>

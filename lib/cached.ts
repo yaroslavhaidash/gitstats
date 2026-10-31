@@ -4,6 +4,7 @@ import {
   claudeBoard,
   claudeDataStart,
   claudeDays,
+  claudeMemberDays,
   claudeModels,
   claudeRecords,
   claudeReplyDays,
@@ -12,6 +13,7 @@ import {
   NO_CLAUDE,
   type ClaudeBoardRow,
   type ClaudeDayRow,
+  type ClaudeMemberDay,
   type ClaudeModelRow,
   type ClaudeRecords,
   type ClaudeTotals,
@@ -66,7 +68,7 @@ import {
   type Standing,
   type WeekRow,
 } from "./stats";
-import { chartWeeks, daysAgo, isAllTime, periodBounds, raceWeeks, shiftDate, windowRange, yearChart, type Metric, type Preset, type Range, type Window } from "./window";
+import { chartWeeks, daysAgo, isAllTime, periodBounds, raceWeeks, shiftDate, weekStart, windowRange, yearChart, type Metric, type Preset, type Range, type Window } from "./window";
 
 /**
  * Every Postgres read behind a board or a user page goes through this file. The session lookup
@@ -446,4 +448,31 @@ export async function claudeMemberRecords(userId: number): Promise<ClaudeRecords
   cacheLife("hours");
   cacheTag(STATS_TAG, userTag(userId));
   return claudeRecords(userId);
+}
+
+export type ClaudeCrewTimelines = {
+  /** Per member per day, covering both the race and the weekly chart, so the board reads them once. */
+  days: ClaudeMemberDay[];
+  /** Monday of the first and the last of `weekCount` weeks, fixed context like the gitstats chart. */
+  weekCount: number;
+  weekFrom: string;
+  weekEnd: string;
+  raceWeeks: number;
+  raceFrom: string;
+  raceTo: string;
+};
+
+/** The claudestats crew race and members' weekly totals, on one read. */
+export async function claudeCrewTimelines(crewId: number, window: Window): Promise<ClaudeCrewTimelines> {
+  "use cache: remote";
+  cacheLife("hours");
+  cacheTag(STATS_TAG, crewTag(crewId));
+  const ids = await crewMemberIds(crewId);
+  const weekEnd = weekStart(new Date());
+  const weekFrom = shiftDate(weekEnd, -(MIX_WEEKS - 1) * 7);
+  const race = raceWeeks(window);
+  const raceTo = daysAgo(0);
+  const raceFrom = shiftDate(raceTo, -(race * 7 - 1));
+  const days = await claudeMemberDays(ids, { from: raceFrom < weekFrom ? raceFrom : weekFrom, to: raceTo });
+  return { days, weekCount: MIX_WEEKS, weekFrom, weekEnd, raceWeeks: race, raceFrom, raceTo };
 }

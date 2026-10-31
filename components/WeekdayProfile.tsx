@@ -17,8 +17,8 @@ const UNIT: Record<Metric, { label: string; empty: string }> = {
 };
 
 /** Average of the selected metric per weekday over the window; the strongest day carries the accent. */
-export function WeekdayProfile({ averages, metric }: { averages: number[]; metric: Metric }) {
-  const unit = UNIT[metric];
+export function WeekdayProfile({ averages, metric, unit: label }: { averages: number[]; metric?: Metric; unit?: { label: string; empty: string } }) {
+  const unit = label ?? UNIT[metric ?? "commits"];
   const [hover, setHover] = useState<number | null>(null);
   const max = Math.max(...averages);
   const best = averages.indexOf(max);
@@ -41,7 +41,9 @@ export function WeekdayProfile({ averages, metric }: { averages: number[]; metri
             {h > 0 && (
               <path
                 d={`M${x} ${base} L${x} ${top + 4} Q${x} ${top} ${x + 4} ${top} L${x + BAR - 4} ${top} Q${x + BAR} ${top} ${x + BAR} ${top + 4} L${x + BAR} ${base} Z`}
-                fill={strongest ? "#ff3333" : "#6b7280"}
+                fill={strongest ? undefined : "#6b7280"}
+                // The class reads the side's alert colour; an SVG attribute cannot take a CSS variable.
+                className={strongest ? "fill-alert" : undefined}
               />
             )}
             {(strongest || hover === i) && (

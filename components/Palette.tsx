@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { counterpart, sideOf } from "@/lib/side";
 import { PRESETS, withMetric, withView } from "@/lib/window";
 import { guardNavigation } from "./UnsavedGuard";
 
@@ -57,6 +58,7 @@ export function Palette({
     return [
       ...crews.map((c) => ({ kind: "crew", label: c.name, hint: c.code, href: withView(`/dashboard/c/${c.code}`, params) })),
       { kind: "board", label: "global board", href: withView("/dashboard/global", params) },
+      { kind: "side", label: sideOf(pathname) === "claude" ? "switch to gitstats" : "switch to claudestats", hint: "s", href: counterpart(pathname, params) },
       ...windows,
       { kind: "page", label: "settings", href: "/dashboard/settings" },
       { kind: "page", label: "setup", href: "/dashboard/setup" },

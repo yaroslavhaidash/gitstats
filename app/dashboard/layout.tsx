@@ -5,9 +5,12 @@ import type { ReactNode } from "react";
 import { auth } from "@/auth";
 import { Hotkeys } from "@/components/Hotkeys";
 import { MemberNav } from "@/components/SiteNav";
+import { SideFrame } from "@/components/SideFrame";
 import { FirstSnapshotWait } from "@/components/FirstSnapshotWait";
 import { SyncNotice } from "@/components/SyncNotice";
 import { isAdmin } from "@/lib/admin";
+import { MODEL_COLOURS } from "@/lib/claudestats";
+import { accentCss } from "@/lib/side";
 import { footerCounts } from "@/lib/cached";
 import { crewmates, userCrews } from "@/lib/crews";
 import { fmtDateTime } from "@/lib/format";
@@ -41,7 +44,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   if (first) after(() => Promise.all([countStep("first_dashboard"), runFirstSnapshot(session.user.id)]));
   const homePath = crews[0] ? `/dashboard/c/${crews[0].code}` : "/dashboard";
   return (
-    <div className="flex-1 flex flex-col">
+    // The accent trial is the admin's, and anyone's in `npm run dev`; members always see the default.
+    <SideFrame picker={admin || process.env.NODE_ENV === "development"}>
+      <style dangerouslySetInnerHTML={{ __html: accentCss(MODEL_COLOURS) }} />
       <Hotkeys homePath={homePath} crews={crews} members={mates} />
       <nav className="sticky top-0 z-40 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
         <MemberNav user={session.user} crews={crews} admin={admin} linked={linked} notes={notes} />
@@ -59,9 +64,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           <span>&gt; last snapshot: {counts.lastSnapshotAt ? fmtDateTime(counts.lastSnapshotAt) : "never"}</span>
           <Link href="/docs" className="hover:text-alert">docs</Link>
           <Link href="/dashboard/inbox" className="hover:text-alert">send feedback</Link>
-          <span className="ml-auto hidden sm:inline">keys: / palette · 1/2/3/4 window · g global · h home</span>
+          <span className="ml-auto hidden sm:inline">keys: / palette · 1/2/3/4 window · g global · h home · s side</span>
         </div>
       </footer>
-    </div>
+    </SideFrame>
   );
 }

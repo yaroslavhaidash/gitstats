@@ -119,13 +119,15 @@ function Axis({ starts, y, from, to, every, width }: { starts: string[]; y: numb
  * Either way one member can be picked out of the rest: the pointer over a line or a legend entry
  * fades the others, and a click keeps them faded until the same entry is clicked again.
  */
-export function MemberLines({ rows, members, weeks, endSunday, metric }: {
+export function MemberLines({ rows, members, weeks, endSunday, metric, unit }: {
   rows: MemberWeekRow[];
   /** Leaderboard order; the colour, though, belongs to the member and never follows their rank. */
   members: ChartMember[];
   weeks: number;
   endSunday: string;
   metric: Metric;
+  /** What the series counts when it is not lines or commits (claudestats puts its numbers in `lines`). */
+  unit?: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   // Isolation: the pointer picks a member out while it is over them, a click keeps them picked out.
@@ -199,7 +201,7 @@ export function MemberLines({ rows, members, weeks, endSunday, metric }: {
         preserveAspectRatio="xMinYMin slice"
         className="block"
         role="img"
-        aria-label={`${metric === "lines" ? "Lines" : "Commits"} per week per crew member`}
+        aria-label={`${unit ?? (metric === "lines" ? "Lines" : "Commits")} per week per crew member`}
         onMouseMove={(e) => {
           onMouseMove(e);
           setHover(weekAt(e.clientX));

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { CellTip } from "./CellTip";
 import { useCellTip } from "./useCellTip";
-import { heatColor } from "@/lib/palette";
+import { heatColor, type HeatScale } from "@/lib/palette";
 
 const ROWS = 2;
 const WEEKS_PER_ROW = 26;
@@ -25,7 +25,7 @@ function utcDay(d: Date, offset: number): Date {
  * 52 weeks as four stacked quarters, oldest at the top, each read left to right like a normal
  * contribution graph. `days` is oldest-first and ends today; it is padded so every row is whole weeks.
  */
-export function YearCalendar({ days, label, now = new Date() }: { days: number[]; label: string; now?: Date }) {
+export function YearCalendar({ days, label, now = new Date(), heat }: { days: number[]; label: string; now?: Date; heat?: HeatScale }) {
   const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null);
   const { boxRef, point, onMouseMove, clear } = useCellTip();
   const totalWeeks = ROWS * WEEKS_PER_ROW;
@@ -91,7 +91,9 @@ export function YearCalendar({ days, label, now = new Date() }: { days: number[]
               const d = utcDay(start, idx);
               const x = LEFT + week * STEP;
               const y = y0 + dow * STEP;
-              const text = `${WEEKDAYS[d.getUTCDay()]} ${d.getUTCDate()} · ${count === 0 ? "none" : count === 1 ? "1 contribution" : `${count} contributions`}`;
+              const [one, many] = heat?.unit ?? ["contribution", "contributions"];
+              const text = `${WEEKDAYS[d.getUTCDay()]} ${d.getUTCDate()} · ${count === 0 ? "none" : count === 1 ? `1 ${one}` : `${count} ${many}`}`;
+              const colour = heatColor(count, heat?.ramp, heat?.steps);
               const active = hover?.x === x && hover?.y === y;
               return (
                 <rect
@@ -101,7 +103,9 @@ export function YearCalendar({ days, label, now = new Date() }: { days: number[]
                   width={CELL}
                   height={CELL}
                   rx={2}
-                  fill={heatColor(count)}
+                  fill={colour}
+                  // A ramp of CSS variables only resolves through `style`, not the presentation attribute.
+                  style={heat ? { fill: colour } : undefined}
                   stroke={active ? "#e0e2e5" : "none"}
                   strokeWidth={1}
                   onMouseEnter={() => setHover({ x, y, text })}

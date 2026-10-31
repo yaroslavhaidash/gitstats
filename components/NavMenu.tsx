@@ -11,7 +11,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  * and while it is open a document-level `pointerdown` listener closes it on the first click that
  * lands outside — attached only while open, so a closed menu costs nothing.
  */
-export function NavMenu({ label, className = "", right = false, children }: { label: ReactNode; className?: string; right?: boolean; children: ReactNode }) {
+export function NavMenu({ label, className = "", right = false, panel, children }: { label: ReactNode; className?: string; right?: boolean; panel?: string; children: ReactNode }) {
   const ref = useRef<HTMLDetailsElement>(null);
   const [open, setOpen] = useState(false);
 
@@ -38,7 +38,7 @@ export function NavMenu({ label, className = "", right = false, children }: { la
           than the viewport, so a long crew name reads in full on a desktop and truncates on a phone. */}
       <div
         onClick={() => setOpen(false)}
-        className={`absolute ${right ? "right-0" : "left-0"} top-full mt-2 z-50 panel bg-void grid divide-y divide-dark w-max min-w-[max(14rem,100%)] max-w-[calc(100vw-2rem)]`}
+        className={`absolute ${right ? "right-0" : "left-0"} top-full mt-2 z-50 panel bg-void grid divide-y divide-dark ${panel ?? "w-max min-w-[max(14rem,100%)] max-w-[calc(100vw-2rem)]"}`}
       >
         {children}
       </div>

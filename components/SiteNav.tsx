@@ -6,6 +6,7 @@ import { CliBanner } from "@/components/CliBanner";
 import { CrewSwitcher } from "@/components/CrewSwitcher";
 import { Logo } from "@/components/Logo";
 import { NavMenu } from "@/components/NavMenu";
+import { SideSwitch } from "@/components/SideSwitch";
 import { NavSheet, SheetLabel, SheetLink, SheetLinks } from "@/components/NavSheet";
 import { NoteOverlay, NoteStrip, UnreadOnly } from "@/components/NoteOverlay";
 import { SignInButton } from "@/components/Tracked";
@@ -15,6 +16,7 @@ import { isAdmin } from "@/lib/admin";
 import { userCrews } from "@/lib/crews";
 import { MESSAGE_MAX, unreadNotes, type Note } from "@/lib/messages";
 import { collapses } from "@/lib/nav";
+import { counterpart } from "@/lib/side";
 import { hasLinkedMachine } from "@/lib/stats";
 
 type Crew = { id: number; name: string; code: string };
@@ -49,7 +51,7 @@ export function MemberNav({ user, crews, admin, linked, notes }: { user: NavUser
   return (
     <>
       <div className={BAR}>
-        <Logo href={homePath} compact />
+        <SideSwitch homes={{ git: homePath, claude: counterpart(homePath) }} compact />
         <div className="hidden lg:flex items-center gap-5 xl:gap-6 font-mono text-sm min-w-0">
           <CrewSwitcher crews={crews} />
           <ViewLink href="/dashboard/global" className="hover:text-alert transition-colors">[GLOBAL]</ViewLink>

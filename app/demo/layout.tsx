@@ -1,9 +1,12 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Logo } from "@/components/Logo";
+import { SideFrame } from "@/components/SideFrame";
+import { SideSwitch } from "@/components/SideSwitch";
 import { SignInButton } from "@/components/Tracked";
 import { signInWithGitHub } from "@/lib/actions";
+import { MODEL_COLOURS } from "@/lib/claudestats";
 import { DEMO_BANNER } from "@/lib/demo";
+import { accentCss } from "@/lib/side";
 
 /**
  * The public shell for `/demo`. It deliberately does not reuse the dashboard layout: there is no
@@ -11,10 +14,12 @@ import { DEMO_BANNER } from "@/lib/demo";
  */
 export default function DemoLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex-1 flex flex-col">
+    // No session here, so the accent trial only shows in `npm run dev`.
+    <SideFrame picker={process.env.NODE_ENV === "development"}>
+      <style dangerouslySetInnerHTML={{ __html: accentCss(MODEL_COLOURS) }} />
       <nav className="sticky top-0 z-40 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-          <Logo href="/" compact />
+          <SideSwitch homes={{ git: "/", claude: "/demo/claude" }} compact />
           <div className="flex items-center gap-4 sm:gap-6 font-mono text-sm">
             <Link href="/demo" className="hover:text-alert transition-colors">[DEMO]</Link>
             <Link href="/docs" className="hidden sm:block hover:text-alert transition-colors">[DOCS]</Link>
@@ -43,6 +48,6 @@ export default function DemoLayout({ children }: { children: ReactNode }) {
           <Link href="/privacy" className="hover:text-alert">privacy</Link>
         </div>
       </footer>
-    </div>
+    </SideFrame>
   );
 }

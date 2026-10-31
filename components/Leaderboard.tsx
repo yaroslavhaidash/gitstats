@@ -11,11 +11,11 @@ import { ViewLink } from "./ViewLink";
  * rank and the member stay pinned so a row never loses its name. A pinned cell needs its own opaque
  * background: `OWN_CELL` and the hover colour are the row's translucent tints already laid over the void.
  */
-const STICK = "sticky z-10 xl:static";
-const ROW_CELL = "bg-void group-hover:bg-[#0d0d0d]";
-const OWN_CELL = "bg-[#1a0909]";
+export const STICK = "sticky z-10 xl:static";
+export const ROW_CELL = "bg-void group-hover:bg-[#0d0d0d]";
+export const OWN_CELL = "bg-own";
 
-function Identity({ row }: { row: BoardRow }) {
+export function Identity({ row }: { row: Pick<BoardRow, "avatarUrl" | "login" | "name"> }) {
   return (
     <span className="flex items-center gap-3">
       <Image src={row.avatarUrl} alt="" width={28} height={28} className="border border-dark shrink-0" unoptimized />

@@ -11,8 +11,12 @@
   --color-amber: #eab308;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
   --font-sans: var(--font-grotesk), ui-sans-serif, sans-serif;
-  --shadow-brutal: 4px 4px 0px #ff3333;
-  --shadow-brutal-hover: 2px 2px 0px #ff3333;
+  /* Read at the element (Tailwind inlines the value into the utility), so the claudestats frame's
+     accent reaches the shadows without restating them. */
+  --shadow-brutal: 4px 4px 0px var(--color-alert);
+  --shadow-brutal-hover: 2px 2px 0px var(--color-alert);
+  /* The reader's own row on a board: the alert colour at 8.5% over the void. */
+  --color-own: #1a0909;
 }
 
 html {
@@ -83,10 +87,10 @@ label:has(> input[type="checkbox"]) {
 }
 @keyframes glitch {
   0% {
-    text-shadow: 2px 0 #ff3333, -2px 0 #3ad1ff;
+    text-shadow: 2px 0 var(--color-alert), -2px 0 #3ad1ff;
   }
   40% {
-    text-shadow: -2px 0 #ff3333, 2px 0 #3ad1ff;
+    text-shadow: -2px 0 var(--color-alert), 2px 0 #3ad1ff;
   }
   100% {
     text-shadow: none;
