@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fmt, fmtTokens } from "@/lib/format";
 import { heatColor, REPLY_STEPS } from "@/lib/palette";
 import { claudeShareCard, isClaudeMetric, resolveShareToken, shareCard } from "@/lib/share";
-import { ACCENTS, DEFAULT_ACCENT } from "@/lib/side";
+import { CLAUDE_ACCENT } from "@/lib/side";
 import { SHARE_HEATMAP_DAYS } from "@/lib/stats";
 
 /**
@@ -24,7 +24,7 @@ const GRID_WIDTH = size.width - PAD_X * 2;
 /** Seven rows of a cell that wide would push the footer off the card, so the cells flatten instead. */
 const MAX_CELL_HEIGHT = 17;
 /** An image cannot read the page's CSS, so a claudestats card carries the default accent's colours itself. */
-const CLAUDE = ACCENTS[DEFAULT_ACCENT];
+const CLAUDE = CLAUDE_ACCENT;
 
 /** Everything that differs between a gitstats and a claudestats card, drawn the same way below. */
 type Drawn = {

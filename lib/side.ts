@@ -74,61 +74,34 @@ export function onSide(href: string, side: Side): string {
 }
 
 /**
- * The claudestats theme colour, with the candidates the admin flips between on production before
- * one is locked (each clears 4.5:1 on the void both ways). Each holds what the side needs that CSS cannot derive from the colour alone: the heat
- * ramp (validated as an ordinal ramp against the void, light end above 2:1), the own-row tint (the
- * accent at 8.5% over the void, the same mix `#1a0909` is of alert red) and the model colours it
- * replaces when one sits within reach of the accent's hue. The brutal shadows read `--color-alert`
- * directly, so they follow without an entry.
+ * The claudestats theme colour: a deep green at gitstats red's OKLCH lightness (0.649, hue 145),
+ * 6.8:1 on the void both ways. It holds what the side needs that CSS cannot derive from the colour
+ * alone: the heat ramp (validated as an ordinal ramp against the void, light end above 2:1), the
+ * own-row tint (the accent at 8.5% over the void, the same mix `#1a0909` is of alert red) and the
+ * model colours it replaces: Sonnet green is 18° from it, so Sonnet takes Fable's pink and Fable the
+ * palette violet. The brutal shadows read `--color-alert` directly, so they follow without an entry.
  */
-export const ACCENTS = {
-  violet: { label: "violet", accent: "#a66cff", heat: ["#222222", "#4d3e6b", "#7258a1", "#9a74db", "#bd8bff"], own: "#130e1a", models: {} },
-  // The locked accent: gitstats red's OKLCH lightness at hue 145, as deep as #ff3333 is. Sonnet green
-  // is 18° from it, so Sonnet takes Fable's pink and Fable the palette violet.
-  green: { label: "green", accent: "#00ad2f", heat: ["#222222", "#0d4e17", "#01751d", "#009627", "#28b93f"], own: "#051309", models: { sonnet: "#d55181", fable: "#9085e9" } },
-  yellow: { label: "yellow", accent: "#f2f24f", heat: ["#222222", "#4b4b1b", "#6e6d19", "#93920d", "#e7e64b"], own: "#19190b", models: {} },
-  // Opus blue is 21° from this accent, so Opus takes the palette violet instead.
-  blue: { label: "blue", accent: "#4cc3ff", heat: ["#222222", "#294d5f", "#35708f", "#4096c1", "#59cbff"], own: "#0b151a", models: { opus: "#9085e9" } },
-  // Fable pink is 23° from this accent, so Fable takes the palette violet.
-  magenta: { label: "magenta", accent: "#ff4fd8", heat: ["#222222", "#623055", "#933e7e", "#ca4fad", "#ff61df"], own: "#1a0b17", models: { fable: "#9085e9" } },
-  // Sonnet green is 15° from this accent: Sonnet takes Fable's pink and Fable the palette violet.
-  teal: { label: "teal", accent: "#2ee6c8", heat: ["#222222", "#234e45", "#227263", "#1a9b86", "#4fefd2"], own: "#081816", models: { sonnet: "#d55181", fable: "#9085e9" } },
-  // Haiku amber is 9° from this accent, so Haiku takes the palette violet.
-  orange: { label: "orange", accent: "#ffa94d", heat: ["#222222", "#583f27", "#83592e", "#b37737", "#ffb45f"], own: "#1a130b", models: { haiku: "#9085e9" } },
-  // Opus blue is 25° from this accent, so Opus takes the commits orange (no commits on this side).
-  indigo: { label: "indigo", accent: "#7c7cff", heat: ["#222222", "#3e4168", "#585b9d", "#767ad9", "#9799ff"], own: "#0f0f1a", models: { opus: "#d95926" } },
-} as const satisfies Record<string, { label: string; accent: string; heat: readonly string[]; own: string; models: Record<string, string> }>;
-
-export type AccentName = keyof typeof ACCENTS;
-export const DEFAULT_ACCENT: AccentName = "green";
-export const ACCENT_NAMES = Object.keys(ACCENTS) as AccentName[];
-
-export function isAccent(value: unknown): value is AccentName {
-  return typeof value === "string" && Object.prototype.hasOwnProperty.call(ACCENTS, value);
-}
+export const CLAUDE_ACCENT = {
+  accent: "#00ad2f",
+  heat: ["#222222", "#0d4e17", "#01751d", "#009627", "#28b93f"],
+  own: "#051309",
+  models: { sonnet: "#d55181", fable: "#9085e9" },
+} as const;
 
 /** The heat ramp as CSS variables, so a cell follows whichever accent the frame carries. */
 export const CLAUDE_HEAT = [0, 1, 2, 3, 4].map((i) => `var(--heat-${i})`);
 
-/**
- * The claudestats frame's variables, one rule for the default and one per candidate, all from
- * `ACCENTS`. `models` are the default model colours by family; an accent's own entries override them.
- */
+/** The claudestats frame's variables. `models` are the default model colours by family; the accent's own entries override them. */
 export function accentCss(models: Record<string, string>): string {
-  const rule = (selector: string, a: (typeof ACCENTS)[AccentName]) => {
-    const vars = [
-      `--color-alert:${a.accent}`,
-      `--color-own:${a.own}`,
-      `--claude-accent:${a.accent}`,
-      ...a.heat.map((c, i) => `--heat-${i}:${c}`),
-      ...Object.entries({ ...models, ...a.models }).map(([family, c]) => `--model-${family}:${c}`),
-    ];
-    return `${selector}{${vars.join(";")}}`;
-  };
-  return [
-    rule(`[data-side="claude"]`, ACCENTS[DEFAULT_ACCENT]),
-    ...ACCENT_NAMES.filter((n) => n !== DEFAULT_ACCENT).map((n) => rule(`[data-side="claude"][data-accent="${n}"]`, ACCENTS[n])),
-  ].join("\n");
+  const a = CLAUDE_ACCENT;
+  const vars = [
+    `--color-alert:${a.accent}`,
+    `--color-own:${a.own}`,
+    `--claude-accent:${a.accent}`,
+    ...a.heat.map((c, i) => `--heat-${i}:${c}`),
+    ...Object.entries({ ...models, ...a.models }).map(([family, c]) => `--model-${family}:${c}`),
+  ];
+  return `[data-side="claude"]{${vars.join(";")}}`;
 }
 
 /** The claudestats day grids: replies per day on the accent's ramp. */

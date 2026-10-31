@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CopyText } from "@/components/CopyText";
-import { AdminAccentPicker } from "@/components/AdminAccentPicker";
 import { SiteNav } from "@/components/SiteNav";
 import { DemoLink, SignInButton } from "@/components/Tracked";
 import { signInWithGitHub } from "@/lib/actions";
@@ -140,7 +139,6 @@ export default function ClaudeLanding() {
         <Link href="/docs#claude" className="hover:text-alert">docs</Link> ·{" "}
         <Link href="/privacy#claude" className="hover:text-alert">privacy</Link>
       </footer>
-      <AdminAccentPicker />
     </main>
   );
 }

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { AdminAccentPicker } from "@/components/AdminAccentPicker";
 import { SideFrame } from "@/components/SideFrame";
 import { SideSwitch } from "@/components/SideSwitch";
 import { SideLink } from "@/components/ViewLink";
@@ -49,7 +48,6 @@ export default function DemoLayout({ children }: { children: ReactNode }) {
           <Link href="/privacy" className="hover:text-alert">privacy</Link>
         </div>
       </footer>
-      <AdminAccentPicker />
     </SideFrame>
   );
 }

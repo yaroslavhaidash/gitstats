@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { auth } from "@/auth";
 import { Hotkeys } from "@/components/Hotkeys";
 import { MemberNav } from "@/components/SiteNav";
-import { AccentPicker, SideFrame } from "@/components/SideFrame";
+import { SideFrame } from "@/components/SideFrame";
 import { FirstSnapshotWait } from "@/components/FirstSnapshotWait";
 import { SyncNotice } from "@/components/SyncNotice";
 import { isAdmin } from "@/lib/admin";
@@ -66,8 +66,6 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           <span className="ml-auto hidden sm:inline">keys: / palette · 1/2/3/4 window · g global · h home · s side</span>
         </div>
       </footer>
-      {/* The accent trial is the admin's, and anyone's in `npm run dev`; members always see the default. */}
-      {(admin || process.env.NODE_ENV === "development") && <AccentPicker />}
     </SideFrame>
   );
 }
