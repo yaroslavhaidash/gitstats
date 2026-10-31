@@ -1,5 +1,22 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { crewTag, GLOBAL_TAG, STATS_TAG, userTag } from "./cache";
+import {
+  claudeBoard,
+  claudeDataStart,
+  claudeDays,
+  claudeModels,
+  claudeRecords,
+  claudeReplyDays,
+  claudeTotals,
+  claudeWeeks,
+  NO_CLAUDE,
+  type ClaudeBoardRow,
+  type ClaudeDayRow,
+  type ClaudeModelRow,
+  type ClaudeRecords,
+  type ClaudeTotals,
+  type ClaudeWeekRow,
+} from "./claudestats";
 import { crewMemberIds, userCrews } from "./crews";
 import {
   boardRows,
@@ -368,4 +385,65 @@ export async function crewOverlaps(crewId: number, window: Window): Promise<Over
   cacheLife("hours");
   cacheTag(STATS_TAG, crewTag(crewId));
   return repoOverlaps(await crewMemberIds(crewId), window, "crew");
+}
+
+export async function claudeGlobalBoard(window: Window): Promise<ClaudeBoardRow[]> {
+  "use cache: remote";
+  cacheLife("hours");
+  cacheTag(STATS_TAG, GLOBAL_TAG);
+  return claudeBoard(null, window);
+}
+
+export async function claudeCrewBoard(crewId: number, window: Window): Promise<ClaudeBoardRow[]> {
+  "use cache: remote";
+  cacheLife("hours");
+  cacheTag(STATS_TAG, crewTag(crewId));
+  return claudeBoard(await crewMemberIds(crewId), window);
+}
+
+export type ClaudeUserStats = {
+  /** Null when the member has never sent a Claude Code number. */
+  row: ClaudeBoardRow | null;
+  before: ClaudeTotals;
+  /** Fixed yearly context: 52 Monday weeks ending with this one. */
+  weeks: ClaudeWeekRow[];
+  /** The days the window charts draw, only days with a row. */
+  days: ClaudeDayRow[];
+  models: ClaudeModelRow[];
+  /** Replies per day, last 52 weeks, oldest first. */
+  year: number[];
+  /** Average replies per weekday over the drawn span, Sunday first. */
+  weekdays: number[];
+  /** The window, except that all time starts at the member's first Claude Code day. */
+  span: Range;
+};
+
+/** Everything the claudestats personal page draws, in one cached read. */
+export async function claudeUserStats(userId: number, window: Window): Promise<ClaudeUserStats> {
+  "use cache: remote";
+  cacheLife("hours");
+  cacheTag(STATS_TAG, userTag(userId));
+  const { current, previous } = periodBounds(window);
+  let span = current;
+  if (isAllTime(window)) {
+    const start = (await claudeDataStart([userId])) ?? current.to;
+    if (start > current.from) span = { from: start, to: current.to };
+  }
+  const calendarFrom = span.from < daysAgo(YEAR_DAYS) ? span.from : daysAgo(YEAR_DAYS);
+  const [[row], before, weeks, days, models, replies] = await Promise.all([
+    claudeBoard([userId], window),
+    claudeTotals([userId], previous).then((t) => t.get(userId) ?? NO_CLAUDE),
+    claudeWeeks(userId, yearChart().weeks),
+    claudeDays(userId, span),
+    claudeModels(userId, current),
+    claudeReplyDays([userId], calendarFrom).then((m) => m.get(userId) ?? new Map<string, number>()),
+  ]);
+  return { row: row ?? null, before, weeks, days, models, year: lastDays(replies, YEAR_DAYS), weekdays: weekdayAverages(replies, span.from, span.to), span };
+}
+
+export async function claudeMemberRecords(userId: number): Promise<ClaudeRecords> {
+  "use cache: remote";
+  cacheLife("hours");
+  cacheTag(STATS_TAG, userTag(userId));
+  return claudeRecords(userId);
 }

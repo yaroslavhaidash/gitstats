@@ -15,6 +15,11 @@ export function fmtRank(n: number): string {
   return Math.abs(n) >= 10_000 ? compact2.format(n) : plain.format(n);
 }
 
+/** Token counts run into the billions a day: always compact, K/M/B/T with one decimal. */
+export function fmtTokens(n: number): string {
+  return Math.abs(n) >= 1_000 ? compact.format(n) : plain.format(n);
+}
+
 export function fmtDate(d: Date | string): string {
   const date = typeof d === "string" ? new Date(`${d}T00:00:00Z`) : d;
   return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });

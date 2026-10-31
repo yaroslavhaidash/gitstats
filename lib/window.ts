@@ -201,9 +201,21 @@ export function parseMetric(m: string | undefined): Metric {
   return m === "commits" ? "commits" : "lines";
 }
 
-/** The window and the metric as one query string, so a control can change one and keep the other. */
-export function viewQuery(window: Window, metric: Metric): string {
-  return `${windowQuery(window)}${metric === "lines" ? "" : `&m=${metric}`}`;
+/**
+ * What the claudestats boards compare. Tokens is every token Claude Code sent or got (input, cache
+ * write, cache read, output); output is what the model generated. The `m` key is shared with gitstats,
+ * and each side ignores the other's values.
+ */
+export const CLAUDE_METRICS = ["tokens", "output"] as const;
+export type ClaudeMetric = (typeof CLAUDE_METRICS)[number];
+
+export function parseClaudeMetric(m: string | undefined): ClaudeMetric {
+  return m === "output" ? "output" : "tokens";
+}
+
+/** The window and the metric as one query string, so a control can change one and keep the other. Each side's default is left out. */
+export function viewQuery(window: Window, metric: Metric | ClaudeMetric): string {
+  return `${windowQuery(window)}${metric === "lines" || metric === "tokens" ? "" : `&m=${metric}`}`;
 }
 
 export function windowQuery(window: Window): string {

@@ -105,7 +105,7 @@ const WEEKDAY_EPOCH = sql`date '2000-01-03'`; // a Monday, so week arithmetic st
  */
 const STREAK_DAYS = 400;
 
-function timelinePosition(date: SQL | PgColumn): SQL {
+export function timelinePosition(date: SQL | PgColumn): SQL {
   return sql`case when u.streak_mode = 'weekdays'
     then ((${date} - ${WEEKDAY_EPOCH}) / 7) * 5 + least((${date} - ${WEEKDAY_EPOCH}) % 7, 5)
     else ${date} - ${WEEKDAY_EPOCH} end`;

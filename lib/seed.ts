@@ -1,6 +1,6 @@
 import { inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { crewMembers, crews, dailyContributions, dailyLocal, repos, users, weeklyStats } from "@/db/schema";
+import { claudeDaily, crewMembers, crews, dailyContributions, dailyLocal, repos, users, weeklyStats } from "@/db/schema";
 import { DEMO_CREW_CODE, DEMO_LOGINS, DEMO_REPO_PREFIX } from "./demo";
 
 /**
@@ -122,11 +122,114 @@ function dayFigures(member: Member, repo: Repo, date: string, dayIndex: number):
   return { commits, additions, deletions };
 }
 
+/** How one demo member uses Claude Code, inside the magnitudes measured on real logs. */
+type ClaudeHabit = {
+  /** Total tokens on a strong day, before the weekday, season and day-to-day wobble. */
+  perDay: number;
+  /** Sunday first: how likely they are to use it that weekday, and how much when they do. */
+  rhythm: number[];
+  /** Sessions on a strong day. */
+  sessions: number;
+  /** Models with their share of the day, each only between its optional first and last day. */
+  models: { id: string; weight: number; from?: string; to?: string }[];
+  /** Days ago they started; the others have used it since the demo's first day. */
+  startedDaysAgo?: number;
+};
+
+/** One heavy Opus user, one Sonnet-leaning weekday user, one weekend binger, one who started three months ago. */
+const CLAUDE_HABITS: Record<(typeof DEMO_LOGINS)[number], ClaudeHabit> = {
+  mara_vex: {
+    perDay: 650e6,
+    rhythm: [0.2, 1, 1, 1, 0.95, 0.9, 0.25],
+    sessions: 8,
+    models: [
+      { id: "claude-opus-4-8", weight: 0.88, to: "2026-04-30" },
+      { id: "claude-opus-5", weight: 0.88, from: "2026-05-01", to: "2026-08-31" },
+      { id: "claude-opus-5-5", weight: 0.88, from: "2026-09-01" },
+      { id: "claude-haiku-4-5-20251001", weight: 0.12 },
+    ],
+  },
+  kestrel_io: {
+    perDay: 90e6,
+    rhythm: [0.05, 1, 1, 0.95, 1, 0.85, 0.05],
+    sessions: 5,
+    models: [
+      { id: "claude-sonnet-5", weight: 0.8, to: "2026-07-31" },
+      { id: "claude-sonnet-5-5", weight: 0.8, from: "2026-08-01" },
+      { id: "claude-opus-5", weight: 0.2, to: "2026-08-31" },
+      { id: "claude-opus-5-5", weight: 0.2, from: "2026-09-01" },
+    ],
+  },
+  nine_volt: {
+    perDay: 380e6,
+    rhythm: [1, 0.3, 0.25, 0.3, 0.3, 0.55, 1],
+    sessions: 14,
+    models: [
+      { id: "claude-haiku-4-5-20251001", weight: 0.5 },
+      { id: "claude-opus-5", weight: 0.5, to: "2026-08-31" },
+      { id: "claude-opus-5-5", weight: 0.5, from: "2026-09-01" },
+    ],
+  },
+  pilar_dev: {
+    perDay: 160e6,
+    rhythm: [0.1, 0.95, 1, 1, 0.95, 0.9, 0.1],
+    sessions: 4,
+    startedDaysAgo: 92,
+    models: [
+      { id: "claude-fable-5-1", weight: 0.6 },
+      { id: "claude-sonnet-5-5", weight: 0.4 },
+    ],
+  },
+};
+
+/** claudestats starts here or 742 days back, whichever is later: Claude Code use before 2025 would be invented twice over. */
+const CLAUDE_DEMO_FROM = "2025-03-01";
+/** Measured token split: input 0.01%, output 0.21%, cache write 1.88%, cache read the rest. */
+const OUTPUT_SHARE = 0.0021;
+const CACHE_WRITE_SHARE = 0.0188;
+const INPUT_SHARE = 0.0001;
+
+/** One member's `claude_daily` rows for one day, one per model they used. */
+function claudeDay(login: string, habit: ClaudeHabit, userId: number, date: string, dayIndex: number): (typeof claudeDaily.$inferInsert)[] {
+  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const key = `${login}:claude:${date}`;
+  if (rand(`${key}:used`) >= Math.min(1, habit.rhythm[weekday] * 1.08)) return [];
+  const wave = 0.7 + 0.3 * Math.sin((dayIndex / 120) * Math.PI + rand(`${login}:claude`) * 6);
+  const total = habit.perDay * habit.rhythm[weekday] * wave * (0.4 + 1.2 * rand(`${key}:t`));
+  const models = habit.models.filter((m) => (!m.from || date >= m.from) && (!m.to || date <= m.to));
+  const weights = models.map((m) => m.weight * (0.5 + rand(`${key}:${m.id}`)));
+  const weightSum = weights.reduce((a, b) => a + b, 0);
+  const sessions = Math.min(25, Math.round(habit.sessions * habit.rhythm[weekday] * (0.3 + 1.2 * rand(`${key}:s`))));
+  const rows: (typeof claudeDaily.$inferInsert)[] = [];
+  models.forEach((m, i) => {
+    const share = weights[i] / weightSum;
+    const tokens = Math.round(total * share);
+    if (share < 0.03 || tokens === 0) return;
+    const outputTokens = Math.round(tokens * OUTPUT_SHARE * (0.6 + 0.8 * rand(`${key}:${m.id}:o`)));
+    const cacheWriteTokens = Math.round(tokens * CACHE_WRITE_SHARE * (0.7 + 0.6 * rand(`${key}:${m.id}:w`)));
+    const inputTokens = Math.round(tokens * INPUT_SHARE);
+    rows.push({
+      userId,
+      machine: "demo",
+      date,
+      model: m.id,
+      inputTokens,
+      outputTokens,
+      cacheWriteTokens,
+      cacheReadTokens: tokens - outputTokens - cacheWriteTokens - inputTokens,
+      // About one reply per 250k to 350k tokens, as measured.
+      replies: Math.max(1, Math.round(tokens / (250_000 + 100_000 * rand(`${key}:${m.id}:r`)))),
+      sessions: Math.round(sessions * share),
+    });
+  });
+  return rows;
+}
+
 async function insertChunked<T>(rows: T[], write: (chunk: T[]) => Promise<unknown>): Promise<void> {
   for (let i = 0; i < rows.length; i += 400) await write(rows.slice(i, i + 400));
 }
 
-export type DemoSeedSummary = { crewId: number; members: number; repos: number; weeklyRows: number; dailyRows: number; calendarRows: number };
+export type DemoSeedSummary = { crewId: number; members: number; repos: number; weeklyRows: number; dailyRows: number; calendarRows: number; claudeRows: number };
 
 export async function seedDemo(): Promise<DemoSeedSummary> {
   const today = new Date();
@@ -180,6 +283,7 @@ export async function seedDemo(): Promise<DemoSeedSummary> {
   await db.delete(weeklyStats).where(inArray(weeklyStats.userId, ids));
   await db.delete(dailyLocal).where(inArray(dailyLocal.userId, ids));
   await db.delete(dailyContributions).where(inArray(dailyContributions.userId, ids));
+  await db.delete(claudeDaily).where(inArray(claudeDaily.userId, ids));
 
   const dailyRows: (typeof dailyLocal.$inferInsert)[] = [];
   const weekRows: (typeof weeklyStats.$inferInsert)[] = [];
@@ -209,9 +313,19 @@ export async function seedDemo(): Promise<DemoSeedSummary> {
     }
   }
 
+  const claudeRows: (typeof claudeDaily.$inferInsert)[] = [];
+  for (const { member: m, userId } of seeded) {
+    const habit = CLAUDE_HABITS[m.login];
+    const first = habit.startedDaysAgo === undefined ? CLAUDE_DEMO_FROM : isoDate(new Date(today.getTime() - habit.startedDaysAgo * 86_400_000));
+    dates.forEach((date, dayIndex) => {
+      if (date >= first && date >= CLAUDE_DEMO_FROM) claudeRows.push(...claudeDay(m.login, habit, userId, date, dayIndex));
+    });
+  }
+
   await insertChunked(weekRows, (chunk) => db.insert(weeklyStats).values(chunk));
   await insertChunked(dailyRows, (chunk) => db.insert(dailyLocal).values(chunk));
   await insertChunked(calendarRows, (chunk) => db.insert(dailyContributions).values(chunk));
+  await insertChunked(claudeRows, (chunk) => db.insert(claudeDaily).values(chunk));
 
   const owner = ids[0];
   const [crew] = await db
@@ -223,5 +337,5 @@ export async function seedDemo(): Promise<DemoSeedSummary> {
     await db.insert(crewMembers).values({ crewId: crew.id, userId }).onConflictDoNothing();
   }
 
-  return { crewId: crew.id, members: ids.length, repos: REPOS.length, weeklyRows: weekRows.length, dailyRows: dailyRows.length, calendarRows: calendarRows.length };
+  return { crewId: crew.id, members: ids.length, repos: REPOS.length, weeklyRows: weekRows.length, dailyRows: dailyRows.length, calendarRows: calendarRows.length, claudeRows: claudeRows.length };
 }
