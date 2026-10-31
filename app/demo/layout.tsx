@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { AdminAccentPicker } from "@/components/AdminAccentPicker";
 import { SideFrame } from "@/components/SideFrame";
 import { SideSwitch } from "@/components/SideSwitch";
 import { SideLink } from "@/components/ViewLink";
@@ -15,8 +16,7 @@ import { accentCss } from "@/lib/side";
  */
 export default function DemoLayout({ children }: { children: ReactNode }) {
   return (
-    // No session here, so the accent trial only shows in `npm run dev`.
-    <SideFrame picker={process.env.NODE_ENV === "development"}>
+    <SideFrame>
       <style dangerouslySetInnerHTML={{ __html: accentCss(MODEL_COLOURS) }} />
       <nav className="sticky top-0 z-40 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -49,6 +49,7 @@ export default function DemoLayout({ children }: { children: ReactNode }) {
           <Link href="/privacy" className="hover:text-alert">privacy</Link>
         </div>
       </footer>
+      <AdminAccentPicker />
     </SideFrame>
   );
 }

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { auth } from "@/auth";
 import { Hotkeys } from "@/components/Hotkeys";
 import { MemberNav } from "@/components/SiteNav";
-import { SideFrame } from "@/components/SideFrame";
+import { AccentPicker, SideFrame } from "@/components/SideFrame";
 import { FirstSnapshotWait } from "@/components/FirstSnapshotWait";
 import { SyncNotice } from "@/components/SyncNotice";
 import { isAdmin } from "@/lib/admin";
@@ -44,8 +44,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   if (first) after(() => Promise.all([countStep("first_dashboard"), runFirstSnapshot(session.user.id)]));
   const homePath = crews[0] ? `/dashboard/c/${crews[0].code}` : "/dashboard";
   return (
-    // The accent trial is the admin's, and anyone's in `npm run dev`; members always see the default.
-    <SideFrame picker={admin || process.env.NODE_ENV === "development"}>
+    <SideFrame>
       <style dangerouslySetInnerHTML={{ __html: accentCss(MODEL_COLOURS) }} />
       <Hotkeys homePath={homePath} crews={crews} members={mates} />
       <nav className="sticky top-0 z-40 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
@@ -67,6 +66,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           <span className="ml-auto hidden sm:inline">keys: / palette · 1/2/3/4 window · g global · h home · s side</span>
         </div>
       </footer>
+      {/* The accent trial is the admin's, and anyone's in `npm run dev`; members always see the default. */}
+      {(admin || process.env.NODE_ENV === "development") && <AccentPicker />}
     </SideFrame>
   );
 }
