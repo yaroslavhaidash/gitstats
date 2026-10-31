@@ -51,7 +51,9 @@ export type ClaudeDetail = {
   since: string;
 };
 
-export const NO_CLAUDE: ClaudeTotals = { tokens: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, replies: 0, sessions: 0, activeDays: 0, topModel: null, messages: null, detail: null };
+// No rows in the window means nothing happened, so messages are 0 like the tokens. Null (not counted)
+// is only for a window whose rows all came from a CLI before 0.7.0.
+export const NO_CLAUDE: ClaudeTotals = { tokens: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, replies: 0, sessions: 0, activeDays: 0, topModel: null, messages: 0, detail: null };
 
 /** `null` is everyone, minus the seeded demo crew, as `scope(null)` is on the gitstats side. */
 function members(userIds: number[] | null): SQL | undefined {
