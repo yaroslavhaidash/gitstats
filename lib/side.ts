@@ -1,4 +1,4 @@
-import { REPLY_STEPS, type HeatScale } from "./palette";
+import { MESSAGE_STEPS, REPLY_STEPS, type HeatScale } from "./palette";
 
 /**
  * gitstats and claudestats are two sides of one site. A path says which side it is on, and every
@@ -106,3 +106,12 @@ export function accentCss(models: Record<string, string>): string {
 
 /** The claudestats day grids: replies per day on the accent's ramp. */
 export const CLAUDE_HEAT_SCALE: HeatScale = { ramp: CLAUDE_HEAT, steps: REPLY_STEPS, unit: ["reply", "replies"] };
+
+/** Typed messages per day on the same ramp. */
+export const CLAUDE_MESSAGE_HEAT_SCALE: HeatScale = { ramp: CLAUDE_HEAT, steps: MESSAGE_STEPS, unit: ["message", "messages"] };
+
+/**
+ * Effort levels in `CLAUDE_EFFORTS` order. Effort is ordered, so it climbs the accent's heat ramp
+ * from low to xhigh and tops out in silver for max; "none" (no level recorded) stays neutral grey.
+ */
+export const EFFORT_COLOURS = ["#6b7280", "var(--heat-1)", "var(--heat-2)", "var(--heat-3)", "var(--heat-4)", "#e0e2e5"] as const;

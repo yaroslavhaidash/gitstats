@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
   return { title: { absolute: `Crew ${code.toUpperCase()} · claudestats` } };
 }
 
-const UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output tokens" };
+const UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output tokens", messages: "messages" };
 
 /** The reader's standing, the board and the charts; a crew where nobody counts Claude Code shows the setup panel only. */
 async function Board({ crewId, code, window, metric, viewerId, linked }: { crewId: number; code: string; window: Window; metric: ClaudeMetric; viewerId: number; linked: boolean }) {

@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { claudeShareStats, recapStats, shareStats, type ClaudeShareStats, type ShareStats } from "./cached";
 import { requireEnv } from "./env";
-import { fmt, fmtDate, fmtRank, fmtTokens } from "./format";
+import { fmt, fmtCounted, fmtDate, fmtRank, fmtTokens } from "./format";
 import { PERCENTILE_FROM } from "./stats";
 import { CLAUDE_METRICS, PRESETS, windowLabel, type ClaudeMetric, type Metric, type Preset, type Window } from "./window";
 
@@ -189,7 +189,7 @@ export async function shareCard(payload: SharePayload & { metric: Metric }): Pro
   };
 }
 
-const CLAUDE_UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output tokens" };
+const CLAUDE_UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output tokens", messages: "messages" };
 
 /** What `/s/<token>` and its OG image print for a claudestats card. `row` is null before any number was sent. */
 export type ClaudeShareCard = {
@@ -206,7 +206,7 @@ export async function claudeShareCard(payload: SharePayload & { metric: ClaudeMe
   const { row, standing, record } = await claudeShareStats(payload.userId, window, metric);
   const label = windowLabel(window);
   const unit = CLAUDE_UNIT[metric];
-  let headline = fmtTokens(row ? row[metric] : 0);
+  let headline = row ? fmtCounted(row[metric]) : fmtTokens(0);
   let line = `${unit} ${label}`;
   if (options.streak) {
     headline = fmt(row?.streak ?? 0);

@@ -1,5 +1,5 @@
-import { fmt, fmtTokens } from "@/lib/format";
-import { modelLabel, type ClaudeBoardRow } from "@/lib/claudestats";
+import { fmt, fmtCounted } from "@/lib/format";
+import { claudePrev, modelLabel, type ClaudeBoardRow } from "@/lib/claudestats";
 import { CLAUDE_HEAT_SCALE } from "@/lib/side";
 import type { ClaudeMetric } from "@/lib/window";
 import { Heatmap } from "./Heatmap";
@@ -7,29 +7,40 @@ import { Identity, OWN_CELL, ROW_CELL, STICK } from "./Leaderboard";
 import { Momentum } from "./Momentum";
 import { ViewLink } from "./ViewLink";
 
-const UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output" };
+const UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output", messages: "messages" };
+const METRICS: ClaudeMetric[] = ["tokens", "output", "messages"];
+
+/** Momentum for the selected metric; nothing when either period did not count it. */
+function Move({ row, metric, label }: { row: ClaudeBoardRow; metric: ClaudeMetric; label: string }) {
+  const now = row[metric];
+  const before = claudePrev(row, metric);
+  return now === null || before === null ? null : <Momentum commits={now} before={before} label={label} unit={UNIT[metric]} />;
+}
 
 /** One member below 1024px: who, the ranked number large on the right, the rest in one quiet line, the strip. */
 function Card({ row, rank, beforeLabel, metric, wrap, own }: { row: ClaudeBoardRow; rank: number; beforeLabel: string | null; metric: ClaudeMetric; wrap: (row: ClaudeBoardRow, children: React.ReactNode) => React.ReactNode; own: boolean }) {
-  const other: ClaudeMetric = metric === "tokens" ? "output" : "tokens";
   return (
     <div className={`border-2 p-4 min-w-0 ${own ? "bg-alert/10 border-alert" : "bg-void border-dark"}`}>
       <div className="flex items-start gap-3">
         <span className={`pt-1 ${rank === 0 ? "text-alert font-bold" : "text-faint"}`}>{String(rank + 1).padStart(2, "0")}</span>
         <span className="min-w-0 flex-1 pt-0.5">{wrap(row, <Identity row={row} />)}</span>
         <span className="text-right shrink-0">
-          <span className="block font-sans font-bold text-2xl leading-none text-white">{fmtTokens(row[metric])}</span>
+          <span className="block font-sans font-bold text-2xl leading-none text-white">{fmtCounted(row[metric])}</span>
           <span className="flex items-center justify-end gap-1.5 mt-1 text-[11px] text-faint uppercase tracking-wide">
             {UNIT[metric]}
-            {beforeLabel !== null && <Momentum commits={row[metric]} before={metric === "tokens" ? row.prevTokens : row.prevOutput} label={beforeLabel} unit={UNIT[metric]} />}
+            {beforeLabel !== null && <Move row={row} metric={metric} label={beforeLabel} />}
           </span>
         </span>
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-xs text-dim">
-        <span>{fmtTokens(row[other])} {UNIT[other]}</span>
+        {METRICS.filter((m) => m !== metric).map((m) => (
+          <span key={m}>
+            {fmtCounted(row[m])} {UNIT[m]}
+          </span>
+        ))}
         <span>{fmt(row.sessions)} {row.sessions === 1 ? "session" : "sessions"}</span>
         <span>{row.activeDays}d active</span>
-        <span>{row.streak}d streak</span>
+        <span>{metric === "messages" ? `${row.messageStreak}d message streak` : `${row.streak}d streak`}</span>
       </div>
       <div className="flex items-end gap-3 mt-3">
         <Heatmap days={row.days} cell={9} label={`${row.login} Claude Code replies per day, last 12 weeks`} heat={CLAUDE_HEAT_SCALE} />
@@ -85,9 +96,10 @@ export function ClaudeBoard({
               <th className={`${STICK} bg-void left-14 text-left px-4 py-3 font-normal xl:border-r-0 border-r-2 border-dark`}>dev</th>
               <th className="text-right px-4 py-3 font-normal">tokens</th>
               <th className="text-right px-4 py-3 font-normal">output</th>
+              <th className="text-right px-4 py-3 font-normal">messages</th>
               <th className="text-right px-4 py-3 font-normal">sessions</th>
               <th className="text-right px-4 py-3 font-normal">active days</th>
-              <th className="text-right px-4 py-3 font-normal">streak</th>
+              <th className="text-right px-4 py-3 font-normal" title={metric === "messages" ? "days in a row with a typed message" : "days in a row with a reply"}>streak</th>
               {beforeLabel !== null && (
                 <th className="text-center px-4 py-3 font-normal" title={`momentum: ${UNIT[metric]} this period against the period of the same length before it`}>momentum</th>
               )}
@@ -100,14 +112,17 @@ export function ClaudeBoard({
               <tr key={r.userId} className={`group transition-colors ${r.userId === highlightUserId ? "bg-alert/10" : "hover:bg-dark/40"}`}>
                 <td className={`${STICK} ${r.userId === highlightUserId ? OWN_CELL : ROW_CELL} left-0 w-14 px-4 py-3 ${rankOffset + i === 0 ? "text-alert font-bold" : "text-faint"}`}>{String(rankOffset + i + 1).padStart(2, "0")}</td>
                 <td className={`${STICK} ${r.userId === highlightUserId ? OWN_CELL : ROW_CELL} left-14 px-4 py-3 xl:border-r-0 border-r-2 border-dark`}>{wrap(r, <Identity row={r} />)}</td>
-                <td className={`px-4 py-3 text-right ${ranked("tokens")}`}>{fmtTokens(r.tokens)}</td>
-                <td className={`px-4 py-3 text-right ${ranked("output")}`}>{fmtTokens(r.output)}</td>
+                {METRICS.map((m) => (
+                  <td key={m} className={`px-4 py-3 text-right ${r[m] === null ? "text-faint" : ranked(m)}`}>
+                    {fmtCounted(r[m])}
+                  </td>
+                ))}
                 <td className="px-4 py-3 text-right">{fmt(r.sessions)}</td>
                 <td className="px-4 py-3 text-right">{r.activeDays}</td>
-                <td className="px-4 py-3 text-right">{r.streak}d</td>
+                <td className="px-4 py-3 text-right">{metric === "messages" ? r.messageStreak : r.streak}d</td>
                 {beforeLabel !== null && (
                   <td className="px-4 py-3 text-center">
-                    <Momentum commits={r[metric]} before={metric === "tokens" ? r.prevTokens : r.prevOutput} label={beforeLabel} unit={UNIT[metric]} />
+                    <Move row={r} metric={metric} label={beforeLabel} />
                   </td>
                 )}
                 <td className="px-4 py-3 text-dim">{r.topModel ? modelLabel(r.topModel) : "none"}</td>

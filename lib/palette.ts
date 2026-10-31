@@ -20,6 +20,8 @@ const HEAT = ["#222222", "#6e2323", "#a82c2c", "#d93636", "#ff5a5a"] as const;
 export const HEAT_STEPS = [2, 5, 9] as const;
 /** Claude Code replies run into the thousands a day, so the same five cells cover a wider range. */
 export const REPLY_STEPS = [150, 500, 1200] as const;
+/** Typed messages run into the low hundreds a day. */
+export const MESSAGE_STEPS = [20, 60, 140] as const;
 
 /** A day grid's colours, thresholds and what one count is called, when it is not the default red ramp. */
 export type HeatScale = { ramp: readonly string[]; steps: readonly number[]; unit: readonly [one: string, many: string] };

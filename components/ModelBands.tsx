@@ -18,12 +18,28 @@ const NAMES: Record<ModelFamily, string> = { opus: "Opus", sonnet: "Sonnet", hai
 
 const pct = (f: number) => (f < 0.001 ? "<0.1%" : `${Math.round(f * 1000) / 10}%`);
 
-/**
- * Each week as one full-height column split by model family, so a switch from one model to another
- * reads as the bands moving. Shares, not amounts: the bars above already show how much. An idle week
- * is an empty slot.
- */
+/** One band of a `ShareBands` chart: its key, its legend name and its colour (any CSS value). */
+export type Band = { key: string; name: string; colour: string };
+/** A week's amount per band key; null when the week did not count this at all. */
+export type BandWeek = { weekStart: string; parts: Record<string, number> | null };
+
+/** Each week split by model family, for whichever metric the page is ranked by. */
 export function ModelBands({ weeks, metric, label }: { weeks: ClaudeModelWeek[]; metric: ClaudeMetric; label: string }) {
+  return (
+    <ShareBands
+      weeks={weeks.map((w) => ({ weekStart: w.weekStart, parts: Object.fromEntries(ORDER.map((f) => [f, w.families[f]?.[metric] ?? 0])) }))}
+      bands={ORDER.map((f) => ({ key: f, name: NAMES[f], colour: `var(--model-${f})` }))}
+      label={label}
+    />
+  );
+}
+
+/**
+ * Each week as one full-height column split into bands, so a switch from one to another reads as
+ * the bands moving. Shares, not amounts: the bars above already show how much. An idle week is an
+ * empty slot; a week that did not count this at all says so on hover. Band order is fixed, bottom up.
+ */
+export function ShareBands({ weeks, bands, label }: { weeks: BandWeek[]; bands: Band[]; label: string }) {
   const [hover, setHover] = useState<number | null>(null);
   const { boxRef, point, onMouseMove, clear } = useCellTip();
   const width = useChartWidth(boxRef, W);
@@ -33,9 +49,10 @@ export function ModelBands({ weeks, metric, label }: { weeks: ClaudeModelWeek[];
   const slotW = (width - PAD.left - PAD.right) / Math.max(1, weeks.length);
   const barW = Math.max(1, slotW - (slotW > 6 ? 2 : 1));
   const every = Math.max(1, Math.ceil(LABEL_ROOM / slotW));
-  const present = ORDER.filter((f) => weeks.some((w) => (w.families[f]?.[metric] ?? 0) > 0));
+  const value = (w: BandWeek, key: string) => w.parts?.[key] ?? 0;
+  const present = bands.filter((b) => weeks.some((w) => value(w, b.key) > 0));
   const active = hover !== null ? weeks[hover] : null;
-  const totalOf = (w: ClaudeModelWeek) => present.reduce((s, f) => s + (w.families[f]?.[metric] ?? 0), 0);
+  const totalOf = (w: BandWeek) => present.reduce((s, b) => s + value(w, b.key), 0);
 
   return (
     <div>
@@ -58,15 +75,15 @@ export function ModelBands({ weeks, metric, label }: { weeks: ClaudeModelWeek[];
           {weeks.map((w, i) => {
             const total = totalOf(w);
             const x = PAD.left + i * slotW + (slotW - barW) / 2;
-            const parts = present.filter((f) => (w.families[f]?.[metric] ?? 0) > 0);
+            const parts = present.filter((b) => value(w, b.key) > 0);
             const room = plotH - GAP * Math.max(0, parts.length - 1);
             let y = base;
             return (
               <g key={w.weekStart} className="series-fade" opacity={hover !== null && hover !== i ? 0.45 : 1} onMouseEnter={() => setHover(i)}>
                 <rect x={PAD.left + i * slotW} y={PAD.top} width={slotW} height={plotH} fill="transparent" />
                 {total > 0 &&
-                  parts.map((f, k) => {
-                    const h = Math.max(1, ((w.families[f]?.[metric] ?? 0) / total) * room);
+                  parts.map((b, k) => {
+                    const h = Math.max(1, (value(w, b.key) / total) * room);
                     y -= h;
                     const top = y;
                     if (k < parts.length - 1) y -= GAP;
@@ -74,8 +91,8 @@ export function ModelBands({ weeks, metric, label }: { weeks: ClaudeModelWeek[];
                     const r = k === parts.length - 1 ? Math.min(4, barW / 2, h) : 0;
                     return (
                       <path
-                        key={f}
-                        style={{ fill: `var(--model-${f})` }}
+                        key={b.key}
+                        style={{ fill: b.colour }}
                         d={`M${x},${top + h} V${top + r} Q${x},${top} ${x + r},${top} H${x + barW - r} Q${x + barW},${top} ${x + barW},${top + r} V${top + h} Z`}
                       />
                     );
@@ -102,15 +119,17 @@ export function ModelBands({ weeks, metric, label }: { weeks: ClaudeModelWeek[];
         {active && point && (
           <CellTip point={point} className="panel px-3 py-2 font-mono text-xs">
             <div className="text-faint">week of {fmtDate(active.weekStart)}</div>
-            {totalOf(active) === 0 ? (
+            {active.parts === null ? (
+              <div className="text-dim">not counted</div>
+            ) : totalOf(active) === 0 ? (
               <div className="text-dim">nothing counted</div>
             ) : (
-              [...present].reverse().map((f) => {
-                const v = active.families[f]?.[metric] ?? 0;
+              [...present].reverse().map((b) => {
+                const v = value(active, b.key);
                 return v > 0 ? (
-                  <div key={f} className="flex items-center gap-2 text-silver">
-                    <span className="w-2.5 h-2.5 inline-block" style={{ background: `var(--model-${f})` }} />
-                    {NAMES[f]} {pct(v / totalOf(active))} · {fmtTokens(v)}
+                  <div key={b.key} className="flex items-center gap-2 text-silver">
+                    <span className="w-2.5 h-2.5 inline-block" style={{ background: b.colour }} />
+                    {b.name} {pct(v / totalOf(active))} · {fmtTokens(v)}
                   </div>
                 ) : null;
               })
@@ -119,10 +138,10 @@ export function ModelBands({ weeks, metric, label }: { weeks: ClaudeModelWeek[];
         )}
       </div>
       <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-silver">
-        {[...present].reverse().map((f) => (
-          <li key={f} className="flex items-center gap-2">
-            <span className="w-3 h-3 inline-block" style={{ background: `var(--model-${f})` }} />
-            {NAMES[f]}
+        {[...present].reverse().map((b) => (
+          <li key={b.key} className="flex items-center gap-2">
+            <span className="w-3 h-3 inline-block" style={{ background: b.colour }} />
+            {b.name}
           </li>
         ))}
       </ul>

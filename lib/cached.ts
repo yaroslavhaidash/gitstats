@@ -4,7 +4,9 @@ import {
   claudeBoard,
   claudeDataStart,
   claudeDays,
+  claudeEffortWeeks,
   claudeMemberDays,
+  claudeMessageDays,
   claudeModels,
   claudeModelWeeks,
   claudeRecords,
@@ -16,6 +18,7 @@ import {
   type ClaudeBoardRow,
   type ClaudePeriodTotal,
   type ClaudeDayRow,
+  type ClaudeEffortWeek,
   type ClaudeMemberDay,
   type ClaudeModelRow,
   type ClaudeModelWeek,
@@ -430,6 +433,12 @@ export type ClaudeUserStats = {
   year: number[];
   /** Average replies per weekday over the drawn span, Sunday first. */
   weekdays: number[];
+  /** Messages per day, last 52 weeks, oldest first; -1 on a day that did not count them, so the calendar leaves it blank. */
+  messageYear: number[];
+  /** Average messages per weekday over the days of the span that counted them; null when none did. */
+  messageWeekdays: number[] | null;
+  /** The last 26 weeks split by effort level. */
+  effortWeeks: ClaudeEffortWeek[];
   /** The window, except that all time starts at the member's first Claude Code day. */
   span: Range;
 };
@@ -448,7 +457,7 @@ export async function claudeUserStats(userId: number, window: Window): Promise<C
     if (start > current.from) span = { from: start, to: current.to };
   }
   const calendarFrom = span.from < daysAgo(YEAR_DAYS) ? span.from : daysAgo(YEAR_DAYS);
-  const [[row], before, weeks, days, models, replies, modelWeeks] = await Promise.all([
+  const [[row], before, weeks, days, models, replies, modelWeeks, messages, effortWeeks] = await Promise.all([
     claudeBoard([userId], window),
     claudeTotals([userId], previous).then((t) => t.get(userId) ?? NO_CLAUDE),
     claudeWeeks(userId, yearChart().weeks),
@@ -456,8 +465,26 @@ export async function claudeUserStats(userId: number, window: Window): Promise<C
     claudeModels([userId], current),
     claudeReplyDays([userId], calendarFrom).then((m) => m.get(userId) ?? new Map<string, number>()),
     claudeModelWeeks(userId, MODEL_WEEKS),
+    claudeMessageDays(userId, calendarFrom),
+    claudeEffortWeeks(userId, MODEL_WEEKS),
   ]);
-  return { row: row?.counted ? row : null, before, weeks, days, models, modelWeeks, year: lastDays(replies, YEAR_DAYS), weekdays: weekdayAverages(replies, span.from, span.to), span };
+  const messageYear = lastDays(messages, YEAR_DAYS).map((n, i, all) => (messages.has(daysAgo(all.length - 1 - i)) ? n : -1));
+  const since = row?.detail?.since ?? null;
+  const messageWeekdays = since === null ? null : weekdayAverages(messages, since > span.from ? since : span.from, span.to);
+  return {
+    row: row?.counted ? row : null,
+    before,
+    weeks,
+    days,
+    models,
+    modelWeeks,
+    year: lastDays(replies, YEAR_DAYS),
+    weekdays: weekdayAverages(replies, span.from, span.to),
+    messageYear,
+    messageWeekdays,
+    effortWeeks,
+    span,
+  };
 }
 
 export async function claudeMemberRecords(userId: number): Promise<ClaudeRecords> {

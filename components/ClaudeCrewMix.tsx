@@ -4,20 +4,21 @@ import type { RankedRow } from "@/lib/stats";
 import type { ClaudeMetric } from "@/lib/window";
 import { cacheReuse, contextFactor, Meter } from "./ClaudeIntensity";
 import { crewHues } from "./ClaudeCrewCharts";
+import { CrewHours, topEffort } from "./ClaudeHabits";
 import { ShareBar } from "./ShareBar";
 
-const UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output tokens" };
+const UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output tokens", messages: "messages" };
 const per = (a: number, b: number) => (b > 0 ? a / b : null);
 
 /**
  * The crew board's second row: who carried what share, which models the crew ran, how each member
  * works (ratios of their own totals) and, for members on both sides, git lines per million output
  * tokens. The git lines are the gitstats crew board's own numbers for the same window, so the
- * crossover never shows a figure the gitstats board would not.
+ * crossover never shows a figure the gitstats board would not. Then each member's 6-hour profile.
  */
 export function ClaudeCrewMix({ rows, models, git, metric, label }: { rows: ClaudeBoardRow[]; models: ClaudeModelRow[]; git: RankedRow[]; metric: ClaudeMetric; label: string }) {
   const hues = crewHues(rows);
-  const share = rows.map((r) => ({ label: r.login, value: r[metric], colour: hues.get(r.userId) ?? "#6b7280" }));
+  const share = rows.map((r) => ({ label: r.login, value: r[metric] ?? 0, colour: hues.get(r.userId) ?? "#6b7280" }));
   const mix = models.filter((m) => m[metric] > 0).map((m) => ({ label: m.label, value: m[metric], colour: `var(--model-${m.family})` }));
   const lines = new Map(git.map((g) => [g.userId, g.additions + g.deletions]));
   const cross = rows
@@ -71,13 +72,16 @@ export function ClaudeCrewMix({ rows, models, git, metric, label }: { rows: Clau
         <h2 className="font-sans font-bold text-lg mb-1">How each member works</h2>
         <p className="font-mono text-xs text-faint mb-4">{label} · ratios of each member&apos;s own totals, not ranked</p>
         <div className="overflow-x-auto -mx-6 px-6">
-          <table className="w-full min-w-[560px] font-mono text-xs">
+          <table className="w-full min-w-[820px] font-mono text-xs">
             <thead>
               <tr className="text-faint uppercase tracking-wide text-left">
                 <th className="font-normal pb-2 pr-3">dev</th>
                 <th className="font-normal pb-2 pr-3 text-right">per session</th>
                 <th className="font-normal pb-2 pr-3 text-right">output per reply</th>
                 <th className="font-normal pb-2 pr-3 text-right">context per output</th>
+                <th className="font-normal pb-2 pr-3 text-right">replies per message</th>
+                <th className="font-normal pb-2 pr-3">effort</th>
+                <th className="font-normal pb-2 pr-3 text-right">subagents</th>
                 <th className="font-normal pb-2 w-[30%]">cache reuse</th>
               </tr>
             </thead>
@@ -87,6 +91,10 @@ export function ClaudeCrewMix({ rows, models, git, metric, label }: { rows: Clau
                 const factor = contextFactor(r);
                 const session = per(r.tokens, r.sessions);
                 const reply = per(r.output, r.replies);
+                const d = r.detail;
+                const perMessage = d ? per(d.replies, d.messages) : null;
+                const effort = d ? topEffort(d) : null;
+                const subagents = d ? per(d.subagentTokens, d.tokens) : null;
                 return (
                   <tr key={r.userId} className="border-t border-dark">
                     <td className="py-2.5 pr-3">
@@ -98,6 +106,9 @@ export function ClaudeCrewMix({ rows, models, git, metric, label }: { rows: Clau
                     <td className="py-2.5 pr-3 text-right text-white">{session === null ? "none" : fmtTokens(session)}</td>
                     <td className="py-2.5 pr-3 text-right text-white">{reply === null ? "none" : fmt(Math.round(reply))}</td>
                     <td className="py-2.5 pr-3 text-right text-white">{factor === null ? "none" : `${fmt(Math.round(factor))}×`}</td>
+                    <td className={`py-2.5 pr-3 text-right ${d ? "text-white" : "text-faint"}`}>{d ? (perMessage === null ? "none" : perMessage.toFixed(1)) : "not counted"}</td>
+                    <td className={`py-2.5 pr-3 ${d ? "text-white" : "text-faint"}`}>{d ? (effort ? `${effort.name} ${Math.round(effort.share * 100)}%` : "none") : "not counted"}</td>
+                    <td className={`py-2.5 pr-3 text-right ${d ? "text-white" : "text-faint"}`}>{d ? (subagents === null ? "none" : `${(subagents * 100).toFixed(1)}%`) : "not counted"}</td>
                     <td className="py-2.5">
                       {reuse === null ? (
                         <span className="text-dim">none</span>
@@ -117,6 +128,8 @@ export function ClaudeCrewMix({ rows, models, git, metric, label }: { rows: Clau
           </table>
         </div>
       </section>
+
+      <CrewHours rows={rows} hues={hues} label={label} />
     </>
   );
 }

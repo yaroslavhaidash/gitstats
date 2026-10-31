@@ -6,7 +6,9 @@ import { CrewRace } from "./CrewRace";
 import { EmptyNote } from "./EmptyNote";
 import { MemberLines } from "./MemberLines";
 
-const UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output tokens" };
+const UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output tokens", messages: "messages" };
+/** Messages exist only on days a CLI 0.7.0 or later counted; the charts add the others as nothing and say so. */
+const SINCE: Record<ClaudeMetric, string> = { tokens: "", output: "", messages: " · messages are counted since CLI 0.7.0" };
 
 /** Each member's colour, by sign-up order as on the gitstats board, so every crew chart agrees. */
 export function crewHues(rows: { userId: number }[]): Map<number, string> {
@@ -41,7 +43,7 @@ export function ClaudeCrewCharts({ rows, timelines, metric }: { rows: ClaudeBoar
     <>
       <section className="panel p-6 mt-8">
         <h2 className="font-sans font-bold text-lg mb-1">Race · last {timelines.raceWeeks} weeks</h2>
-        <p className="font-mono text-xs text-faint mb-4">running total of {UNIT[metric]}, one frame per day · plays once, then the slider</p>
+        <p className="font-mono text-xs text-faint mb-4">running total of {UNIT[metric]}, one frame per day · plays once, then the slider{SINCE[metric]}</p>
         {race.length === 0 ? (
           <EmptyNote inset>nothing counted yet</EmptyNote>
         ) : (
@@ -51,7 +53,7 @@ export function ClaudeCrewCharts({ rows, timelines, metric }: { rows: ClaudeBoar
       <section className="panel p-6 mt-8 min-w-0">
         <h2 className="font-sans font-bold text-lg mb-1">Weekly {UNIT[metric]} per member</h2>
         <p className="font-mono text-xs text-faint mb-4">
-          last {timelines.weekCount} weeks
+          last {timelines.weekCount} weeks{SINCE[metric]}
           {members.length > 4 ? " · one row per member, each scaled to its own peak" : " · hover a line to isolate it, click to pin"}
         </p>
         {weeks.size === 0 ? (

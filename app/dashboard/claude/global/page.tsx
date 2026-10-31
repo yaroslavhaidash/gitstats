@@ -28,7 +28,7 @@ export const metadata: Metadata = { title: { absolute: "Global board · claudest
 const FLAT_UNDER = 50;
 const TOP = 5;
 const NEAR = 5;
-const UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output tokens" };
+const UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output tokens", messages: "messages" };
 
 function blocksFor(index: number, total: number): { from: number; to: number }[] {
   const head = { from: 0, to: Math.min(TOP, total) - 1 };

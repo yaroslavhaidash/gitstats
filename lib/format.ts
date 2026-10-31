@@ -20,6 +20,11 @@ export function fmtTokens(n: number): string {
   return Math.abs(n) >= 1_000 ? compact.format(n) : plain.format(n);
 }
 
+/** A claudestats number that may not have been counted: messages from a CLI before 0.7.0 are null, never zero. */
+export function fmtCounted(n: number | null): string {
+  return n === null ? "not counted" : fmtTokens(n);
+}
+
 export function fmtDate(d: Date | string): string {
   const date = typeof d === "string" ? new Date(`${d}T00:00:00Z`) : d;
   return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });

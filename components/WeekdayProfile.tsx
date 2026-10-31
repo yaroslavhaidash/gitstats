@@ -16,14 +16,17 @@ const UNIT: Record<Metric, { label: string; empty: string }> = {
   commits: { label: "Average commits per weekday", empty: "no commits in this window" },
 };
 
-/** Average of the selected metric per weekday over the window; the strongest day carries the accent. */
-export function WeekdayProfile({ averages, metric, unit: label }: { averages: number[]; metric?: Metric; unit?: { label: string; empty: string } }) {
+/**
+ * Average of the selected metric per weekday over the window; the strongest day carries the accent.
+ * `labels` swaps the weekdays for other slots of the same kind (claudestats' 6-hour blocks).
+ */
+export function WeekdayProfile({ averages, metric, unit: label, labels = DAYS }: { averages: number[]; metric?: Metric; unit?: { label: string; empty: string }; labels?: string[] }) {
   const unit = label ?? UNIT[metric ?? "commits"];
   const [hover, setHover] = useState<number | null>(null);
   const max = Math.max(...averages);
   const best = averages.indexOf(max);
   const plotH = H - PAD.top - PAD.bottom;
-  const slot = (W - PAD.left - PAD.right) / 7;
+  const slot = (W - PAD.left - PAD.right) / labels.length;
   const base = PAD.top + plotH;
   if (max === 0) return <p className="font-mono text-sm text-dim">&gt; {unit.empty}_</p>;
 
@@ -59,7 +62,7 @@ export function WeekdayProfile({ averages, metric, unit: label }: { averages: nu
               fontFamily="var(--font-mono)"
               className={strongest ? "fill-silver" : "fill-faint"}
             >
-              {DAYS[i]}
+              {labels[i]}
             </text>
           </g>
         );
