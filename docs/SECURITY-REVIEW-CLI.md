@@ -171,3 +171,18 @@ page should say that plainly rather than leaning on "numbers only" to carry the 
 | F8 worktree order | **fixed** | real clones sort before worktrees, so the primary checkout wins. |
 
 Verified against production: HMAC matching maps the maintainer's public repos onto their GitHub node ids without a name in the payload; a private work monorepo is stored as `private-<hash8>` with no name; a public repo uploaded by the CLI before GitHub knew it (`gitstats-cli`) was folded into its GitHub id by the next snapshot. Cron run 11: 18 repos, 0 errors.
+
+---
+
+## Claude Code usage (2026-11)
+
+An optional `claude` field on the same `/api/ingest` request (`lib/claude.ts`). Off by default: a CLI sends it only after its owner turns Claude counting on.
+
+- **What is read.** The CLI reads Claude Code's own logs under `<claudeDir>/projects/**/*.jsonl` and takes only a line's type, timestamp, message id, model, the four usage counts, session id and Claude Code version. It never reads message content, working directories, branch names, tool inputs or tool results.
+- **What is sent.** Per UTC day per model: input, output, cache-read and cache-write tokens, replies and sessions; the highest Claude Code version seen; the window `from`/`to`; and a machine key. Message and session ids stay on the machine: they are only used locally to dedupe replies that Claude Code writes several times and copies into resumed sessions. Nothing finer than a day leaves.
+- **The machine key** is the first 32 hex of HMAC-SHA256(the user's salt, platform id + Claude dir). The server never sees the platform id or the path; the key only lets each computer replace its own rows, so two machines cannot overwrite or double each other.
+- **Validation** (`parseClaudeUpload`): `machine` `^[0-9a-f]{32}$`; `2025-01-01 ≤ from ≤ to ≤ today + 1`, span ≤ 1,000 days; ≤ 8,000 rows, each date inside `[from, to]`, `(date, model)` unique; model `^[a-z0-9][a-z0-9.\-]{0,63}$`; token counts integers 0…1e13, replies ≤ 1e6, sessions ≤ 1e5; `version` `^\d{1,4}\.\d{1,4}\.\d{1,4}$` or absent. Any violation rejects the whole field (`claude: "rejected"`) and writes nothing Claude-side; the repos part of the same request is ingested as before.
+- **Write.** One `db.batch`: delete the caller's rows for that machine with `date` in `[from, to]`, insert the upload in chunks of 2,000 rows, stamp `cli_tokens.claude_synced_at`/`claude_version` on the calling token. Only the caller's own rows are ever touched.
+- **Ceilings.** 8,000 rows is about 0.9 MB, so with the repos part (about 2 MB at most) a request stays under Vercel's 4.5 MB body limit. Rate limits are unchanged: the field rides a request the sync already makes.
+- **The zero guard is the CLI's:** when files changed but no reply was recognised (a log format change), it sends no `claude` field at all, so the window replace can never wipe counted days with zeros.
+- **Not a threat here:** inflated numbers. A member can send any counts for themselves; gitstats is friends-only and does no anti-gaming.

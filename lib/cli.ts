@@ -3,7 +3,6 @@ import { and, eq, gte, isNotNull, isNull, lt, sql, type SQL } from "drizzle-orm"
 import type { BatchItem } from "drizzle-orm/batch";
 import { db } from "@/db";
 import { cliTokens, dailyLocal, deviceCodes, repos, users, weeklyStats } from "@/db/schema";
-import { revalidateForUsers } from "./cache";
 import { ALL_FROM } from "./window";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -279,6 +278,7 @@ function chunks<T>(rows: T[]): T[][] {
  * repo's own `since` for a full-history upload, which replaces the whole series of that pair. Nothing shared between users is mutated: a repo
  * the GitHub path already knows is matched by HMAC of its github.com URL, and only this user's
  * rows for it switch source. Other users keep their GitHub-sourced rows for the same repo.
+ * The caller drops the cache tags, once per request.
  */
 export async function ingest(userId: number, defaultSince: string, incoming: IngestRepo[]): Promise<{ repos: number; weeks: number }> {
   const salt = await userHashSalt(userId);
@@ -326,7 +326,6 @@ export async function ingest(userId: number, defaultSince: string, incoming: Ing
     if (reposInBatch >= REPOS_PER_BATCH || rowsInBatch >= ROWS_PER_BATCH) await flush();
   }
   await flush();
-  await revalidateForUsers([userId]);
   return { repos: incoming.length, weeks };
 }
 

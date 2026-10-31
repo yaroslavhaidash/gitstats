@@ -173,6 +173,28 @@ export default async function Privacy() {
           </p>
         </section>
 
+        <section id="claude" className="mb-14">
+          <h2 className="font-sans font-bold text-2xl mb-4">Claude Code usage, only if you turn it on</h2>
+          <p className="font-mono text-xs text-dim leading-relaxed mb-4">
+            claudestats is off until you turn it on, with <span className="text-silver">gitstats claude on</span> or by
+            answering yes when you link a computer. From then on the CLI reads the logs Claude Code keeps on that
+            computer and sends, per UTC day and per model: input, output, cache-read and cache-write tokens, how many
+            replies and how many sessions, the highest Claude Code version it saw, and a keyed hash that tells your
+            computers apart. Nothing else leaves the computer: no prompts, no replies, no code, no file or project
+            names, no session or message ids, nothing finer than a day. Nothing is stored for members who never turn
+            it on.
+          </p>
+          <p className="font-mono text-xs text-dim leading-relaxed mb-4">
+            Who sees it follows the same rule as your page: crewmates on your crew boards, everyone signed in on the
+            global board, and your own page as your settings allow. The private-repo switches do not apply, since
+            there are no repos in it.
+          </p>
+          <p className="font-mono text-xs text-dim leading-relaxed">
+            <span className="text-silver">gitstats claude off</span> stops sending. The numbers already sent are in
+            your export and go when you delete your account.
+          </p>
+        </section>
+
         <section id="mcp" className="mb-14">
           <h2 className="font-sans font-bold text-2xl mb-4">AI assistants (MCP)</h2>
           <p className="font-mono text-xs text-dim leading-relaxed">

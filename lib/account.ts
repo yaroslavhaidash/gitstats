@@ -3,6 +3,7 @@ import { alias } from "drizzle-orm/pg-core";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
+  claudeDaily,
   cliTokens,
   crewMembers,
   crews,
@@ -33,7 +34,7 @@ import { handOffCrews } from "./crews";
 export async function exportAccount(userId: number) {
   const giver = alias(users, "giver");
   const receiver = alias(users, "receiver");
-  const [[user], memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, propsRows, apps, thread] = await Promise.all([
+  const [[user], memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, propsRows, apps, thread, claude] = await Promise.all([
     db
       .select({
         id: users.id,
@@ -71,6 +72,8 @@ export async function exportAccount(userId: number) {
         lastSyncRepos: cliTokens.lastSyncRepos,
         lastSyncError: cliTokens.lastSyncError,
         cliVersion: cliTokens.cliVersion,
+        claudeSyncedAt: cliTokens.claudeSyncedAt,
+        claudeVersion: cliTokens.claudeVersion,
       })
       .from(cliTokens)
       .where(eq(cliTokens.userId, userId))
@@ -147,6 +150,21 @@ export async function exportAccount(userId: number) {
       .from(messages)
       .where(eq(messages.userId, userId))
       .orderBy(asc(messages.createdAt)),
+    db
+      .select({
+        machine: claudeDaily.machine,
+        date: claudeDaily.date,
+        model: claudeDaily.model,
+        inputTokens: claudeDaily.inputTokens,
+        outputTokens: claudeDaily.outputTokens,
+        cacheReadTokens: claudeDaily.cacheReadTokens,
+        cacheWriteTokens: claudeDaily.cacheWriteTokens,
+        replies: claudeDaily.replies,
+        sessions: claudeDaily.sessions,
+      })
+      .from(claudeDaily)
+      .where(eq(claudeDaily.userId, userId))
+      .orderBy(desc(claudeDaily.date), claudeDaily.machine, claudeDaily.model),
   ]);
   if (!user) return null;
   return {
@@ -163,6 +181,7 @@ export async function exportAccount(userId: number) {
     props: propsRows,
     oauthApps: apps,
     messages: thread,
+    claudeDaily: claude,
   };
 }
 
@@ -188,7 +207,7 @@ export async function archiveAccount(userId: number): Promise<void> {
   const found = await db.execute<{ row: Record<string, unknown> }>(sql`select to_jsonb(t) as row from ${users} t where t.id = ${userId}`);
   const user = found.rows[0]?.row;
   if (!user) return;
-  const [memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, propsRows, apps, thread] = await Promise.all([
+  const [memberships, machines, tokens, weeks, github, local, nameOverrides, assistants, propsRows, apps, thread, claude] = await Promise.all([
     rowsAsJson(crewMembers, userId),
     rowsAsJson(cliTokens, userId),
     rowsAsJson(userTokens, userId),
@@ -205,6 +224,7 @@ export async function archiveAccount(userId: number): Promise<void> {
       .then((res) => res.rows[0].rows),
     rowsAsJson(oauthGrants, userId),
     rowsAsJson(messages, userId),
+    rowsAsJson(claudeDaily, userId),
   ]);
   const data: ArchivedAccount = {
     user,
@@ -219,6 +239,7 @@ export async function archiveAccount(userId: number): Promise<void> {
     props: propsRows,
     oauthGrants: apps,
     messages: thread,
+    claudeDaily: claude,
   };
   await db.insert(deletedUsersArchive).values({ userId, login: String(user.github_login), data });
 }
@@ -258,6 +279,7 @@ export async function restoreAccount(archiveId: number): Promise<string | null> 
   await restoreRows(mcpTokens, data.mcpTokens ?? []);
   await restoreRows(oauthGrants, data.oauthGrants ?? []);
   await restoreRows(messages, data.messages ?? []);
+  await restoreRows(claudeDaily, data.claudeDaily ?? []);
   // Only props whose other member is still here can come back.
   if (data.props && data.props.length > 0) {
     await db.execute(sql`
@@ -291,6 +313,7 @@ export async function deleteAccount(userId: number): Promise<void> {
   await db.delete(weeklyStats).where(eq(weeklyStats.userId, userId));
   await db.delete(dailyLocal).where(eq(dailyLocal.userId, userId));
   await db.delete(dailyContributions).where(eq(dailyContributions.userId, userId));
+  await db.delete(claudeDaily).where(eq(claudeDaily.userId, userId));
   await db.delete(repoNameOverrides).where(eq(repoNameOverrides.userId, userId));
   await db.delete(cliTokens).where(eq(cliTokens.userId, userId));
   await db.delete(mcpTokens).where(eq(mcpTokens.userId, userId));

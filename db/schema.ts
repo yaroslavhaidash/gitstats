@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   customType,
@@ -221,6 +222,10 @@ export const cliTokens = pgTable("cli_tokens", {
   lastSyncError: text("last_sync_error"),
   /** The CLI version of the last sync; null until a machine on 0.3.0 or newer reports one. */
   cliVersion: text("cli_version"),
+  /** When this machine's Claude Code numbers were last accepted; null while counting them is off. */
+  claudeSyncedAt: timestamp("claude_synced_at", { withTimezone: true }),
+  /** The highest Claude Code version in that upload, to tie a sudden drop to a Claude Code release. */
+  claudeVersion: text("claude_version"),
 }, (t) => [index("cli_tokens_user_idx").on(t.userId)]);
 
 /** Personal tokens for the read-only MCP endpoint; the owner is the viewer, so tools see what their pages show. */
@@ -331,6 +336,30 @@ export const dailyLocal = pgTable(
 );
 
 /**
+ * Claude Code usage per UTC day and model, counted by the CLI from the member's own logs. Every day is
+ * counted, never placed. bigint because one heavy day passes int4 (cache reads dominate).
+ */
+export const claudeDaily = pgTable(
+  "claude_daily",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    /** HMAC of the machine's platform id and Claude dir: each linked computer replaces only its own rows. */
+    machine: text("machine").notNull(),
+    date: date("date", { mode: "string" }).notNull(),
+    model: text("model").notNull(),
+    inputTokens: bigint("input_tokens", { mode: "number" }).notNull().default(0),
+    outputTokens: bigint("output_tokens", { mode: "number" }).notNull().default(0),
+    cacheReadTokens: bigint("cache_read_tokens", { mode: "number" }).notNull().default(0),
+    cacheWriteTokens: bigint("cache_write_tokens", { mode: "number" }).notNull().default(0),
+    replies: integer("replies").notNull().default(0),
+    sessions: integer("sessions").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.machine, t.date, t.model] }), index("claude_daily_user_date_idx").on(t.userId, t.date)],
+);
+
+/**
  * Per-repo exception to the repo-names row of the visibility matrix. A row only ever hides more
  * than the matrix does; it never reveals a name the matrix keeps back.
  */
@@ -382,6 +411,8 @@ export type ArchivedAccount = {
   oauthGrants?: Record<string, unknown>[];
   /** The thread with the maintainer. Absent from archives written before messages existed. */
   messages?: Record<string, unknown>[];
+  /** Claude Code usage. Absent from archives written before claudestats existed. */
+  claudeDaily?: Record<string, unknown>[];
 };
 
 /** A deleted member, kept for 30 days so an accidental delete can be undone, then purged nightly. */

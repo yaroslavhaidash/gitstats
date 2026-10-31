@@ -2,6 +2,8 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { cliTokens } from "@/db/schema";
+import { revalidateForUsers } from "@/lib/cache";
+import { ingestClaude, parseClaudeUpload } from "@/lib/claude";
 import { hashToken, ingest, isOutdatedCli, MIN_CLI_VERSION, parseCliVersion, parseIngestRepos, tokenOwner } from "@/lib/cli";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
 import { tooMany } from "@/lib/http";
@@ -28,7 +30,13 @@ export async function POST(request: Request) {
     return new NextResponse("Bad request", { status: 400 });
   }
   const cliVersion = parseCliVersion(fields.cliVersion);
-  const result = await ingest(owner.userId, defaultSince, repos);
+  // A malformed `claude` never blocks the git sync: the repos still land, the field is answered "rejected".
+  const claudeUpload = parseClaudeUpload(fields.claude, daysAgo(0));
+  const counted = await ingest(owner.userId, defaultSince, repos);
+  const claude = claudeUpload === "invalid" ? "rejected" : claudeUpload ? await ingestClaude(owner.userId, owner.id, claudeUpload) : null;
+  // Without a `claude` field the body is exactly what older CLIs have always been sent.
+  const result = claude === null ? counted : { ...counted, claude };
+  await revalidateForUsers([owner.userId]);
   await db
     .update(cliTokens)
     .set({ lastSyncAt: new Date(), lastSyncRepos: result.repos, lastSyncError: null, cliVersion })

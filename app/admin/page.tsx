@@ -332,6 +332,12 @@ export default async function Admin({
                           ) : (
                             <span className="text-faint ml-2">never synced</span>
                           )}
+                          {mach.claudeSyncedAt && (
+                            <span className="text-dim ml-2">
+                              claude {fmtDateTime(mach.claudeSyncedAt)}
+                              {mach.claudeVersion && ` · Claude Code v${mach.claudeVersion}`}
+                            </span>
+                          )}
                         </span>
                         <DangerConfirm
                           label="[REVOKE]"

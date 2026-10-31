@@ -44,7 +44,16 @@ export type AdminRun = {
   errors: number;
   retrying: number;
 };
-export type AdminMachine = { id: number; machine: string; cliVersion: string | null; lastSyncAt: Date | null; lastSyncError: string | null };
+export type AdminMachine = {
+  id: number;
+  machine: string;
+  cliVersion: string | null;
+  lastSyncAt: Date | null;
+  lastSyncError: string | null;
+  /** Null while Claude Code counting is off on this machine. */
+  claudeSyncedAt: Date | null;
+  claudeVersion: string | null;
+};
 export type AdminUser = {
   id: number;
   login: string;
@@ -153,6 +162,8 @@ export async function adminOverview(): Promise<AdminOverview> {
         cliVersion: cliTokens.cliVersion,
         lastSyncAt: cliTokens.lastSyncAt,
         lastSyncError: cliTokens.lastSyncError,
+        claudeSyncedAt: cliTokens.claudeSyncedAt,
+        claudeVersion: cliTokens.claudeVersion,
       })
       .from(cliTokens)
       .orderBy(asc(cliTokens.id)),
@@ -194,7 +205,15 @@ export async function adminOverview(): Promise<AdminOverview> {
       crews: crewsByUser.get(u.id) ?? 0,
       machines: machineRows
         .filter((m) => m.userId === u.id)
-        .map((m) => ({ id: m.id, machine: m.machine, cliVersion: m.cliVersion, lastSyncAt: m.lastSyncAt, lastSyncError: m.lastSyncError })),
+        .map((m) => ({
+          id: m.id,
+          machine: m.machine,
+          cliVersion: m.cliVersion,
+          lastSyncAt: m.lastSyncAt,
+          lastSyncError: m.lastSyncError,
+          claudeSyncedAt: m.claudeSyncedAt,
+          claudeVersion: m.claudeVersion,
+        })),
       tokenWarnings: tokenRows.filter((t) => t.userId === u.id).map((t) => ({ label: t.label, lastError: t.lastError ?? "" })),
     })),
     crewList,
