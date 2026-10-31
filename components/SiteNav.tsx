@@ -4,7 +4,6 @@ import { Suspense, type ReactNode } from "react";
 import { auth } from "@/auth";
 import { CliBanner } from "@/components/CliBanner";
 import { CrewSwitcher } from "@/components/CrewSwitcher";
-import { Logo } from "@/components/Logo";
 import { NavMenu } from "@/components/NavMenu";
 import { SideSwitch } from "@/components/SideSwitch";
 import { NavSheet, SheetLabel, SheetLink, SheetLinks } from "@/components/NavSheet";
@@ -130,6 +129,9 @@ export function MemberNav({ user, crews, admin, linked, notes }: { user: NavUser
   );
 }
 
+/** Where each side starts for a signed-out visitor. */
+export const PUBLIC_HOMES = { git: "/", claude: "/claude" } as const;
+
 const DEFAULT_LINKS = (
   <>
     <Link href="/demo" className="hover:text-alert transition-colors">[DEMO]</Link>
@@ -146,7 +148,7 @@ async function SessionBar({ where, links }: { where: string; links: ReactNode })
   }
   return (
     <div className={BAR}>
-      <Logo />
+      <SideSwitch homes={PUBLIC_HOMES} compact />
       <div className="hidden md:flex gap-6 font-mono text-sm">{links}</div>
       <div className="flex items-center gap-2">
         <form action={signInWithGitHub}>
@@ -176,7 +178,7 @@ async function SessionBar({ where, links }: { where: string; links: ReactNode })
 export function SiteNav({ where, links = DEFAULT_LINKS }: { where: string; links?: ReactNode }) {
   return (
     <nav className="sticky top-0 z-40 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
-      <Suspense fallback={<div className={BAR}><Logo /></div>}>
+      <Suspense fallback={<div className={BAR}><SideSwitch homes={PUBLIC_HOMES} compact /></div>}>
         <SessionBar where={where} links={links} />
       </Suspense>
     </nav>

@@ -8,10 +8,12 @@ import {
   claudeModels,
   claudeRecords,
   claudeReplyDays,
+  claudeStanding,
   claudeTotals,
   claudeWeeks,
   NO_CLAUDE,
   type ClaudeBoardRow,
+  type ClaudePeriodTotal,
   type ClaudeDayRow,
   type ClaudeMemberDay,
   type ClaudeModelRow,
@@ -68,7 +70,7 @@ import {
   type Standing,
   type WeekRow,
 } from "./stats";
-import { chartWeeks, daysAgo, isAllTime, periodBounds, raceWeeks, shiftDate, weekStart, windowRange, yearChart, type Metric, type Preset, type Range, type Window } from "./window";
+import { chartWeeks, daysAgo, isAllTime, periodBounds, raceWeeks, shiftDate, weekStart, windowRange, yearChart, type ClaudeMetric, type Metric, type Preset, type Range, type Window } from "./window";
 
 /**
  * Every Postgres read behind a board or a user page goes through this file. The session lookup
@@ -475,4 +477,32 @@ export async function claudeCrewTimelines(crewId: number, window: Window): Promi
   const raceFrom = shiftDate(raceTo, -(race * 7 - 1));
   const days = await claudeMemberDays(ids, { from: raceFrom < weekFrom ? raceFrom : weekFrom, to: raceTo });
   return { days, weekCount: MIX_WEEKS, weekFrom, weekEnd, raceWeeks: race, raceFrom, raceTo };
+}
+
+export type ClaudeShareStats = {
+  /** The member's claudestats row, with `days` the 26 weeks of replies a card draws. Null before any number was sent. */
+  row: ClaudeBoardRow | null;
+  standing: Standing | null;
+  /** The best week or month ever for the card's metric, when the window is a week or a month. */
+  record: { kind: "week" | "month"; best: ClaudePeriodTotal } | null;
+};
+
+/** Everything a claudestats share card prints: the owner's own numbers and their place on the global board. */
+export async function claudeShareStats(userId: number, window: Window, metric: ClaudeMetric): Promise<ClaudeShareStats> {
+  "use cache: remote";
+  cacheLife("hours");
+  cacheTag(STATS_TAG, GLOBAL_TAG, userTag(userId));
+  const kind = window.kind === "preset" && (window.value === "week" || window.value === "month") ? window.value : null;
+  const [board, replies, records] = await Promise.all([
+    claudeBoard(null, window),
+    claudeReplyDays([userId], daysAgo(SHARE_HEATMAP_DAYS)).then((m) => m.get(userId) ?? new Map<string, number>()),
+    kind ? claudeRecords(userId) : null,
+  ]);
+  const own = board.find((r) => r.userId === userId);
+  const best = kind && records ? records[kind][metric] : null;
+  return {
+    row: own ? { ...own, days: lastDays(replies, SHARE_HEATMAP_DAYS) } : null,
+    standing: claudeStanding(board, metric, userId),
+    record: kind && best ? { kind, best } : null,
+  };
 }

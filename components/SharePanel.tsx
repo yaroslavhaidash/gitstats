@@ -10,7 +10,7 @@ import { rotateShareLink } from "@/lib/actions";
  * each switch position and this picks one. No round trip per toggle, and the URL in
  * the box is always the URL the reader will open.
  */
-export function SharePanel({ tokens, origin, view, defaultOpen, defaultStreak, defaultRecord, defaultRecap, empty, login }: {
+export function SharePanel({ tokens, origin, view, defaultOpen, defaultStreak, defaultRecord, defaultRecap, empty, login, claude }: {
   tokens: Record<string, string>;
   /** This member's login, for the README badge. */
   login: string;
@@ -25,6 +25,11 @@ export function SharePanel({ tokens, origin, view, defaultOpen, defaultStreak, d
   defaultRecap: boolean;
   /** Nothing has been counted for this account yet, so a card would only advertise an empty grid. */
   empty: boolean;
+  /**
+   * A claudestats card: no repos, so no names; the streak headline is always offered, and the record
+   * one when the window is a week or a month. No README badge either, that is gitstats only.
+   */
+  claude?: { record: boolean };
 }) {
   const [open, setOpen] = useState(defaultOpen && !empty);
   const [totals, setTotals] = useState(true);
@@ -34,7 +39,12 @@ export function SharePanel({ tokens, origin, view, defaultOpen, defaultStreak, d
   const [record, setRecord] = useState(defaultRecord);
   const flags = `${totals ? "t" : ""}${grid ? "g" : ""}${names ? "n" : ""}${streak ? "s" : ""}${record ? "r" : ""}${defaultRecap ? "w" : ""}` || "-";
   const url = `${origin}/s/${tokens[flags]}`;
-  const boxes: [string, string, boolean, (on: boolean) => void][] = [
+  const boxes: [string, string, boolean, (on: boolean) => void][] = claude ? [
+    ["totals", "tokens, output, sessions, streak", totals, setTotals],
+    ["26-week grid", "replies per day", grid, setGrid],
+    ["streak headline", "the day count up top, big", streak, setStreak],
+    ...(claude.record ? [["record headline", "your best of this window, big", record, setRecord] as (typeof boxes)[number]] : []),
+  ] : [
     ["totals", "commits, +/−, streak", totals, setTotals],
     ["26-week grid", "one cell per day", grid, setGrid],
     defaultRecap ? ["crew name", "which crew your place is in", names, setNames] : ["repo names", "your top 3 by lines · hidden repos stay hidden", names, setNames],
@@ -67,7 +77,7 @@ export function SharePanel({ tokens, origin, view, defaultOpen, defaultStreak, d
               [CLOSE]
             </button>
           </div>
-          <div className={`grid gap-3 mb-5 ${defaultStreak || defaultRecord ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}>
+          <div className={`grid gap-3 mb-5 ${boxes.length > 3 ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}>
             {boxes.map(([label, hint, on, set]) => (
               <label key={label} className="flex items-start gap-2 font-mono text-xs cursor-pointer">
                 <input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} className="mt-[2px] accent-alert cursor-pointer" />
@@ -85,15 +95,20 @@ export function SharePanel({ tokens, origin, view, defaultOpen, defaultStreak, d
             </a>
             <form action={rotateShareLink}>
               <input type="hidden" name="view" value={view} />
+              {claude && <input type="hidden" name="side" value="claude" />}
               <button type="submit" className="font-mono text-xs text-faint hover:text-alert transition-colors cursor-pointer">
                 [NEW LINK]
               </button>
             </form>
             <span className="font-mono text-xs text-faint">&gt; a new link kills every link you shared before it</span>
           </div>
-          <div className="tag mt-6 mb-2">README BADGE</div>
-          <p className="font-mono text-xs text-dim mb-3">For your GitHub profile: lines or commits over the window you pick, streak and top language, as everyone else sees them.</p>
-          <BadgeCopy login={login} where="share_menu" />
+          {!claude && (
+            <>
+              <div className="tag mt-6 mb-2">README BADGE</div>
+              <p className="font-mono text-xs text-dim mb-3">For your GitHub profile: lines or commits over the window you pick, streak and top language, as everyone else sees them.</p>
+              <BadgeCopy login={login} where="share_menu" />
+            </>
+          )}
         </div>
       )}
     </div>

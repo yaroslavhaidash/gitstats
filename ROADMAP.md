@@ -26,6 +26,7 @@ Right now you can look at your friends' numbers. Next is reacting to them.
 - **Dashboard personalisation:** pick, order and hide the charts on your page.
 - **New views:** time of day and day of week patterns, language trends over time, per-repo deep dives and focus (how spread across repos a week was).
 - **Comparisons:** you vs. your own last month or last year, side by side.
+- **claudestats:** grow the Claude Code side toward what gitstats has, such as the weekly recap card, comparisons and the badge, still numbers only and opt-in.
 
 ## 4. Open source and self-hosting
 

@@ -9,8 +9,8 @@ import { auth, signIn, signOut } from "@/auth";
 import { db } from "@/db";
 import { deleteAccount, restoreAccount } from "./account";
 import { logAdmin, requireAdmin, snapshotChainUrl, triggerSnapshotChain } from "./admin";
-import { cliTokens, crewMembers, crews, deviceCodes, mcpTokens, oauthGrants, repoNameOverrides, userTokens, users, type RepoNames, type StreakMode } from "@/db/schema";
-import { STATS_TAG } from "./cache";
+import { claudeDaily, cliTokens, crewMembers, crews, deviceCodes, mcpTokens, oauthGrants, repoNameOverrides, userTokens, users, type RepoNames, type StreakMode } from "@/db/schema";
+import { revalidateForUsers, STATS_TAG } from "./cache";
 import { hashToken, newSecret } from "./cli";
 import { and, eq } from "drizzle-orm";
 import { encrypt } from "./crypto";
@@ -271,6 +271,18 @@ export async function revokeMachine(formData: FormData): Promise<void> {
   redirect("/dashboard/settings?revoked=1#computers");
 }
 
+/**
+ * Every Claude Code number this member sent, from every machine. Counting stays on wherever it is on,
+ * so the settings copy says to run `gitstats claude off` first.
+ */
+export async function deleteClaudeNumbers(): Promise<void> {
+  const session = await auth();
+  if (!session) redirect("/");
+  await db.delete(claudeDaily).where(eq(claudeDaily.userId, session.user.id));
+  await revalidateForUsers([session.user.id]);
+  redirect("/dashboard/settings?claude=deleted#claude");
+}
+
 /** What the MCP token form shows after a submit: the new token, once, or why there is none. */
 export type McpTokenState = { token?: string; error?: string };
 
@@ -521,6 +533,8 @@ export async function rotateShareLink(formData: FormData): Promise<void> {
   // The page mints its tokens from the nonce, so without this the panel comes back showing the
   // link that was just killed.
   revalidatePath(`/dashboard/u/${session.user.login}`);
+  revalidatePath(`/dashboard/claude/u/${session.user.login}`);
   const view = formData.get("view");
-  redirect(`/dashboard/u/${session.user.login}?${typeof view === "string" && view ? `${view}&` : ""}share=1#share`);
+  const page = formData.get("side") === "claude" ? "/dashboard/claude/u" : "/dashboard/u";
+  redirect(`${page}/${session.user.login}?${typeof view === "string" && view ? `${view}&` : ""}share=1#share`);
 }

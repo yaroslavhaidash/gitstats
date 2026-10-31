@@ -52,10 +52,10 @@ export function SideFrame({ picker, children }: { picker: boolean; children: Rea
   );
 }
 
-/** A small fixed chip with the candidate accents; temporary, until one is locked. */
+/** A small row of the candidate accents under the footer, where it covers nothing; temporary, until one is locked. */
 function AccentPicker({ current }: { current: AccentName }) {
   return (
-    <div role="group" aria-label="claudestats accent trial" className="fixed bottom-4 right-4 z-50 panel bg-void flex items-center gap-1 p-1 font-mono text-[11px]">
+    <div role="group" aria-label="claudestats accent trial" className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pb-4 flex flex-wrap items-center gap-1 font-mono text-[11px]">
       <span className="px-2 text-faint hidden sm:inline">accent</span>
       {ACCENT_NAMES.map((name) => (
         <button

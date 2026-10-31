@@ -2,17 +2,18 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { recapStats, shareStats, type ShareStats } from "./cached";
+import { claudeShareStats, recapStats, shareStats, type ClaudeShareStats, type ShareStats } from "./cached";
 import { requireEnv } from "./env";
-import { fmt, fmtDate, fmtRank } from "./format";
+import { fmt, fmtDate, fmtRank, fmtTokens } from "./format";
 import { PERCENTILE_FROM } from "./stats";
-import { PRESETS, windowLabel, type Metric, type Preset, type Window } from "./window";
+import { CLAUDE_METRICS, PRESETS, windowLabel, type ClaudeMetric, type Metric, type Preset, type Window } from "./window";
 
 /**
  * A share card is a signed URL, not a database row. `/s/<payload>.<signature>` carries the member
  * id, the window, the metric and which parts of the card are on; the signature is an HMAC over that
  * text plus the member's `share_nonce`, so "new link" invalidates every link minted before it by
- * changing the key material rather than by keeping a revocation list.
+ * changing the key material rather than by keeping a revocation list. A claudestats card is the same
+ * token with `tokens` or `output` as its metric: the metric says which side the card is from.
  */
 export type ShareOptions = {
   /** Commits, +/−, active repos and streak. On by default: the numbers are the point of the card. */
@@ -32,7 +33,11 @@ export type ShareOptions = {
 export const DEFAULT_SHARE: ShareOptions = { totals: true, grid: true, names: false, streak: false, record: false, recap: false };
 
 /** `crewId` is the crew a recap card places the member in; absent on every other card. */
-export type SharePayload = { userId: number; window: Window; metric: Metric; options: ShareOptions; crewId?: number };
+export type SharePayload = { userId: number; window: Window; metric: Metric | ClaudeMetric; options: ShareOptions; crewId?: number };
+
+export function isClaudeMetric(metric: Metric | ClaudeMetric): metric is ClaudeMetric {
+  return (CLAUDE_METRICS as readonly string[]).includes(metric);
+}
 
 /** 128 bits of the digest. A forger has to find a collision without the secret; 16 bytes is plenty. */
 const SIG_BYTES = 16;
@@ -111,7 +116,9 @@ export function readShareToken(token: string, nonce: string | null): SharePayloa
   const window = rawWindow === undefined ? null : decodeWindow(rawWindow);
   const options = rawFlags === undefined ? null : decodeFlags(rawFlags);
   if (!Number.isInteger(userId) || userId <= 0 || !window || !options) return null;
-  if (rawMetric !== "lines" && rawMetric !== "commits") return null;
+  if (rawMetric !== "lines" && rawMetric !== "commits" && rawMetric !== "tokens" && rawMetric !== "output") return null;
+  // claudestats has no weekly recap card.
+  if (isClaudeMetric(rawMetric) && options.recap) return null;
   return { userId, window, metric: rawMetric, options, crewId };
 }
 
@@ -155,7 +162,7 @@ export type ShareCard = {
   activeDays: number | null;
 };
 
-export async function shareCard(payload: SharePayload): Promise<ShareCard> {
+export async function shareCard(payload: SharePayload & { metric: Metric }): Promise<ShareCard> {
   const { options, metric, window } = payload;
   if (options.recap && window.kind === "range") {
     const { row, activeDays, placement } = await recapStats(payload.userId, window, metric, payload.crewId ?? null);
@@ -179,5 +186,41 @@ export async function shareCard(payload: SharePayload): Promise<ShareCard> {
     rankLine: standing ? `${standing.total >= PERCENTILE_FROM ? `top ${standing.percentile}%` : `#${standing.rank}`} of ${standing.total} on gitstats` : null,
     topRepos,
     activeDays: null,
+  };
+}
+
+const CLAUDE_UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output tokens" };
+
+/** What `/s/<token>` and its OG image print for a claudestats card. `row` is null before any number was sent. */
+export type ClaudeShareCard = {
+  row: ClaudeShareStats["row"];
+  label: string;
+  headline: string;
+  unit: string;
+  /** "top 12% of 80 on claudestats". */
+  rankLine: string | null;
+};
+
+export async function claudeShareCard(payload: SharePayload & { metric: ClaudeMetric }): Promise<ClaudeShareCard> {
+  const { options, metric, window } = payload;
+  const { row, standing, record } = await claudeShareStats(payload.userId, window, metric);
+  const label = windowLabel(window);
+  const unit = CLAUDE_UNIT[metric];
+  let headline = fmtTokens(row ? row[metric] : 0);
+  let line = `${unit} ${label}`;
+  if (options.streak) {
+    headline = fmt(row?.streak ?? 0);
+    line = "day streak";
+  } else if (options.record && record) {
+    const when = new Date(`${record.best.start}T00:00:00Z`).toLocaleDateString("en-GB", { day: record.kind === "week" ? "2-digit" : undefined, month: "short", year: "numeric", timeZone: "UTC" });
+    headline = fmtTokens(record.best[metric]);
+    line = `${unit} · best ${record.kind} ever · ${record.kind === "week" ? `week of ${when}` : when}`;
+  }
+  return {
+    row,
+    label,
+    headline,
+    unit: line,
+    rankLine: standing ? `${standing.total >= PERCENTILE_FROM ? `top ${standing.percentile}%` : `#${standing.rank}`} of ${standing.total} on claudestats` : null,
   };
 }

@@ -43,6 +43,17 @@ const SENT = [
   ["repo name", "Only if you ran `names on`. Off by default."],
 ];
 
+const CLAUDE_FAQ: [string, string][] = [
+  ["What is claudestats?", "The other side of this site, behind the logo menu: the same crews and boards, ranked by Claude Code usage instead of commits. It counts Claude Code in the terminal and in the desktop app's Code tab, both of which write the same logs. claude.ai chat is not in those logs and is not counted."],
+  ["What does TOKENS count?", "Every token Claude Code sent to the model or got back: input, cache write, cache read and output, as its own logs record them. Cache reads are most of it, usually over 95%: on every turn Claude Code sends the conversation so far again, mostly from the cache. So TOKENS measures how much you used it, turns times context, and matches what other usage tools print."],
+  ["What does OUTPUT count?", "Only what the model generated, thinking included. It does not grow with the size of the context, so it is the closer measure of how much Claude wrote for you. Pick it on the tabs and the board orders by it."],
+  ["What is a session?", "One Claude Code conversation, counted on the UTC day of its first reply. A resumed or forked conversation that gets a new session id counts again on its first day. Subagents are part of their parent's session."],
+  ["What is sent, and what never is?", "Per UTC day and per model: the four token counts, replies and sessions, the highest Claude Code version seen, and a keyed hash that tells your computers apart. Never your prompts, Claude's replies, code, file or project names, session or message ids, or anything finer than a day."],
+  ["How do I turn it on, and off?", "`claude on` on each computer you use Claude Code on, or `link --claude` while pairing a new one. `claude off` stops sending. Your settings page deletes everything already sent; run `claude off` first, or the next sync sends the last week back. `claude` prints what would be counted and sends nothing."],
+  ["Why turn it on early?", "Claude Code deletes old conversation logs after a while (its cleanupPeriodDays setting). The first sync counts every log still on the computer, and a day once counted stays here after Claude Code removes its log, but days older than your logs cannot be counted."],
+  ["Two computers?", "Turn it on on both; each one only ever replaces its own numbers. The one exception: if you sync your ~/.claude folder between computers (iCloud, Dropbox, dotfiles), turn it on on one of them only, or the same days count twice."],
+];
+
 const NOT_SENT = ["file contents", "diffs", "file or folder names", "branch names", "commit messages", "other people's commits", "anything about repos you did not commit to"];
 
 export default async function Docs() {
@@ -144,6 +155,19 @@ export default async function Docs() {
             by default, and a repo you hid on your own page stays hidden whatever you pick. The link is signed, so it cannot be edited into someone
             else&apos;s numbers, and <span className="text-silver">new link</span> on the same panel makes every card you minted before it a 404.
           </p>
+        </section>
+
+        <section id="claude" className="mb-14 scroll-mt-20">
+          <h2 className="font-sans font-bold text-2xl mb-3">Claude Code usage (claudestats)</h2>
+          <p className="font-mono text-xs text-dim leading-relaxed mb-6">
+            Off until you turn it on. The same CLI can also count your Claude Code usage from the logs Claude Code keeps on your computer, and{" "}
+            <Link href="/claude" className="text-silver underline hover:text-alert">claudestats</Link> puts it on a board next to your crew&apos;s.
+          </p>
+          <dl className="space-y-6 font-mono text-xs leading-relaxed">
+            {CLAUDE_FAQ.map(([q, a]) => (
+              <div key={q}><dt className="text-silver mb-1">{q}</dt><dd className="text-dim">{a}</dd></div>
+            ))}
+          </dl>
         </section>
 
         <section id="mcp" className="mb-14">

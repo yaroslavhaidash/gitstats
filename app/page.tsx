@@ -4,7 +4,6 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { Logo } from "@/components/Logo";
 import { Brackets } from "@/components/Brackets";
 import { Glitch } from "@/components/Glitch";
 import { CopyText } from "@/components/CopyText";
@@ -14,6 +13,8 @@ import { signInWithGitHub } from "@/lib/actions";
 import { posts } from "@/lib/blog";
 import { DEMO_LOGINS } from "@/lib/demo";
 import { NavSheet, SheetLinks } from "@/components/NavSheet";
+import { SideSwitch } from "@/components/SideSwitch";
+import { PUBLIC_HOMES } from "@/components/SiteNav";
 import { openGraphFor, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
 /** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
@@ -124,7 +125,7 @@ export default async function Landing() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
       <nav className="fixed w-full z-40 top-0 bg-void/90 backdrop-blur-sm border-b-2 border-dark">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Logo />
+          <SideSwitch homes={PUBLIC_HOMES} compact />
           <div className="hidden md:flex gap-8 font-mono text-sm">{NAV_LINKS}</div>
           <div className="flex items-center gap-2">
             <form action={signInWithGitHub}>

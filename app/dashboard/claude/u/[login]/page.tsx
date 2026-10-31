@@ -6,6 +6,7 @@ import { BackLink } from "@/components/BackLink";
 import { ClaudeMember } from "@/components/ClaudeMember";
 import { MetricTabs } from "@/components/MetricTabs";
 import { RangePicker } from "@/components/RangePicker";
+import { SharePanel } from "@/components/SharePanel";
 import { Section } from "@/components/Section";
 import { SkeletonStats } from "@/components/Skeleton";
 import { WindowTabs } from "@/components/WindowTabs";
@@ -13,10 +14,18 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { cliTokens } from "@/db/schema";
 import { backTarget, sharesCrew, userByLogin } from "@/lib/crews";
+import { mintShareToken, type ShareOptions } from "@/lib/share";
+import { SITE_URL } from "@/lib/site";
 import { CLAUDE_METRICS, parseClaudeMetric, parseWindow, viewQuery, windowQuery } from "@/lib/window";
 
 /** Per request: it reads the session. The stats behind it are cached in lib/cached.ts. */
 export const instant = false;
+
+const flagsOf = (o: ShareOptions) => `${o.totals ? "t" : ""}${o.grid ? "g" : ""}${o.streak ? "s" : ""}${o.record ? "r" : ""}` || "-";
+/** Every position of the claudestats share panel's switches; there are no repo names on this side. */
+const SHARE_FLAGS: ShareOptions[] = [false, true].flatMap((totals) =>
+  [false, true].flatMap((grid) => [false, true].flatMap((streak) => [false, true].map((record) => ({ totals, grid, names: false, streak, record, recap: false })))),
+);
 
 export async function generateMetadata({ params }: { params: Promise<{ login: string }> }): Promise<Metadata> {
   const { login } = await params;
@@ -29,7 +38,7 @@ export default async function ClaudeUserPage({
   searchParams,
 }: {
   params: Promise<{ login: string }>;
-  searchParams: Promise<{ w?: string; m?: string; from?: string; to?: string; src?: string }>;
+  searchParams: Promise<{ w?: string; m?: string; from?: string; to?: string; src?: string; share?: string }>;
 }) {
   const session = await auth();
   if (!session) redirect("/");
@@ -73,7 +82,30 @@ export default async function ClaudeUserPage({
         </div>
       </div>
       <Section fallback={<SkeletonStats />}>
-        <ClaudeMember userId={user.id} window={window} metric={metric} streakMode={user.streakMode} setup={isOwner ? { linked: machines.length > 0 } : null} />
+        <ClaudeMember
+          userId={user.id}
+          window={window}
+          metric={metric}
+          streakMode={user.streakMode}
+          setup={isOwner ? { linked: machines.length > 0 } : null}
+          share={
+            isOwner && (
+              <SharePanel
+                // Signing needs the secret, so every switch position is minted here and the panel picks one.
+                tokens={Object.fromEntries(SHARE_FLAGS.map((o) => [flagsOf(o), mintShareToken({ userId: user.id, window, metric, options: o }, user.shareNonce)]))}
+                origin={SITE_URL}
+                view={viewQuery(window, metric)}
+                defaultOpen={query.share !== undefined}
+                defaultStreak={false}
+                defaultRecord={false}
+                defaultRecap={false}
+                empty={false}
+                login={user.githubLogin}
+                claude={{ record: window.kind === "preset" && (window.value === "week" || window.value === "month") }}
+              />
+            )
+          }
+        />
       </Section>
     </>
   );

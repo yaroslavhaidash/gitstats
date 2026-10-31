@@ -3,6 +3,10 @@
 What shipped, newest first, one line per change. `/changelog` renders this file, so keep the shape exactly:
 `## YYYY-MM-DD` for a day, then `- **Title** — sentence.` for each entry.
 
+## 2026-10-31
+
+- **claudestats** — the other side of the site, behind the logo menu: your Claude Code tokens, output, sessions and streak on the same crews and boards, counted on your own computer from Claude Code's logs, numbers only, off until you run `gitstats claude on`. Share cards, a page at `/claude`, and a settings button that deletes what was sent.
+
 ## 2026-10-28
 
 - **ALL time** — a fourth window next to week, month and year on the boards, your page, the badge, share cards and MCP: everything since your first year on GitHub, plus what your linked computers counted, with one tile per year on your page.

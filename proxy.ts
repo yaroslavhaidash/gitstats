@@ -38,6 +38,7 @@ async function route(request: NextRequest, uid: number | null): Promise<NextResp
   }
   if (path.startsWith("/dashboard") && uid === null) return NextResponse.redirect(new URL("/", request.url));
   if (path === "/" && uid !== null) return NextResponse.redirect(new URL("/dashboard", request.url));
+  if (path === "/claude" && uid !== null) return NextResponse.redirect(new URL("/dashboard/claude", request.url));
   // `/vs` is the compare page until a form submits handles to it; then its route handler records and redirects.
   const query = request.nextUrl.searchParams;
   if (path === "/vs" && !query.has("a") && !query.has("b")) return NextResponse.rewrite(new URL(`/compare${request.nextUrl.search}`, request.url));
@@ -60,7 +61,7 @@ export async function proxy(request: NextRequest) {
 // session cookie, so a stale one is cleared wherever it turns up. Matchers must be literals.
 export const config = {
   matcher: [
-    "/", "/dashboard/:path*", "/admin", "/vs",
+    "/", "/claude", "/dashboard/:path*", "/admin", "/vs",
     { source: "/((?!api|_next/static|_next/image|.*\\..*).*)", has: [{ type: "cookie", key: "__Secure-authjs.session-token" }] },
     { source: "/((?!api|_next/static|_next/image|.*\\..*).*)", has: [{ type: "cookie", key: "authjs.session-token" }] },
   ],

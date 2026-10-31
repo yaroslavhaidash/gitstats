@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { claudeMemberRecords, claudeUserStats } from "@/lib/cached";
 import { claudeBuckets, modelLabel, type ClaudePeriodTotal } from "@/lib/claudestats";
 import { fmt, fmtMonth, fmtTokens, pctDelta } from "@/lib/format";
@@ -50,13 +51,15 @@ async function Records({ userId }: { userId: number }) {
  * the window chart, the token split, the model mix, the weekday profile and the records. Shared by
  * the member page and the demo, which differ only in who may see it and where links go.
  */
-export async function ClaudeMember({ userId, window, metric, streakMode, setup }: {
+export async function ClaudeMember({ userId, window, metric, streakMode, setup, share }: {
   userId: number;
   window: Window;
   metric: ClaudeMetric;
   streakMode: string;
   /** The owner with no rows yet sees how to turn counting on; null for everyone else. */
   setup: { linked: boolean } | null;
+  /** The owner's share panel, shown once there is something to share. */
+  share?: ReactNode;
 }) {
   const { row, before, weeks, days, models, year, weekdays, span } = await claudeUserStats(userId, window);
   if (!row) {
@@ -86,6 +89,7 @@ export async function ClaudeMember({ userId, window, metric, streakMode, setup }
           ? `> all time · since ${fmtMonth(span.from)} · counted on linked computers`
           : `> percentages compare against the ${rangeDays(windowRange(window))} days before this window`}
       </p>
+      {share}
 
       <section className="panel p-6 mb-8">
         <h2 className="font-sans font-bold text-lg mb-1">{UNIT[metric][0].toUpperCase() + UNIT[metric].slice(1)} per week</h2>

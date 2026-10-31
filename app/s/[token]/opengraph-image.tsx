@@ -2,9 +2,11 @@ import { ImageResponse } from "next/og";
 import { notFound } from "next/navigation";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fmt } from "@/lib/format";
-import { heatColor } from "@/lib/palette";
-import { resolveShareToken, shareCard } from "@/lib/share";
+import { fmt, fmtTokens } from "@/lib/format";
+import { heatColor, REPLY_STEPS } from "@/lib/palette";
+import { claudeShareCard, isClaudeMetric, resolveShareToken, shareCard } from "@/lib/share";
+import { ACCENTS, DEFAULT_ACCENT } from "@/lib/side";
+import { SHARE_HEATMAP_DAYS } from "@/lib/stats";
 
 /**
  * The same card as `/s/<token>`, drawn for the unfurl. It is the one per-user OG image on the site:
@@ -21,12 +23,74 @@ const GAP = 4;
 const GRID_WIDTH = size.width - PAD_X * 2;
 /** Seven rows of a cell that wide would push the footer off the card, so the cells flatten instead. */
 const MAX_CELL_HEIGHT = 17;
+/** An image cannot read the page's CSS, so a claudestats card carries the default accent's colours itself. */
+const CLAUDE = ACCENTS[DEFAULT_ACCENT];
+
+/** Everything that differs between a gitstats and a claudestats card, drawn the same way below. */
+type Drawn = {
+  login: string;
+  avatarUrl: string | null;
+  label: string;
+  headline: string;
+  unit: string;
+  rankLine: string | null;
+  totals: [text: string, colour: string][];
+  days: number[];
+  heat: (count: number) => string;
+  accent: string;
+  name: string;
+};
+
+async function drawn(payload: NonNullable<Awaited<ReturnType<typeof resolveShareToken>>>): Promise<Drawn> {
+  const { metric } = payload;
+  if (isClaudeMetric(metric)) {
+    const { row, label, headline, unit, rankLine } = await claudeShareCard({ ...payload, metric });
+    return {
+      login: row?.login ?? "",
+      avatarUrl: row?.avatarUrl ?? null,
+      label: `Claude Code · ${label}`,
+      headline,
+      unit,
+      rankLine,
+      totals: [
+        [`${fmtTokens(row?.tokens ?? 0)} tokens`, "#e0e2e5"],
+        [`${fmtTokens(row?.output ?? 0)} output`, CLAUDE.accent],
+        [`${fmt(row?.sessions ?? 0)} sessions`, "#e0e2e5"],
+        [`${row?.streak ?? 0}d streak`, "#e0e2e5"],
+      ],
+      days: row?.days ?? new Array<number>(SHARE_HEATMAP_DAYS).fill(0),
+      heat: (count) => heatColor(count, CLAUDE.heat, REPLY_STEPS),
+      accent: CLAUDE.accent,
+      name: "claudestats",
+    };
+  }
+  const { row, label, headline, unit, rankLine, activeDays } = await shareCard({ ...payload, metric });
+  return {
+    login: row.login,
+    avatarUrl: row.avatarUrl,
+    label,
+    headline,
+    unit,
+    rankLine,
+    totals: [
+      [`${fmt(row.commits)} commits`, "#e0e2e5"],
+      [`+${fmt(row.additions)}`, "#22c55e"],
+      [`−${fmt(row.deletions)}`, "#ff3333"],
+      [`${row.streak}d streak`, "#e0e2e5"],
+      ...(activeDays !== null ? [[`${activeDays}/7 days`, "#e0e2e5"] as [string, string]] : []),
+    ],
+    days: row.days,
+    heat: (count) => heatColor(count),
+    accent: "#ff3333",
+    name: "gitstats",
+  };
+}
 
 export default async function shareOgImage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const payload = await resolveShareToken(token);
   if (!payload) notFound();
-  const { row, label, headline, unit, rankLine, activeDays } = await shareCard(payload);
+  const { login, avatarUrl, label, headline, unit, rankLine, totals, days, heat, accent, name } = await drawn(payload);
   const { options } = payload;
   const [monoBold, monoRegular, groteskBold] = await Promise.all([
     asset("JetBrainsMono-Bold.ttf"),
@@ -35,7 +99,7 @@ export default async function shareOgImage({ params }: { params: Promise<{ token
   ]);
   // Oldest first in 7-row columns, exactly as the on-page grid lays them out.
   const weeks: number[][] = [];
-  for (let i = 0; i < row.days.length; i += 7) weeks.push(row.days.slice(i, i + 7));
+  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
   const cellWidth = (GRID_WIDTH - (weeks.length - 1) * GAP) / weeks.length;
   const cellHeight = Math.min(cellWidth, MAX_CELL_HEIGHT);
 
@@ -56,9 +120,9 @@ export default async function shareOgImage({ params }: { params: Promise<{ token
       >
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           {/* satori renders plain img, not next/image */}
-          <img src={row.avatarUrl} alt="" width={72} height={72} style={{ border: "2px solid #2d2d2d" }} />
+          {avatarUrl && <img src={avatarUrl} alt="" width={72} height={72} style={{ border: "2px solid #2d2d2d" }} />}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ fontFamily: "Space Grotesk", fontSize: 40, color: "#ffffff" }}>{row.login}</span>
+            <span style={{ fontFamily: "Space Grotesk", fontSize: 40, color: "#ffffff" }}>{login}</span>
             <span style={{ fontSize: 22, color: "#8b93a4" }}>{label}</span>
           </div>
         </div>
@@ -71,11 +135,9 @@ export default async function shareOgImage({ params }: { params: Promise<{ token
           {rankLine && <span style={{ fontSize: 24, color: "#8b93a4" }}>{rankLine}</span>}
           {options.totals && (
             <div style={{ display: "flex", gap: 44, marginTop: 8, fontSize: 26 }}>
-              <span style={{ color: "#e0e2e5" }}>{fmt(row.commits)} commits</span>
-              <span style={{ color: "#22c55e" }}>+{fmt(row.additions)}</span>
-              <span style={{ color: "#ff3333" }}>−{fmt(row.deletions)}</span>
-              <span style={{ color: "#e0e2e5" }}>{row.streak}d streak</span>
-              {activeDays !== null && <span style={{ color: "#e0e2e5" }}>{activeDays}/7 days</span>}
+              {totals.map(([text, colour]) => (
+                <span key={text} style={{ color: colour }}>{text}</span>
+              ))}
             </div>
           )}
           {options.grid && (
@@ -85,7 +147,7 @@ export default async function shareOgImage({ params }: { params: Promise<{ token
                 {weeks.map((week, w) => (
                   <div key={w} style={{ display: "flex", flexDirection: "column", gap: GAP }}>
                     {week.map((count, d) => (
-                      <div key={d} style={{ width: cellWidth, height: cellHeight, background: heatColor(count) }} />
+                      <div key={d} style={{ width: cellWidth, height: cellHeight, background: heat(count) }} />
                     ))}
                   </div>
                 ))}
@@ -94,8 +156,8 @@ export default async function shareOgImage({ params }: { params: Promise<{ token
           )}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "2px solid #ff3333", paddingTop: 20, marginTop: 18 }}>
-          <span style={{ fontFamily: "Space Grotesk", fontSize: 32, color: "#ffffff" }}>gitstats</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `2px solid ${accent}`, paddingTop: 20, marginTop: 18 }}>
+          <span style={{ fontFamily: "Space Grotesk", fontSize: 32, color: "#ffffff" }}>{name}</span>
           <span style={{ fontSize: 24, color: "#8b93a4" }}>gitstats.org</span>
         </div>
       </div>

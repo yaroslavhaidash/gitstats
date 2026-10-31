@@ -10,7 +10,7 @@ import { McpTokenForm } from "@/components/McpTokenForm";
 import { SettingsForm } from "@/components/SettingsForm";
 import { VisibilityMatrix } from "@/components/VisibilityMatrix";
 import { SetupCommand } from "@/components/SetupCommand";
-import { addToken, deleteAccountAction, removeToken, revokeMachine, revokeMcpToken, revokeOAuthGrant, updateStreakMode } from "@/lib/actions";
+import { addToken, deleteAccountAction, deleteClaudeNumbers, removeToken, revokeMachine, revokeMcpToken, revokeOAuthGrant, updateStreakMode } from "@/lib/actions";
 import { isOutdatedCli } from "@/lib/cli";
 import { fmtDateTime } from "@/lib/format";
 import { SITE_URL } from "@/lib/site";
@@ -29,13 +29,13 @@ const ERRORS: Record<string, string> = {
   confirm: "type your login exactly to confirm the deletion",
 };
 
-type Params = { error?: string; saved?: string; removed?: string; profile?: string; revoked?: string; streak?: string; mcp?: string };
+type Params = { error?: string; saved?: string; removed?: string; profile?: string; revoked?: string; streak?: string; mcp?: string; claude?: string };
 
 export default async function Settings({ searchParams }: { searchParams: Promise<Params> }) {
   const session = await auth();
   if (!session) redirect("/");
   const uid = session.user.id;
-  const [{ error, saved, removed, profile, revoked, streak, mcp }, [me], tokens, machines, assistants, apps] = await Promise.all([
+  const [{ error, saved, removed, profile, revoked, streak, mcp, claude }, [me], tokens, machines, assistants, apps] = await Promise.all([
     searchParams,
     db.select().from(users).where(eq(users.id, uid)),
     db.select({ id: userTokens.id, label: userTokens.label, lastError: userTokens.lastError, createdAt: userTokens.createdAt }).from(userTokens).where(eq(userTokens.userId, uid)).orderBy(userTokens.id),
@@ -93,6 +93,41 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         <p className="font-mono text-xs text-faint mt-3 leading-relaxed">
           Runs daily on its own after that. All commands (sync, pause, unlink, names on, emails add…) are on the <Link href="/docs" className="text-silver underline hover:text-alert">docs page</Link>.
         </p>
+      </section>
+
+      <section id="claude" className="border-2 border-dark p-6 mb-8 scroll-mt-20">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="font-sans font-bold text-xl">Claude Code</h2>
+          <Link href="/docs#claude" className="font-mono text-xs text-faint hover:text-alert">[HOW IT COUNTS]</Link>
+        </div>
+        <p className="font-mono text-xs text-dim mb-6 leading-relaxed">
+          Off until you turn it on per computer with <span className="text-silver">gitstats claude on</span>. A computer that counts sends tokens, replies and sessions per
+          day per model, numbers only, and they show on <Link href="/dashboard/claude" className="text-silver underline hover:text-alert">claudestats</Link>.
+        </p>
+        {claude === "deleted" && <p className="font-mono text-xs text-dim mb-4">&gt; Claude Code numbers deleted</p>}
+        {machines.length > 0 && (
+          <ul className="divide-y divide-dark border-2 border-dark mb-6 font-mono text-sm">
+            {machines.map((m) => (
+              <li key={m.id} className="px-4 py-3">
+                <span className="text-white">{m.machine}</span>
+                <span className="block text-xs mt-1">
+                  {m.claudeSyncedAt ? (
+                    <span className="text-green">last sent {fmtDateTime(m.claudeSyncedAt)}{m.claudeVersion ? ` · Claude Code v${m.claudeVersion}` : ""}</span>
+                  ) : (
+                    <span className="text-faint">never sent Claude Code numbers</span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={deleteClaudeNumbers} className="grid gap-3 border-2 border-dark p-4 font-mono text-sm">
+          <span className="text-xs text-dim leading-relaxed">
+            deletes every Claude Code number you sent, from every computer. Run <span className="text-silver">gitstats claude off</span> on each computer first, or its next
+            sync sends the last week back.
+          </span>
+          <Confirm label="[DELETE MY CLAUDE CODE NUMBERS]" confirm="[SURE? DELETE THEM]" className="border-2 border-dark px-3 py-2 w-fit cursor-pointer hover:border-alert" />
+        </form>
       </section>
 
       <section id="visibility" className="border-2 border-dark p-6 mb-8 scroll-mt-20">

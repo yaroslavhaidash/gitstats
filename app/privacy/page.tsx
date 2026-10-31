@@ -191,7 +191,7 @@ export default async function Privacy() {
           </p>
           <p className="font-mono text-xs text-dim leading-relaxed">
             <span className="text-silver">gitstats claude off</span> stops sending. The numbers already sent are in
-            your export and go when you delete your account.
+            your export; delete them on their own under Claude Code in settings, or with your account.
           </p>
         </section>
 
