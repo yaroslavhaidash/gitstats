@@ -6,6 +6,7 @@ import {
   claudeDays,
   claudeMemberDays,
   claudeModels,
+  claudeModelWeeks,
   claudeRecords,
   claudeReplyDays,
   claudeStanding,
@@ -17,6 +18,7 @@ import {
   type ClaudeDayRow,
   type ClaudeMemberDay,
   type ClaudeModelRow,
+  type ClaudeModelWeek,
   type ClaudeRecords,
   type ClaudeTotals,
   type ClaudeWeekRow,
@@ -405,6 +407,14 @@ export async function claudeCrewBoard(crewId: number, window: Window): Promise<C
   return claudeBoard(await crewMemberIds(crewId), window);
 }
 
+/** The crew's tokens and output per model over the window, everyone summed. */
+export async function claudeCrewModels(crewId: number, window: Window): Promise<ClaudeModelRow[]> {
+  "use cache: remote";
+  cacheLife("hours");
+  cacheTag(STATS_TAG, crewTag(crewId));
+  return claudeModels(await crewMemberIds(crewId), periodBounds(window).current);
+}
+
 export type ClaudeUserStats = {
   /** Null when the member has never sent a Claude Code number. */
   row: ClaudeBoardRow | null;
@@ -414,6 +424,8 @@ export type ClaudeUserStats = {
   /** The days the window charts draw, only days with a row. */
   days: ClaudeDayRow[];
   models: ClaudeModelRow[];
+  /** The last 26 weeks split by model family, for the model bands. */
+  modelWeeks: ClaudeModelWeek[];
   /** Replies per day, last 52 weeks, oldest first. */
   year: number[];
   /** Average replies per weekday over the drawn span, Sunday first. */
@@ -421,6 +433,8 @@ export type ClaudeUserStats = {
   /** The window, except that all time starts at the member's first Claude Code day. */
   span: Range;
 };
+
+const MODEL_WEEKS = 26;
 
 /** Everything the claudestats personal page draws, in one cached read. */
 export async function claudeUserStats(userId: number, window: Window): Promise<ClaudeUserStats> {
@@ -434,15 +448,16 @@ export async function claudeUserStats(userId: number, window: Window): Promise<C
     if (start > current.from) span = { from: start, to: current.to };
   }
   const calendarFrom = span.from < daysAgo(YEAR_DAYS) ? span.from : daysAgo(YEAR_DAYS);
-  const [[row], before, weeks, days, models, replies] = await Promise.all([
+  const [[row], before, weeks, days, models, replies, modelWeeks] = await Promise.all([
     claudeBoard([userId], window),
     claudeTotals([userId], previous).then((t) => t.get(userId) ?? NO_CLAUDE),
     claudeWeeks(userId, yearChart().weeks),
     claudeDays(userId, span),
-    claudeModels(userId, current),
+    claudeModels([userId], current),
     claudeReplyDays([userId], calendarFrom).then((m) => m.get(userId) ?? new Map<string, number>()),
+    claudeModelWeeks(userId, MODEL_WEEKS),
   ]);
-  return { row: row ?? null, before, weeks, days, models, year: lastDays(replies, YEAR_DAYS), weekdays: weekdayAverages(replies, span.from, span.to), span };
+  return { row: row ?? null, before, weeks, days, models, modelWeeks, year: lastDays(replies, YEAR_DAYS), weekdays: weekdayAverages(replies, span.from, span.to), span };
 }
 
 export async function claudeMemberRecords(userId: number): Promise<ClaudeRecords> {

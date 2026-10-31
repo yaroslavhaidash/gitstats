@@ -172,7 +172,19 @@ label:has(> input[type="checkbox"]) {
     width var(--race-step, 0ms) linear;
 }
 
+/* A meter fills from the left once, on load. */
+@keyframes meter-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+.meter-fill {
+  transform-origin: left;
+  animation: meter-grow 0.8s ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .meter-fill,
   .rail::after,
   .glitch:hover,
   .series-fade,

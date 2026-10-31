@@ -5,6 +5,7 @@ What shipped, newest first, one line per change. `/changelog` renders this file,
 
 ## 2026-10-31
 
+- **More claudestats** — your page gains intensity (cache reuse, context per output token, tokens per session and per active day, roughly how many novels of text), weekly model bands and heaviest-day records; crew boards gain crew share, the crew's model mix, how each member works and git lines per million output tokens for members on both sides. Links on claudestats pages now stay on claudestats.
 - **claudestats** — the other side of the site, behind the logo menu: your Claude Code tokens, output, sessions and streak on the same crews and boards, counted on your own computer from Claude Code's logs, numbers only, off until you run `gitstats claude on`. Share cards, a page at `/claude`, and a settings button that deletes what was sent.
 
 ## 2026-10-28

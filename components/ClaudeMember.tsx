@@ -4,8 +4,10 @@ import { claudeBuckets, modelLabel, type ClaudePeriodTotal } from "@/lib/claudes
 import { fmt, fmtMonth, fmtTokens, pctDelta } from "@/lib/format";
 import { CLAUDE_HEAT_SCALE } from "@/lib/side";
 import { daySeriesMode, isAllTime, rangeDays, windowLabel, windowRange, type ClaudeMetric, type Window } from "@/lib/window";
+import { ClaudeIntensity } from "./ClaudeIntensity";
 import { ClaudeSetup } from "./ClaudeSetup";
 import { EmptyNote } from "./EmptyNote";
+import { ModelBands } from "./ModelBands";
 import { ShareBar } from "./ShareBar";
 import { StatTile } from "./StatTile";
 import { TokenBars } from "./TokenBars";
@@ -27,18 +29,21 @@ function day(date: string): string {
 
 /** All-time bests by tokens and by output, the claudestats counterpart of `RecordsPanel`. */
 async function Records({ userId }: { userId: number }) {
-  const { week, month, streak } = await claudeMemberRecords(userId);
+  const { week, month, day: heaviest, streak } = await claudeMemberRecords(userId);
   const tile = (label: string, p: ClaudePeriodTotal | null, metric: ClaudeMetric, when: (d: string) => string) => (
     <StatTile key={label} label={label} value={p ? fmtTokens(p[metric]) : "none"} sub={p ? when(p.start) : undefined} />
   );
   return (
     <section className="mb-8">
       <h2 className="font-sans font-bold text-lg mb-3">Records</h2>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-[2px] bg-dark border-2 border-dark">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-[2px] bg-dark border-2 border-dark">
         {tile("best week · tokens", week.tokens, "tokens", (d) => `week of ${day(d)}`)}
         {tile("best week · output", week.output, "output", (d) => `week of ${day(d)}`)}
         {tile("best month · tokens", month.tokens, "tokens", fmtMonth)}
         {tile("best month · output", month.output, "output", fmtMonth)}
+        {tile("heaviest day · tokens", heaviest.tokens, "tokens", day)}
+        {tile("heaviest day · output", heaviest.output, "output", day)}
+        <StatTile label="most replies in a day" value={heaviest.replies ? fmt(heaviest.replies.replies) : "none"} sub={heaviest.replies ? day(heaviest.replies.start) : undefined} />
         <StatTile label="longest streak" value={streak ? `${streak.days}d` : "none"} sub={streak ? `${day(streak.from)} to ${day(streak.to)}` : undefined} />
       </div>
       <p className="font-mono text-xs text-faint mt-2">&gt; weeks run Monday to Sunday · all time</p>
@@ -47,8 +52,9 @@ async function Records({ userId }: { userId: number }) {
 }
 
 /**
- * Everything below a member's claudestats header: tiles, the yearly bars, the calendar of replies,
- * the window chart, the token split, the model mix, the weekday profile and the records. Shared by
+ * Everything below a member's claudestats header: tiles, intensity, the yearly bars, the calendar of
+ * replies, the window chart, the model bands, the token split, the model mix, the weekday profile and
+ * the records. Shared by
  * the member page and the demo, which differ only in who may see it and where links go.
  */
 export async function ClaudeMember({ userId, window, metric, streakMode, setup, share }: {
@@ -61,7 +67,7 @@ export async function ClaudeMember({ userId, window, metric, streakMode, setup, 
   /** The owner's share panel, shown once there is something to share. */
   share?: ReactNode;
 }) {
-  const { row, before, weeks, days, models, year, weekdays, span } = await claudeUserStats(userId, window);
+  const { row, before, weeks, days, models, modelWeeks, year, weekdays, span } = await claudeUserStats(userId, window);
   if (!row) {
     return setup ? <ClaudeSetup linked={setup.linked} /> : <EmptyNote>no Claude Code numbers here yet</EmptyNote>;
   }
@@ -91,6 +97,8 @@ export async function ClaudeMember({ userId, window, metric, streakMode, setup, 
       </p>
       {share}
 
+      <ClaudeIntensity row={row} before={before} label={label} allTime={allTime} />
+
       <section className="panel p-6 mb-8">
         <h2 className="font-sans font-bold text-lg mb-1">{UNIT[metric][0].toUpperCase() + UNIT[metric].slice(1)} per week</h2>
         <p className="font-mono text-xs text-faint mb-4">last {weeks.length} weeks · Monday to Sunday</p>
@@ -114,6 +122,12 @@ export async function ClaudeMember({ userId, window, metric, streakMode, setup, 
         </h2>
         <p className="font-mono text-xs text-faint mb-4">{label}</p>
         <TokenBars bars={bars} mode={mode} metric={metric} label={`${UNIT[metric]} ${label}`} />
+      </section>
+
+      <section className="panel p-6 mb-8">
+        <h2 className="font-sans font-bold text-lg mb-1">Model mix by week</h2>
+        <p className="font-mono text-xs text-faint mb-4">share of {UNIT[metric]} per model family · last {modelWeeks.length} weeks</p>
+        <ModelBands weeks={modelWeeks} metric={metric} label={`Share of ${UNIT[metric]} per model family, last ${modelWeeks.length} weeks`} />
       </section>
 
       {/* The two split bars are short, so they stack beside the weekday profile rather than each taking a row. */}

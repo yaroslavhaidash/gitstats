@@ -284,17 +284,45 @@ export async function claudeWeeks(userId: number, count: number, now = new Date(
 
 export type ClaudeModelRow = { model: string; label: string; family: ModelFamily; tokens: number; output: number };
 
-/** Tokens and output per model over a range, most tokens first. */
-export async function claudeModels(userId: number, range: Range): Promise<ClaudeModelRow[]> {
+/** Tokens and output per model over a range, summed over the given members, most tokens first. */
+export async function claudeModels(userIds: number[], range: Range): Promise<ClaudeModelRow[]> {
+  if (userIds.length === 0) return [];
   const rows = await db
     .select({ model: claudeDaily.model, ...sums })
     .from(claudeDaily)
-    .where(and(eq(claudeDaily.userId, userId), between(claudeDaily.date, range.from, range.to)))
+    .where(and(inArray(claudeDaily.userId, userIds), between(claudeDaily.date, range.from, range.to)))
     .groupBy(claudeDaily.model);
   return rows
     .map((r) => ({ model: r.model, label: modelLabel(r.model), family: modelFamily(r.model), tokens: tokensOf(r), output: r.output }))
     .filter((r) => r.tokens > 0)
     .sort((a, b) => b.tokens - a.tokens || a.model.localeCompare(b.model));
+}
+
+export type ClaudeModelWeek = { weekStart: string; families: Partial<Record<ModelFamily, { tokens: number; output: number }>> };
+
+/** `count` Monday weeks ending with the current one, oldest first, each split by model family; idle weeks are empty. */
+export async function claudeModelWeeks(userId: number, count: number, now = new Date()): Promise<ClaudeModelWeek[]> {
+  const last = weekStart(now);
+  const first = shiftDate(last, -(count - 1) * 7);
+  const rows = await db
+    .select({ date: claudeDaily.date, model: claudeDaily.model, ...sums })
+    .from(claudeDaily)
+    .where(and(eq(claudeDaily.userId, userId), between(claudeDaily.date, first, shiftDate(last, 6))))
+    .groupBy(claudeDaily.date, claudeDaily.model);
+  const weeks = new Map<string, ClaudeModelWeek>();
+  for (let i = 0; i < count; i++) {
+    const start = shiftDate(first, i * 7);
+    weeks.set(start, { weekStart: start, families: {} });
+  }
+  for (const r of rows) {
+    const w = weeks.get(mondayOf(r.date));
+    if (!w) continue;
+    const family = modelFamily(r.model);
+    const f = (w.families[family] ??= { tokens: 0, output: 0 });
+    f.tokens += tokensOf(r);
+    f.output += r.output;
+  }
+  return [...weeks.values()];
 }
 
 /** The first day any of these members has a Claude Code row: where an all-time chart starts drawing. */
@@ -315,6 +343,8 @@ export type ClaudeRecords = {
   /** Best Monday-to-Sunday week and best calendar month, each by tokens and by output. */
   week: { tokens: ClaudePeriodTotal | null; output: ClaudePeriodTotal | null };
   month: { tokens: ClaudePeriodTotal | null; output: ClaudePeriodTotal | null };
+  /** The single heaviest day by tokens and by output, and the day with the most replies. */
+  day: { tokens: ClaudePeriodTotal | null; output: ClaudePeriodTotal | null; replies: { start: string; replies: number } | null };
   /** Longest run of reply days ever under the member's streak rule. */
   streak: { days: number; from: string; to: string } | null;
 };
@@ -368,7 +398,10 @@ export async function claudeRecords(userId: number, now = new Date()): Promise<C
   const [days, streak] = await Promise.all([claudeDays(userId, { from: CLAUDE_FROM, to: daysAgo(0, now) }), longestStreak(userId)]);
   const weeks = bucket(days, mondayOf);
   const months = bucket(days, (d) => `${d.slice(0, 7)}-01`);
+  const perDay = days.map((d) => ({ start: d.date, tokens: d.tokens, output: d.output }));
+  const replies = days.reduce<{ start: string; replies: number } | null>((a, d) => (d.replies > 0 && (!a || d.replies > a.replies) ? { start: d.date, replies: d.replies } : a), null);
   return {
+    day: { tokens: best(perDay, "tokens"), output: best(perDay, "output"), replies },
     week: { tokens: best(weeks, "tokens"), output: best(weeks, "output") },
     month: { tokens: best(months, "tokens"), output: best(months, "output") },
     streak,

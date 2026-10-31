@@ -3,14 +3,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClaudeBoard } from "@/components/ClaudeBoard";
 import { ClaudeCrewCharts } from "@/components/ClaudeCrewCharts";
+import { ClaudeCrewMix } from "@/components/ClaudeCrewMix";
 import { MetricTabs } from "@/components/MetricTabs";
 import { RangePicker } from "@/components/RangePicker";
 import { WindowTabs } from "@/components/WindowTabs";
-import { claudeCrewBoard, claudeCrewTimelines } from "@/lib/cached";
+import { claudeCrewBoard, claudeCrewModels, claudeCrewTimelines, crewBoard } from "@/lib/cached";
 import { claudeRankBy } from "@/lib/claudestats";
 import { demoCrew } from "@/lib/demo";
 import { openGraphFor, SITE_URL } from "@/lib/site";
-import { CLAUDE_METRICS, isAllTime, parseClaudeMetric, parseWindow, previousLabel, windowQuery } from "@/lib/window";
+import { CLAUDE_METRICS, isAllTime, parseClaudeMetric, parseWindow, previousLabel, windowLabel, windowQuery } from "@/lib/window";
 
 /** Per request: reads the URL. The stats behind it are cached in lib/cached.ts. */
 export const instant = false;
@@ -30,7 +31,7 @@ export default async function DemoClaudeBoard({ searchParams }: { searchParams: 
   const window = parseWindow({ ...query, w: query.w ?? "year" });
   const metric = parseClaudeMetric(query.m);
   const suffix = metric === "tokens" ? "" : `&m=${metric}`;
-  const [board, timelines] = await Promise.all([claudeCrewBoard(crew.id, window), claudeCrewTimelines(crew.id, window)]);
+  const [board, timelines, models, git] = await Promise.all([claudeCrewBoard(crew.id, window), claudeCrewTimelines(crew.id, window), claudeCrewModels(crew.id, window), crewBoard(crew.id, window)]);
   const rows = claudeRankBy(board, metric);
   return (
     <>
@@ -58,6 +59,7 @@ export default async function DemoClaudeBoard({ searchParams }: { searchParams: 
       )}
 
       <ClaudeBoard rows={rows} beforeLabel={isAllTime(window) ? null : previousLabel(window)} metric={metric} userBase="/demo/claude/u" />
+      <ClaudeCrewMix rows={rows} models={models} git={git} metric={metric} label={windowLabel(window)} />
       <ClaudeCrewCharts rows={rows} timelines={timelines} metric={metric} />
     </>
   );

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { ClaudeBoard } from "@/components/ClaudeBoard";
 import { ClaudeCrewCharts } from "@/components/ClaudeCrewCharts";
+import { ClaudeCrewMix } from "@/components/ClaudeCrewMix";
 import { ClaudeSetup } from "@/components/ClaudeSetup";
 import { MetricTabs } from "@/components/MetricTabs";
 import { RangePicker } from "@/components/RangePicker";
@@ -13,7 +14,7 @@ import { WindowTabs } from "@/components/WindowTabs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { cliTokens } from "@/db/schema";
-import { claudeCrewBoard, claudeCrewTimelines } from "@/lib/cached";
+import { claudeCrewBoard, claudeCrewModels, claudeCrewTimelines, crewBoard } from "@/lib/cached";
 import { claudeRankBy, claudeStanding } from "@/lib/claudestats";
 import { crewByCode, isMember } from "@/lib/crews";
 import { fmtTokens } from "@/lib/format";
@@ -32,7 +33,13 @@ const UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output t
 
 /** The reader's standing, the board and the charts; a crew where nobody counts Claude Code shows the setup panel only. */
 async function Board({ crewId, code, window, metric, viewerId, linked }: { crewId: number; code: string; window: Window; metric: ClaudeMetric; viewerId: number; linked: boolean }) {
-  const [board, timelines, createdAt] = await Promise.all([claudeCrewBoard(crewId, window), claudeCrewTimelines(crewId, window), accountCreatedAt(viewerId)]);
+  const [board, timelines, createdAt, models, git] = await Promise.all([
+    claudeCrewBoard(crewId, window),
+    claudeCrewTimelines(crewId, window),
+    accountCreatedAt(viewerId),
+    claudeCrewModels(crewId, window),
+    crewBoard(crewId, window),
+  ]);
   const rows = claudeRankBy(board, metric);
   const me = claudeStanding(rows, metric, viewerId);
   const allTime = isAllTime(window);
@@ -45,6 +52,7 @@ async function Board({ crewId, code, window, metric, viewerId, linked }: { crewI
             <StandingBlock standing={me} metric={metric} unit={UNIT[metric]} format={fmtTokens} label={windowLabel(window)} beforeLabel={previousLabel(window)} newcomer={createdAt !== null && createdAt > previousPeriodEnd(window)} />
           )}
           <ClaudeBoard rows={rows} src={`c:${code}`} beforeLabel={allTime ? null : previousLabel(window)} metric={metric} highlightUserId={viewerId} />
+          <ClaudeCrewMix rows={rows} models={models} git={git} metric={metric} label={windowLabel(window)} />
           <ClaudeCrewCharts rows={rows} timelines={timelines} metric={metric} />
         </>
       )}

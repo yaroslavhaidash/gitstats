@@ -8,6 +8,12 @@ import { MemberLines } from "./MemberLines";
 
 const UNIT: Record<ClaudeMetric, string> = { tokens: "tokens", output: "output tokens" };
 
+/** Each member's colour, by sign-up order as on the gitstats board, so every crew chart agrees. */
+export function crewHues(rows: { userId: number }[]): Map<number, string> {
+  const joined = rows.map((r) => r.userId).sort((a, b) => a - b);
+  return new Map(joined.map((id, slot) => [id, hue(slot)]));
+}
+
 /**
  * The claudestats race and members' weekly tokens. Both charts count one number per member per day,
  * so the chosen metric travels in their `lines` field and the unit names it; colour follows the
