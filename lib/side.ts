@@ -83,7 +83,9 @@ export function onSide(href: string, side: Side): string {
  */
 export const ACCENTS = {
   violet: { label: "violet", accent: "#a66cff", heat: ["#222222", "#4d3e6b", "#7258a1", "#9a74db", "#bd8bff"], own: "#130e1a", models: {} },
-  green: { label: "green", accent: "#c6f24a", heat: ["#222222", "#404e1c", "#5d731b", "#7b9a12", "#b7e139"], own: "#15190b", models: {} },
+  // The locked accent: gitstats red's OKLCH lightness at hue 145, as deep as #ff3333 is. Sonnet green
+  // is 18° from it, so Sonnet takes Fable's pink and Fable the palette violet.
+  green: { label: "green", accent: "#00ad2f", heat: ["#222222", "#0d4e17", "#01751d", "#009627", "#28b93f"], own: "#051309", models: { sonnet: "#d55181", fable: "#9085e9" } },
   yellow: { label: "yellow", accent: "#f2f24f", heat: ["#222222", "#4b4b1b", "#6e6d19", "#93920d", "#e7e64b"], own: "#19190b", models: {} },
   // Opus blue is 21° from this accent, so Opus takes the palette violet instead.
   blue: { label: "blue", accent: "#4cc3ff", heat: ["#222222", "#294d5f", "#35708f", "#4096c1", "#59cbff"], own: "#0b151a", models: { opus: "#9085e9" } },
@@ -98,7 +100,7 @@ export const ACCENTS = {
 } as const satisfies Record<string, { label: string; accent: string; heat: readonly string[]; own: string; models: Record<string, string> }>;
 
 export type AccentName = keyof typeof ACCENTS;
-export const DEFAULT_ACCENT: AccentName = "violet";
+export const DEFAULT_ACCENT: AccentName = "green";
 export const ACCENT_NAMES = Object.keys(ACCENTS) as AccentName[];
 
 export function isAccent(value: unknown): value is AccentName {

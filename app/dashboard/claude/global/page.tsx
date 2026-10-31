@@ -52,7 +52,7 @@ async function Board({ userId, window, metric, all }: { userId: number; window: 
   const beforeLabel = previousLabel(window);
   return (
     <>
-      {!me && <ClaudeSetup linked={machines.length > 0} />}
+      {!rows.find((r) => r.userId === userId)?.counted && <ClaudeSetup linked={machines.length > 0} />}
       {me && rows.length > 1 && (
         <StandingBlock standing={me} metric={metric} unit={UNIT[metric]} format={fmtTokens} label={windowLabel(window)} beforeLabel={beforeLabel} newcomer={newcomer} />
       )}

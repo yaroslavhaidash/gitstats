@@ -148,6 +148,8 @@ export type ClaudeBoardRow = ClaudeTotals & {
   login: string;
   avatarUrl: string;
   name: string | null;
+  /** Whether the member has ever sent a Claude Code number; the board lists everyone either way. */
+  counted: boolean;
   streak: number;
   /** Replies per day, oldest first, `HEATMAP_DAYS` long. */
   days: number[];
@@ -157,17 +159,23 @@ export type ClaudeBoardRow = ClaudeTotals & {
 };
 
 /**
- * A claudestats board: only members who have ever sent a Claude Code number, so a crew where half
- * the members never turned it on does not show half a board of zeros. Ordered by tokens; `claudeRankBy`
- * reorders for the selected tab.
+ * A claudestats board: the same members as the gitstats board, so a crew is one crew on both sides;
+ * a member who never turned Claude Code on is listed with zeros and `counted` false. Ordered by
+ * tokens; `claudeRankBy` reorders for the selected tab.
  */
 export async function claudeBoard(userIds: number[] | null, window: Window, now = new Date()): Promise<ClaudeBoardRow[]> {
   const { current, previous } = periodBounds(window, now);
   const [people, totals, before, streaks, daily] = await Promise.all([
     db
-      .select({ userId: users.id, login: users.githubLogin, avatarUrl: users.avatarUrl, name: users.name })
+      .select({
+        userId: users.id,
+        login: users.githubLogin,
+        avatarUrl: users.avatarUrl,
+        name: users.name,
+        counted: sql<boolean>`exists (select 1 from ${claudeDaily} where ${claudeDaily.userId} = ${users.id})`,
+      })
       .from(users)
-      .where(and(members(userIds), sql`exists (select 1 from ${claudeDaily} where ${claudeDaily.userId} = ${users.id})`)),
+      .where(members(userIds)),
     claudeTotals(userIds, current),
     claudeTotals(userIds, previous),
     claudeStreaks(userIds),

@@ -99,22 +99,23 @@ export async function ClaudeMember({ userId, window, metric, streakMode, setup, 
 
       <ClaudeIntensity row={row} before={before} label={label} allTime={allTime} />
 
-      <section className="panel p-6 mb-8">
-        <h2 className="font-sans font-bold text-lg mb-1">{UNIT[metric][0].toUpperCase() + UNIT[metric].slice(1)} per week</h2>
-        <p className="font-mono text-xs text-faint mb-4">last {weeks.length} weeks · Monday to Sunday</p>
-        <TokenBars
-          bars={weeks.map((w) => ({ start: w.weekStart, tokens: w.tokens, output: w.output }))}
-          mode="weeks"
-          metric={metric}
-          label={`${UNIT[metric]} per week, last ${weeks.length} weeks`}
-        />
-      </section>
-
-      <section className="panel p-6 mb-8">
-        <h2 className="font-sans font-bold text-lg mb-1">Year of replies</h2>
-        <p className="font-mono text-xs text-faint mb-4">Claude Code replies per day · last 52 weeks</p>
-        <YearCalendar days={year} label="Claude Code replies per day, last 52 weeks" heat={CLAUDE_HEAT_SCALE} />
-      </section>
+      <div className="grid lg:grid-cols-[2fr_1fr] gap-8 mb-8">
+        <section className="panel p-6 min-w-0">
+          <h2 className="font-sans font-bold text-lg mb-1">{UNIT[metric][0].toUpperCase() + UNIT[metric].slice(1)} per week</h2>
+          <p className="font-mono text-xs text-faint mb-4">last {weeks.length} weeks · Monday to Sunday</p>
+          <TokenBars
+            bars={weeks.map((w) => ({ start: w.weekStart, tokens: w.tokens, output: w.output }))}
+            mode="weeks"
+            metric={metric}
+            label={`${UNIT[metric]} per week, last ${weeks.length} weeks`}
+          />
+        </section>
+        <section className="panel p-6 min-w-0">
+          <h2 className="font-sans font-bold text-lg mb-4">Year of replies</h2>
+          <YearCalendar days={year} label="Claude Code replies per day, last 52 weeks" heat={CLAUDE_HEAT_SCALE} />
+          <p className="font-mono text-xs text-faint mt-4">Claude Code replies per day · older half on top, newer half below</p>
+        </section>
+      </div>
 
       <section className="panel p-6 mb-8">
         <h2 className="font-sans font-bold text-lg mb-1">

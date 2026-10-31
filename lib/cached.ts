@@ -457,7 +457,7 @@ export async function claudeUserStats(userId: number, window: Window): Promise<C
     claudeReplyDays([userId], calendarFrom).then((m) => m.get(userId) ?? new Map<string, number>()),
     claudeModelWeeks(userId, MODEL_WEEKS),
   ]);
-  return { row: row ?? null, before, weeks, days, models, modelWeeks, year: lastDays(replies, YEAR_DAYS), weekdays: weekdayAverages(replies, span.from, span.to), span };
+  return { row: row?.counted ? row : null, before, weeks, days, models, modelWeeks, year: lastDays(replies, YEAR_DAYS), weekdays: weekdayAverages(replies, span.from, span.to), span };
 }
 
 export async function claudeMemberRecords(userId: number): Promise<ClaudeRecords> {
@@ -516,7 +516,7 @@ export async function claudeShareStats(userId: number, window: Window, metric: C
   const own = board.find((r) => r.userId === userId);
   const best = kind && records ? records[kind][metric] : null;
   return {
-    row: own ? { ...own, days: lastDays(replies, SHARE_HEATMAP_DAYS) } : null,
+    row: own?.counted ? { ...own, days: lastDays(replies, SHARE_HEATMAP_DAYS) } : null,
     standing: claudeStanding(board, metric, userId),
     record: kind && best ? { kind, best } : null,
   };

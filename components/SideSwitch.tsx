@@ -12,7 +12,7 @@ const NO_PARAMS = new URLSearchParams();
 function Mark({ side }: { side: Side }) {
   return (
     <span
-      className={`w-8 h-8 shrink-0 text-void font-mono font-bold text-sm grid place-items-center border-2 border-silver ${side === "git" ? "bg-[#ff3333]" : "bg-[var(--claude-accent,#a66cff)]"}`}
+      className={`w-8 h-8 shrink-0 text-void font-mono font-bold text-sm grid place-items-center border-2 border-silver ${side === "git" ? "bg-[#ff3333]" : "bg-[var(--claude-accent,#00ad2f)]"}`}
     >
       {side === "git" ? "gs" : "cs"}
     </span>

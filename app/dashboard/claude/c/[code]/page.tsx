@@ -45,7 +45,7 @@ async function Board({ crewId, code, window, metric, viewerId, linked }: { crewI
   const allTime = isAllTime(window);
   return (
     <>
-      {!me && <ClaudeSetup linked={linked} />}
+      {!rows.find((r) => r.userId === viewerId)?.counted && <ClaudeSetup linked={linked} />}
       {rows.length > 0 && (
         <>
           {me && rows.length > 1 && (

@@ -4,7 +4,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { ACCENT_NAMES, ACCENTS, DEFAULT_ACCENT, isAccent, sideOf, type AccentName } from "@/lib/side";
 
-const KEY = "gs-claude-accent";
+// Renamed when green was locked, so a pick stored during the trial does not override it.
+const KEY = "gs-claude-accent-2";
 const OPEN_KEY = "gs-claude-accent-open";
 const EVENT = "gs-claude-accent";
 
