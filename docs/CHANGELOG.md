@@ -5,6 +5,7 @@ What shipped, newest first, one line per change. `/changelog` renders this file,
 
 ## 2026-10-31
 
+- **Claude Code counted by default** — a linked computer now counts your Claude Code usage too, numbers only, from CLI 0.6.0 (it updates itself); turn it off for every computer on the settings page, or on one with `gitstats claude off`. The logo menu shows each side in its own colour.
 - **claudestats goes green** — the side's colour is now a deep green, as deep as gitstats red; crew and global boards list every member, with zeros for anyone who has not turned Claude Code counting on; on your page the weekly tokens and the year of replies share one row, as on gitstats.
 - **More claudestats** — your page gains intensity (cache reuse, context per output token, tokens per session and per active day, roughly how many novels of text), weekly model bands and heaviest-day records; crew boards gain crew share, the crew's model mix, how each member works and git lines per million output tokens for members on both sides. Links on claudestats pages now stay on claudestats.
 - **claudestats** — the other side of the site, behind the logo menu: your Claude Code tokens, output, sessions and streak on the same crews and boards, counted on your own computer from Claude Code's logs, numbers only, off until you run `gitstats claude on`. Share cards, a page at `/claude`, and a settings button that deletes what was sent.

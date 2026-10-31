@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { cliTokens } from "@/db/schema";
+import { cliTokens, users } from "@/db/schema";
 import { revalidateForUsers } from "@/lib/cache";
 import { ingestClaude, parseClaudeUpload } from "@/lib/claude";
 import { hashToken, ingest, isOutdatedCli, MIN_CLI_VERSION, parseCliVersion, parseIngestRepos, tokenOwner } from "@/lib/cli";
@@ -32,10 +32,15 @@ export async function POST(request: Request) {
   const cliVersion = parseCliVersion(fields.cliVersion);
   // A malformed `claude` never blocks the git sync: the repos still land, the field is answered "rejected".
   const claudeUpload = parseClaudeUpload(fields.claude, daysAgo(0));
-  const counted = await ingest(owner.userId, defaultSince, repos);
-  const claude = claudeUpload === "invalid" ? "rejected" : claudeUpload ? await ingestClaude(owner.userId, owner.id, claudeUpload) : null;
-  // Without a `claude` field the body is exactly what older CLIs have always been sent.
-  const result = claude === null ? counted : { ...counted, claude };
+  const [[member], counted] = await Promise.all([
+    db.select({ claudeCounting: users.claudeCounting }).from(users).where(eq(users.id, owner.userId)),
+    ingest(owner.userId, defaultSince, repos),
+  ]);
+  const counting = member?.claudeCounting ?? true;
+  // Turned off in settings: a sent `claude` field is answered "off" and stores nothing.
+  const claude = claudeUpload === null ? null : !counting ? "off" : claudeUpload === "invalid" ? "rejected" : await ingestClaude(owner.userId, owner.id, claudeUpload);
+  // `claudeCounting` tells a 0.6.0+ CLI whether to read Claude Code's logs on its next sync; older CLIs ignore it.
+  const result = { ...counted, ...(claude === null ? {} : { claude }), claudeCounting: counting };
   await revalidateForUsers([owner.userId]);
   await db
     .update(cliTokens)

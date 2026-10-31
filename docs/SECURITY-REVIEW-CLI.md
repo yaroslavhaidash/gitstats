@@ -176,7 +176,7 @@ Verified against production: HMAC matching maps the maintainer's public repos on
 
 ## Claude Code usage (2026-11)
 
-An optional `claude` field on the same `/api/ingest` request (`lib/claude.ts`). Off by default: a CLI sends it only after its owner turns Claude counting on.
+An optional `claude` field on the same `/api/ingest` request (`lib/claude.ts`). Since CLI 0.6.0 it is on by default on every linked computer (the owner's decision: the field carries only the numbers below). Two off switches: `users.claude_counting` in settings, which the route checks before writing anything (a sent field is answered `claude: "off"` and stored nowhere) and reports on every response as `claudeCounting`, so the CLI stops reading the logs from its next sync; and `gitstats claude off` per computer, which the CLI keeps locally and the server setting never overrides.
 
 - **What is read.** The CLI reads Claude Code's own logs under `<claudeDir>/projects/**/*.jsonl` and takes only a line's type, timestamp, message id, model, the four usage counts, session id and Claude Code version. It never reads message content, working directories, branch names, tool inputs or tool results.
 - **What is sent.** Per UTC day per model: input, output, cache-read and cache-write tokens, replies and sessions; the highest Claude Code version seen; the window `from`/`to`; and a machine key. Message and session ids stay on the machine: they are only used locally to dedupe replies that Claude Code writes several times and copies into resumed sessions. Nothing finer than a day leaves.

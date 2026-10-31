@@ -27,7 +27,7 @@ const COMMANDS: [string, string][] = [
   ["emails add <email>", "Count commits made with another email (a work address, an old one). Syncs right away."],
   ["names on", "Also send repo names, so your own page shows them instead of private-xxxx. Whether others see names is a separate setting on your profile."],
   ["names off", "Stop sending names. Already-stored names stay until the next sync replaces them."],
-  ["claude on", "Also count your Claude Code usage from its own logs on this computer. Off by default. It sends only numbers per UTC day per model: input, output, cache-read and cache-write tokens, replies and sessions, never your messages, Claude's answers, paths or project names. The first sync counts every log Claude Code still keeps. Options: --yes (skip the confirmation); `link --claude` turns it on while pairing."],
+  ["claude on", "Count your Claude Code usage from its own logs on this computer again after `claude off`. On by default on every linked computer, unless you turned it off in settings. It sends only numbers per UTC day per model: input, output, cache-read and cache-write tokens, replies and sessions, never your messages, Claude's answers, paths or project names. The first sync counts every log Claude Code still keeps. Options: --yes (skip the confirmation)."],
   ["claude off", "Stop sending Claude Code usage. What was already sent stays until you delete it."],
   ["claude", "Print the last 14 days of Claude Code usage from this computer's logs, counted the way a sync counts them. Sends nothing."],
   ["update", "Install the latest published version now. Every sync also checks once a day on its own; config and schedule are untouched."],
@@ -49,9 +49,9 @@ const CLAUDE_FAQ: [string, string][] = [
   ["What does OUTPUT count?", "Only what the model generated, thinking included. It does not grow with the size of the context, so it is the closer measure of how much Claude wrote for you. Pick it on the tabs and the board orders by it."],
   ["What is a session?", "One Claude Code conversation, counted on the UTC day of its first reply. A resumed or forked conversation that gets a new session id counts again on its first day. Subagents are part of their parent's session."],
   ["What is sent, and what never is?", "Per UTC day and per model: the four token counts, replies and sessions, the highest Claude Code version seen, and a keyed hash that tells your computers apart. Never your prompts, Claude's replies, code, file or project names, session or message ids, or anything finer than a day."],
-  ["How do I turn it on, and off?", "`claude on` on each computer you use Claude Code on, or `link --claude` while pairing a new one. `claude off` stops sending. Your settings page deletes everything already sent; run `claude off` first, or the next sync sends the last week back. `claude` prints what would be counted and sends nothing."],
-  ["Why turn it on early?", "Claude Code deletes old conversation logs after a while (its cleanupPeriodDays setting). The first sync counts every log still on the computer, and a day once counted stays here after Claude Code removes its log, but days older than your logs cannot be counted."],
-  ["Two computers?", "Turn it on on both; each one only ever replaces its own numbers. The one exception: if you sync your ~/.claude folder between computers (iCloud, Dropbox, dotfiles), turn it on on one of them only, or the same days count twice."],
+  ["How do I turn it off?", "It is on for every linked computer. Turn it off for all of them in settings (each computer stops after its next sync), or on one computer with `claude off`; `claude on` turns that one back on. Settings also deletes everything already sent; turn counting off first, or the next sync sends the last week back. `claude` prints what would be counted and sends nothing."],
+  ["How far back does it count?", "Claude Code deletes old conversation logs after a while (its cleanupPeriodDays setting). The first sync counts every log still on the computer, and a day once counted stays here after Claude Code removes its log, but days older than your logs cannot be counted."],
+  ["Two computers?", "Both count; each one only ever replaces its own numbers. The one exception: if you sync your ~/.claude folder between computers (iCloud, Dropbox, dotfiles), run `claude off` on all but one of them, or the same days count twice."],
 ];
 
 const NOT_SENT = ["file contents", "diffs", "file or folder names", "branch names", "commit messages", "other people's commits", "anything about repos you did not commit to"];
@@ -160,7 +160,7 @@ export default async function Docs() {
         <section id="claude" className="mb-14 scroll-mt-20">
           <h2 className="font-sans font-bold text-2xl mb-3">Claude Code usage (claudestats)</h2>
           <p className="font-mono text-xs text-dim leading-relaxed mb-6">
-            Off until you turn it on. The same CLI can also count your Claude Code usage from the logs Claude Code keeps on your computer, and{" "}
+            On with every linked computer, off in settings. The same CLI also counts your Claude Code usage from the logs Claude Code keeps on your computer, and{" "}
             <Link href="/claude" className="text-silver underline hover:text-alert">claudestats</Link> puts it on a board next to your crew&apos;s.
           </p>
           <dl className="space-y-6 font-mono text-xs leading-relaxed">

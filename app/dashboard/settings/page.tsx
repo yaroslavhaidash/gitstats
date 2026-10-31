@@ -10,7 +10,7 @@ import { McpTokenForm } from "@/components/McpTokenForm";
 import { SettingsForm } from "@/components/SettingsForm";
 import { VisibilityMatrix } from "@/components/VisibilityMatrix";
 import { SetupCommand } from "@/components/SetupCommand";
-import { addToken, deleteAccountAction, deleteClaudeNumbers, removeToken, revokeMachine, revokeMcpToken, revokeOAuthGrant, updateStreakMode } from "@/lib/actions";
+import { addToken, deleteAccountAction, deleteClaudeNumbers, removeToken, revokeMachine, revokeMcpToken, revokeOAuthGrant, setClaudeCounting, updateStreakMode } from "@/lib/actions";
 import { isOutdatedCli } from "@/lib/cli";
 import { fmtDateTime } from "@/lib/format";
 import { SITE_URL } from "@/lib/site";
@@ -101,10 +101,20 @@ export default async function Settings({ searchParams }: { searchParams: Promise
           <Link href="/docs#claude" className="font-mono text-xs text-faint hover:text-alert">[HOW IT COUNTS]</Link>
         </div>
         <p className="font-mono text-xs text-dim mb-6 leading-relaxed">
-          Off until you turn it on per computer with <span className="text-silver">gitstats claude on</span>. A computer that counts sends tokens, replies and sessions per
-          day per model, numbers only, and they show on <Link href="/dashboard/claude" className="text-silver underline hover:text-alert">claudestats</Link>.
+          Every linked computer also counts your Claude Code usage from its own logs: tokens, replies and sessions per day per model, numbers only, never your
+          messages, Claude&apos;s answers, paths or project names. They show on <Link href="/dashboard/claude" className="text-silver underline hover:text-alert">claudestats</Link>.
         </p>
         {claude === "deleted" && <p className="font-mono text-xs text-dim mb-4">&gt; Claude Code numbers deleted</p>}
+        {(claude === "on" || claude === "off") && <p className="font-mono text-xs text-green mb-4">&gt; saved · each computer picks it up on its next sync</p>}
+        <form action={setClaudeCounting} className="flex flex-wrap items-center justify-between gap-3 border-2 border-dark p-4 mb-6 font-mono text-sm">
+          <span>
+            counting: <span className={me.claudeCounting ? "text-green" : "text-faint"}>{me.claudeCounting ? "on" : "off"}</span>
+          </span>
+          <input type="hidden" name="counting" value={me.claudeCounting ? "off" : "on"} />
+          <button type="submit" className="border-2 border-dark px-3 py-2 cursor-pointer hover:border-alert">
+            {me.claudeCounting ? "[TURN OFF]" : "[TURN ON]"}
+          </button>
+        </form>
         {machines.length > 0 && (
           <ul className="divide-y divide-dark border-2 border-dark mb-6 font-mono text-sm">
             {machines.map((m) => (
@@ -123,8 +133,8 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         )}
         <form action={deleteClaudeNumbers} className="grid gap-3 border-2 border-dark p-4 font-mono text-sm">
           <span className="text-xs text-dim leading-relaxed">
-            deletes every Claude Code number you sent, from every computer. Run <span className="text-silver">gitstats claude off</span> on each computer first, or its next
-            sync sends the last week back.
+            deletes every Claude Code number you sent, from every computer. Turn counting off above first, or each computer&apos;s next sync sends the last
+            week back.
           </span>
           <Confirm label="[DELETE MY CLAUDE CODE NUMBERS]" confirm="[SURE? DELETE THEM]" className="border-2 border-dark px-3 py-2 w-fit cursor-pointer hover:border-alert" />
         </form>

@@ -272,8 +272,21 @@ export async function revokeMachine(formData: FormData): Promise<void> {
 }
 
 /**
- * Every Claude Code number this member sent, from every machine. Counting stays on wherever it is on,
- * so the settings copy says to run `gitstats claude off` first.
+ * Claude Code counting on every linked computer, on by default. Off, the ingest stores nothing sent
+ * in the `claude` field and each CLI stops reading the logs after its next sync; what was already
+ * sent stays until `deleteClaudeNumbers`.
+ */
+export async function setClaudeCounting(formData: FormData): Promise<void> {
+  const session = await auth();
+  if (!session) redirect("/");
+  const on = formData.get("counting") === "on";
+  await db.update(users).set({ claudeCounting: on }).where(eq(users.id, session.user.id));
+  redirect(`/dashboard/settings?claude=${on ? "on" : "off"}#claude`);
+}
+
+/**
+ * Every Claude Code number this member sent, from every machine. Counting stays on unless it was
+ * turned off, so the settings copy says to turn it off first.
  */
 export async function deleteClaudeNumbers(): Promise<void> {
   const session = await auth();

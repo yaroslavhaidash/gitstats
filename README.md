@@ -17,7 +17,7 @@ Compare coding activity with friends. Private and work repos are counted on your
 - **Streaks your way.** Choose what counts as a streak day.
 - **You choose who sees what.** Separate settings for your crews and for everyone, and any repo name can be hidden.
 - **Share it.** A share card for chats and a badge for your GitHub profile.
-- **claudestats.** The other side of the site: Claude Code tokens, output and sessions on the same boards, counted locally from Claude Code's logs, numbers only, opt-in with `gitstats claude on`. See [gitstats.org/claude](https://gitstats.org/claude).
+- **claudestats.** The other side of the site: Claude Code tokens, output and sessions on the same boards, counted locally from Claude Code's logs, numbers only, on with every linked computer and off in settings or with `gitstats claude off`. See [gitstats.org/claude](https://gitstats.org/claude).
 - **Ask your AI assistant.** A read-only MCP server lets Claude Code, Codex or Cursor answer "how was my week" from your numbers. Setup: [gitstats.org/docs#mcp](https://gitstats.org/docs#mcp).
 - **Open source, MIT.** The server and the CLI; self-host it if you like.
 

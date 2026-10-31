@@ -44,6 +44,11 @@ export const users = pgTable("users", {
   sharePrivate: boolean("share_private").notNull().default(true),
   /** The same, for everyone outside your crews: the global board and a profile opened by a stranger. */
   sharePrivateGlobal: boolean("share_private_global").notNull().default(true),
+  /**
+   * Whether linked computers count Claude Code usage. On by default; when off the ingest stores no
+   * `claude` field and tells the CLI, which stops reading the logs until it is turned back on.
+   */
+  claudeCounting: boolean("claude_counting").notNull().default(true),
   /** Whether the streak counts every day or only Mon–Fri, so a Friday→Monday run stays unbroken. */
   streakMode: text("streak_mode").$type<StreakMode>().notNull().default("all_days"),
   /** The highest streak milestone (7, 30, 100, 365) whose banner this member has been shown; 0 for none. */

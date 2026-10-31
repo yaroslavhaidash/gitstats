@@ -49,6 +49,7 @@ export async function exportAccount(userId: number) {
         sharePrivate: users.sharePrivate,
         sharePrivateGlobal: users.sharePrivateGlobal,
         streakMode: users.streakMode,
+        claudeCounting: users.claudeCounting,
         createdAt: users.createdAt,
         signupFrom: users.signupFrom,
         signupReferrerHost: users.signupReferrerHost,

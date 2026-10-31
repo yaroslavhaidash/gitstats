@@ -174,15 +174,15 @@ export default async function Privacy() {
         </section>
 
         <section id="claude" className="mb-14">
-          <h2 className="font-sans font-bold text-2xl mb-4">Claude Code usage, only if you turn it on</h2>
+          <h2 className="font-sans font-bold text-2xl mb-4">Claude Code usage, numbers only</h2>
           <p className="font-mono text-xs text-dim leading-relaxed mb-4">
-            claudestats is off until you turn it on, with <span className="text-silver">gitstats claude on</span> or by
-            answering yes when you link a computer. From then on the CLI reads the logs Claude Code keeps on that
+            A linked computer also counts your Claude Code usage, unless you turn it off in settings or run{" "}
+            <span className="text-silver">gitstats claude off</span> on that computer. The CLI reads the logs Claude Code keeps on that
             computer and sends, per UTC day and per model: input, output, cache-read and cache-write tokens, how many
             replies and how many sessions, the highest Claude Code version it saw, and a keyed hash that tells your
             computers apart. Nothing else leaves the computer: no prompts, no replies, no code, no file or project
-            names, no session or message ids, nothing finer than a day. Nothing is stored for members who never turn
-            it on.
+            names, no session or message ids, nothing finer than a day. Nothing is stored while counting is off, and
+            the settings page deletes what was sent.
           </p>
           <p className="font-mono text-xs text-dim leading-relaxed mb-4">
             Who sees it follows the same rule as your page: crewmates on your crew boards, everyone signed in on the

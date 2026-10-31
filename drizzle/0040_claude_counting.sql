@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "claude_counting" boolean DEFAULT true NOT NULL;

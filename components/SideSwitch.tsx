@@ -3,16 +3,20 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { counterpart, sideOf, type Side } from "@/lib/side";
+import { CLAUDE_ACCENT, counterpart, sideOf, type Side } from "@/lib/side";
 import { NavMenu } from "./NavMenu";
 
 const NO_PARAMS = new URLSearchParams();
 
-/** The mark of each side; gitstats red always, claudestats in its accent, wherever the row is drawn. */
+/** Each side's own colour, wherever its mark or wordmark is drawn, not the colour of the side you are on. */
+const COLOUR: Record<Side, string> = { git: "#ff3333", claude: CLAUDE_ACCENT.accent };
+
+/** The mark of each side, in that side's colour. */
 function Mark({ side }: { side: Side }) {
   return (
     <span
-      className={`w-8 h-8 shrink-0 text-void font-mono font-bold text-sm grid place-items-center border-2 border-silver ${side === "git" ? "bg-[#ff3333]" : "bg-[var(--claude-accent,#00ad2f)]"}`}
+      className="w-8 h-8 shrink-0 text-void font-mono font-bold text-sm grid place-items-center border-2 border-silver"
+      style={{ backgroundColor: COLOUR[side] }}
     >
       {side === "git" ? "gs" : "cs"}
     </span>
@@ -23,7 +27,7 @@ function Wordmark({ side }: { side: Side }) {
   return (
     <>
       {side === "git" ? "git" : "claude"}
-      <span className="text-alert">stats</span>
+      <span style={{ color: COLOUR[side] }}>stats</span>
     </>
   );
 }

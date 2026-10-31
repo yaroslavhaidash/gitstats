@@ -11,13 +11,12 @@ import { openGraphFor } from "@/lib/site";
 export const metadata: Metadata = {
   title: { absolute: "claudestats · Claude Code usage for friends" },
   description:
-    "claudestats puts your Claude Code tokens, output, sessions and streak on a board next to your friends'. Counted on your own computer from Claude Code's logs, numbers only, off until you turn it on.",
+    "claudestats puts your Claude Code tokens, output, sessions and streak on a board next to your friends'. Counted on your own computer from Claude Code's logs, numbers only, on with every linked computer.",
   alternates: { canonical: "/claude" },
   openGraph: openGraphFor("/claude"),
 };
 
-const COMMAND = "npx --yes @yaroslavhaidash/gitstats-cli@latest claude on";
-const LINK_COMMAND = "npx --yes @yaroslavhaidash/gitstats-cli@latest link --claude";
+const COMMAND = "npx --yes @yaroslavhaidash/gitstats-cli@latest link";
 
 const METRICS = [
   ["tokens", "everything Claude Code sent and got back: input, cache write, cache read, output"],
@@ -64,7 +63,7 @@ export default function ClaudeLanding() {
             Tokens, output, sessions and streaks per week, month or year, on the same crews and boards as gitstats.
           </p>
           <p className="font-mono text-xs text-dim leading-relaxed mb-8 max-w-xl">
-            Counted on your own computer from the logs Claude Code already keeps. Numbers only, and off until you turn it on.
+            Counted on your own computer from the logs Claude Code already keeps. Numbers only, on with every linked computer, off in settings.
           </p>
           <div className="flex flex-wrap items-center gap-4 mb-10">
             <form action={signInWithGitHub}>
@@ -79,7 +78,7 @@ export default function ClaudeLanding() {
               <CopyText text={COMMAND} className="text-white" />
             </div>
             <p className="text-faint mt-3 leading-relaxed">
-              &gt; no computer linked yet: <span className="text-silver break-all">{LINK_COMMAND}</span> links it and turns counting on in one go. Needs Node.js 18+.
+              &gt; the same link as gitstats: a linked computer counts Claude Code too. Already linked? It counts from its next sync. Needs Node.js 18+.
             </p>
           </div>
         </div>
@@ -133,7 +132,7 @@ export default function ClaudeLanding() {
       </section>
 
       <footer className="py-8 font-mono text-xs text-faint text-center px-4">
-        numbers only · off until you turn it on · claude.ai chat is not counted ·{" "}
+        numbers only · off in settings · claude.ai chat is not counted ·{" "}
         <DemoLink where="claude_footer" href="/demo/claude" className="hover:text-alert">demo</DemoLink> ·{" "}
         <Link href="/" className="hover:text-alert">gitstats</Link> ·{" "}
         <Link href="/docs#claude" className="hover:text-alert">docs</Link> ·{" "}
