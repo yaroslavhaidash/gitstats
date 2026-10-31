@@ -134,6 +134,14 @@ type ClaudeHabit = {
   models: { id: string; weight: number; from?: string; to?: string }[];
   /** Days ago they started; the others have used it since the demo's first day. */
   startedDaysAgo?: number;
+  /** Share of replies per effort level, in `CLAUDE_EFFORTS` order. */
+  effort: number[];
+  /** Share of replies in local 00–06, 06–12, 12–18, 18–24. */
+  quarters: number[];
+  /** Share of tokens that ran in subagents. */
+  subagents: number;
+  /** Replies per typed message. */
+  repliesPerMessage: number;
 };
 
 /** One heavy Opus user, one Sonnet-leaning weekday user, one weekend binger, one who started three months ago. */
@@ -142,6 +150,10 @@ const CLAUDE_HABITS: Record<(typeof DEMO_LOGINS)[number], ClaudeHabit> = {
     perDay: 650e6,
     rhythm: [0.2, 1, 1, 1, 0.95, 0.9, 0.25],
     sessions: 8,
+    effort: [0.03, 0.02, 0.25, 0.15, 0.55, 0],
+    quarters: [0.04, 0.38, 0.45, 0.13],
+    subagents: 0.18,
+    repliesPerMessage: 34,
     models: [
       { id: "claude-opus-4-8", weight: 0.88, to: "2026-04-30" },
       { id: "claude-opus-5", weight: 0.88, from: "2026-05-01", to: "2026-08-31" },
@@ -153,6 +165,10 @@ const CLAUDE_HABITS: Record<(typeof DEMO_LOGINS)[number], ClaudeHabit> = {
     perDay: 90e6,
     rhythm: [0.05, 1, 1, 0.95, 1, 0.85, 0.05],
     sessions: 5,
+    effort: [0.05, 0.1, 0.7, 0.15, 0, 0],
+    quarters: [0.02, 0.62, 0.33, 0.03],
+    subagents: 0.05,
+    repliesPerMessage: 14,
     models: [
       { id: "claude-sonnet-5", weight: 0.8, to: "2026-07-31" },
       { id: "claude-sonnet-5-5", weight: 0.8, from: "2026-08-01" },
@@ -164,6 +180,10 @@ const CLAUDE_HABITS: Record<(typeof DEMO_LOGINS)[number], ClaudeHabit> = {
     perDay: 380e6,
     rhythm: [1, 0.3, 0.25, 0.3, 0.3, 0.55, 1],
     sessions: 14,
+    effort: [0.02, 0.35, 0.45, 0.08, 0.1, 0],
+    quarters: [0.31, 0.06, 0.21, 0.42],
+    subagents: 0.27,
+    repliesPerMessage: 22,
     models: [
       { id: "claude-haiku-4-5-20251001", weight: 0.5 },
       { id: "claude-opus-5", weight: 0.5, to: "2026-08-31" },
@@ -175,6 +195,10 @@ const CLAUDE_HABITS: Record<(typeof DEMO_LOGINS)[number], ClaudeHabit> = {
     rhythm: [0.1, 0.95, 1, 1, 0.95, 0.9, 0.1],
     sessions: 4,
     startedDaysAgo: 92,
+    effort: [0.01, 0.04, 0.2, 0.6, 0.15, 0],
+    quarters: [0.01, 0.24, 0.58, 0.17],
+    subagents: 0.11,
+    repliesPerMessage: 19,
     models: [
       { id: "claude-fable-5-1", weight: 0.6 },
       { id: "claude-sonnet-5-5", weight: 0.4 },
@@ -188,6 +212,15 @@ const CLAUDE_DEMO_FROM = "2025-03-01";
 const OUTPUT_SHARE = 0.0021;
 const CACHE_WRITE_SHARE = 0.0188;
 const INPUT_SHARE = 0.0001;
+/** Demo days before this have no CLI 0.7.0 counts, so the pages show their "not counted" state too. */
+const CLAUDE_DETAIL_DEMO_FROM = "2026-01-01";
+
+/** `total` split by `shares` into whole numbers that add back up to it. */
+function splitCounts(total: number, shares: number[]): number[] {
+  const out = shares.map((s) => Math.floor(total * s));
+  out[out.indexOf(Math.max(...out))] += total - out.reduce((a, b) => a + b, 0);
+  return out;
+}
 
 /** One member's `claude_daily` rows for one day, one per model they used. */
 function claudeDay(login: string, habit: ClaudeHabit, userId: number, date: string, dayIndex: number): (typeof claudeDaily.$inferInsert)[] {
@@ -208,6 +241,20 @@ function claudeDay(login: string, habit: ClaudeHabit, userId: number, date: stri
     const outputTokens = Math.round(tokens * OUTPUT_SHARE * (0.6 + 0.8 * rand(`${key}:${m.id}:o`)));
     const cacheWriteTokens = Math.round(tokens * CACHE_WRITE_SHARE * (0.7 + 0.6 * rand(`${key}:${m.id}:w`)));
     const inputTokens = Math.round(tokens * INPUT_SHARE);
+    // About one reply per 250k to 350k tokens, as measured.
+    const replies = Math.max(1, Math.round(tokens / (250_000 + 100_000 * rand(`${key}:${m.id}:r`))));
+    const detail =
+      date < CLAUDE_DETAIL_DEMO_FROM
+        ? {}
+        : {
+            effortReplies: splitCounts(replies, habit.effort),
+            effortOutput: splitCounts(outputTokens, habit.effort),
+            toolCalls: Math.round(replies * (0.45 + 0.3 * rand(`${key}:${m.id}:tc`))),
+            subagentTokens: Math.round(tokens * habit.subagents * (0.5 + rand(`${key}:${m.id}:sa`))),
+            subagentReplies: Math.round(replies * habit.subagents * (0.5 + rand(`${key}:${m.id}:sr`))),
+            replyQuarters: splitCounts(replies, habit.quarters),
+            messages: Math.max(1, Math.round(replies / (habit.repliesPerMessage * (0.7 + 0.6 * rand(`${key}:${m.id}:m`))))),
+          };
     rows.push({
       userId,
       machine: "demo",
@@ -217,9 +264,9 @@ function claudeDay(login: string, habit: ClaudeHabit, userId: number, date: stri
       outputTokens,
       cacheWriteTokens,
       cacheReadTokens: tokens - outputTokens - cacheWriteTokens - inputTokens,
-      // About one reply per 250k to 350k tokens, as measured.
-      replies: Math.max(1, Math.round(tokens / (250_000 + 100_000 * rand(`${key}:${m.id}:r`)))),
+      replies,
       sessions: Math.round(sessions * share),
+      ...detail,
     });
   });
   return rows;

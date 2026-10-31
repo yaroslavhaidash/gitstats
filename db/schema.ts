@@ -360,6 +360,19 @@ export const claudeDaily = pgTable(
     cacheWriteTokens: bigint("cache_write_tokens", { mode: "number" }).notNull().default(0),
     replies: integer("replies").notNull().default(0),
     sessions: integer("sessions").notNull().default(0),
+    // CLI 0.7.0 and later; null on rows an older CLI sent, which pages show as not counted, never zero.
+    /** Replies and output tokens per effort level, in `CLAUDE_EFFORTS` order. */
+    effortReplies: integer("effort_replies").array(),
+    effortOutput: bigint("effort_output", { mode: "number" }).array(),
+    /** `tool_use` blocks in the replies. */
+    toolCalls: integer("tool_calls"),
+    /** All four token kinds and the replies that ran in subagents (sidechain transcripts). */
+    subagentTokens: bigint("subagent_tokens", { mode: "number" }),
+    subagentReplies: integer("subagent_replies"),
+    /** Replies in the machine's local 00–06, 06–12, 12–18 and 18–24. */
+    replyQuarters: integer("reply_quarters").array(),
+    /** Prompts the member typed. */
+    messages: integer("messages"),
   },
   (t) => [primaryKey({ columns: [t.userId, t.machine, t.date, t.model] }), index("claude_daily_user_date_idx").on(t.userId, t.date)],
 );

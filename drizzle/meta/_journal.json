@@ -288,6 +288,13 @@
       "when": 1793462256814,
       "tag": "0040_claude_counting",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793465959129,
+      "tag": "0041_claude_details",
+      "breakpoints": true
     }
   ]
 }

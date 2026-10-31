@@ -21,6 +21,8 @@ const COMMAND = "npx --yes @yaroslavhaidash/gitstats-cli@latest link";
 const METRICS = [
   ["tokens", "everything Claude Code sent and got back: input, cache write, cache read, output"],
   ["output", "what the model wrote, thinking included"],
+  ["messages", "the prompts you typed, and what each one set off"],
+  ["effort", "which reasoning effort your replies ran at"],
   ["sessions", "conversations started that day"],
   ["active days", "days with at least one reply"],
   ["streak", "days in a row with a reply · weekdays-only is a setting"],
@@ -30,11 +32,13 @@ const METRICS = [
 const SENT = [
   "per UTC day and per model: input, output, cache-read and cache-write tokens",
   "how many replies and how many sessions that day",
+  "replies and output per effort level, tool calls, how much ran in subagents",
+  "replies in each 6-hour block of your local day, and how many messages you typed",
   "the highest Claude Code version it saw",
   "a keyed hash that tells your computers apart",
 ];
 
-const NOT_SENT = ["your prompts", "Claude's replies", "code", "file or project names", "session or message ids", "anything finer than a day"];
+const NOT_SENT = ["your prompts", "Claude's replies", "code", "file or project names", "tool names", "session or message ids", "timestamps", "anything finer than four blocks of a day"];
 
 /** The public page of the claudestats side, for signed-out visitors; a member is sent to their claude board. */
 export default function ClaudeLanding() {
@@ -117,7 +121,7 @@ export default function ClaudeLanding() {
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-sans font-bold text-3xl mb-2">What lands on the board</h2>
           <p className="font-mono text-xs text-dim leading-relaxed mb-8">
-            The board ranks by tokens or by output, whichever tab you pick. Cache reads are most of the tokens: Claude Code sends the
+            The board ranks by tokens, output or messages, whichever tab you pick. Cache reads are most of the tokens: Claude Code sends the
             conversation again on every turn, so tokens measure how much you used it, and output measures how much it wrote.
           </p>
           <div className="grid sm:grid-cols-2 border-2 border-dark divide-y-2 sm:divide-y-0 divide-dark">

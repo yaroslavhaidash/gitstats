@@ -16,7 +16,21 @@ export type ClaudeDay = {
   cacheWrite: number;
   replies: number;
   sessions: number;
+  /** CLI 0.7.0 and later; each is null when the CLI did not send it. */
+  effortReplies: number[] | null;
+  effortOutput: number[] | null;
+  toolCalls: number | null;
+  subagentTokens: number | null;
+  subagentReplies: number | null;
+  replyQuarters: number[] | null;
+  messages: number | null;
 };
+
+/**
+ * The effort levels Claude Code records on a reply, in the order the CLI sends and `claude_daily`
+ * stores them. A reply without one, or with a level newer than this list, counts as "none".
+ */
+export const CLAUDE_EFFORTS = ["none", "low", "medium", "high", "xhigh", "max"] as const;
 
 export type ClaudeUpload = {
   /** HMAC of the platform id and Claude dir, so the server never sees either. */
@@ -34,7 +48,8 @@ const MAX_DAYS = 8_000;
 const MAX_TOKENS = 1e13;
 const MAX_REPLIES = 1e6;
 const MAX_SESSIONS = 1e5;
-/** Rows per INSERT. `claude_daily` binds 10 values a row, and Postgres allows 65,535 per statement. */
+const MAX_TOOL_CALLS = 1e7;
+/** Rows per INSERT. `claude_daily` binds 17 values a row, and Postgres allows 65,535 per statement. */
 const ROWS_PER_INSERT = 2_000;
 
 function isCalendarDay(value: unknown): value is string {
@@ -51,14 +66,60 @@ function isCount(value: unknown, max: number): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= max;
 }
 
+/** An optional count: undefined when absent, null when present but malformed. */
+function optCount(value: unknown, max: number): number | null | undefined {
+  if (value === undefined) return undefined;
+  return isCount(value, max) ? value : null;
+}
+
+/** An optional fixed-length list of counts, same convention as `optCount`. */
+function optCounts(value: unknown, length: number, max: number): number[] | null | undefined {
+  if (value === undefined) return undefined;
+  return Array.isArray(value) && value.length === length && value.every((v) => isCount(v, max)) ? (value as number[]) : null;
+}
+
 function parseDay(value: unknown, from: string, to: string): ClaudeDay | null {
   if (typeof value !== "object" || value === null) return null;
-  const { date, model, input, output, cacheRead, cacheWrite, replies, sessions } = value as Record<string, unknown>;
+  const { date, model, input, output, cacheRead, cacheWrite, replies, sessions, effort, toolCalls, subagentTokens, subagentReplies, replyQuarters, messages } = value as Record<string, unknown>;
   if (!isCalendarDay(date) || date < from || date > to) return null;
   if (typeof model !== "string" || !/^[a-z0-9][a-z0-9.\-]{0,63}$/.test(model)) return null;
   if (!isCount(input, MAX_TOKENS) || !isCount(output, MAX_TOKENS) || !isCount(cacheRead, MAX_TOKENS) || !isCount(cacheWrite, MAX_TOKENS)) return null;
   if (!isCount(replies, MAX_REPLIES) || !isCount(sessions, MAX_SESSIONS)) return null;
-  return { date, model, input, output, cacheRead, cacheWrite, replies, sessions };
+  // `effort` is { replies: [...], output: [...] }, one entry per CLAUDE_EFFORTS level.
+  let effortReplies: number[] | null | undefined;
+  let effortOutput: number[] | null | undefined;
+  if (effort !== undefined) {
+    if (typeof effort !== "object" || effort === null) return null;
+    const e = effort as Record<string, unknown>;
+    effortReplies = optCounts(e.replies, CLAUDE_EFFORTS.length, MAX_REPLIES);
+    effortOutput = optCounts(e.output, CLAUDE_EFFORTS.length, MAX_TOKENS);
+    if (!effortReplies || !effortOutput) return null;
+  }
+  const detail = {
+    toolCalls: optCount(toolCalls, MAX_TOOL_CALLS),
+    subagentTokens: optCount(subagentTokens, MAX_TOKENS),
+    subagentReplies: optCount(subagentReplies, MAX_REPLIES),
+    replyQuarters: optCounts(replyQuarters, 4, MAX_REPLIES),
+    messages: optCount(messages, MAX_REPLIES),
+  };
+  if (Object.values(detail).some((v) => v === null)) return null;
+  return {
+    date,
+    model,
+    input,
+    output,
+    cacheRead,
+    cacheWrite,
+    replies,
+    sessions,
+    effortReplies: effortReplies ?? null,
+    effortOutput: effortOutput ?? null,
+    toolCalls: detail.toolCalls ?? null,
+    subagentTokens: detail.subagentTokens ?? null,
+    subagentReplies: detail.subagentReplies ?? null,
+    replyQuarters: detail.replyQuarters ?? null,
+    messages: detail.messages ?? null,
+  };
 }
 
 /**
@@ -111,6 +172,13 @@ export async function ingestClaude(userId: number, tokenId: number, upload: Clau
     cacheWriteTokens: d.cacheWrite,
     replies: d.replies,
     sessions: d.sessions,
+    effortReplies: d.effortReplies,
+    effortOutput: d.effortOutput,
+    toolCalls: d.toolCalls,
+    subagentTokens: d.subagentTokens,
+    subagentReplies: d.subagentReplies,
+    replyQuarters: d.replyQuarters,
+    messages: d.messages,
   }));
   const inserts: BatchItem<"pg">[] = [];
   for (let i = 0; i < rows.length; i += ROWS_PER_INSERT) inserts.push(db.insert(claudeDaily).values(rows.slice(i, i + ROWS_PER_INSERT)));

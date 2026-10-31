@@ -179,10 +179,12 @@ export default async function Privacy() {
             A linked computer also counts your Claude Code usage, unless you turn it off in settings or run{" "}
             <span className="text-silver">gitstats claude off</span> on that computer. The CLI reads the logs Claude Code keeps on that
             computer and sends, per UTC day and per model: input, output, cache-read and cache-write tokens, how many
-            replies and how many sessions, the highest Claude Code version it saw, and a keyed hash that tells your
-            computers apart. Nothing else leaves the computer: no prompts, no replies, no code, no file or project
-            names, no session or message ids, nothing finer than a day. Nothing is stored while counting is off, and
-            the settings page deletes what was sent.
+            replies and how many sessions, replies and output tokens per effort level, how many tool calls, how much
+            ran in subagents, replies in each 6-hour block of your local day, how many messages you typed, the
+            highest Claude Code version it saw, and a keyed hash that tells your computers apart. Nothing else leaves
+            the computer: no prompts, no replies, no code, no tool names, no file or project names, no session or
+            message ids, no timestamps, nothing finer than those four blocks of a day. Nothing is stored while
+            counting is off, and the settings page deletes what was sent.
           </p>
           <p className="font-mono text-xs text-dim leading-relaxed mb-4">
             Who sees it follows the same rule as your page: crewmates on your crew boards, everyone signed in on the

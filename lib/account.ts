@@ -162,6 +162,13 @@ export async function exportAccount(userId: number) {
         cacheWriteTokens: claudeDaily.cacheWriteTokens,
         replies: claudeDaily.replies,
         sessions: claudeDaily.sessions,
+        effortReplies: claudeDaily.effortReplies,
+        effortOutput: claudeDaily.effortOutput,
+        toolCalls: claudeDaily.toolCalls,
+        subagentTokens: claudeDaily.subagentTokens,
+        subagentReplies: claudeDaily.subagentReplies,
+        replyQuarters: claudeDaily.replyQuarters,
+        messages: claudeDaily.messages,
       })
       .from(claudeDaily)
       .where(eq(claudeDaily.userId, userId))
