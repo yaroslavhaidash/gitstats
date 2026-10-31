@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { SideFrame } from "@/components/SideFrame";
 import { SideSwitch } from "@/components/SideSwitch";
+import { SideLink } from "@/components/ViewLink";
 import { SignInButton } from "@/components/Tracked";
 import { signInWithGitHub } from "@/lib/actions";
 import { MODEL_COLOURS } from "@/lib/claudestats";
@@ -21,7 +22,7 @@ export default function DemoLayout({ children }: { children: ReactNode }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           <SideSwitch homes={{ git: "/", claude: "/demo/claude" }} compact />
           <div className="flex items-center gap-4 sm:gap-6 font-mono text-sm">
-            <Link href="/demo" className="hover:text-alert transition-colors">[DEMO]</Link>
+            <SideLink href="/demo" className="hover:text-alert transition-colors">[DEMO]</SideLink>
             <Link href="/docs" className="hidden sm:block hover:text-alert transition-colors">[DOCS]</Link>
             <form action={signInWithGitHub}>
               <SignInButton where="demo_nav" className="font-mono text-xs border border-silver px-3 py-1 hover:bg-silver hover:text-void transition-colors whitespace-nowrap">
@@ -43,7 +44,7 @@ export default function DemoLayout({ children }: { children: ReactNode }) {
       <footer className="border-t-2 border-dark">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 font-mono text-xs text-faint flex flex-wrap gap-x-6 gap-y-1">
           <span>&gt; every number on this page is generated · no real person is on this board</span>
-          <Link href="/" className="hover:text-alert">home</Link>
+          <SideLink href="/" className="hover:text-alert">home</SideLink>
           <Link href="/docs" className="hover:text-alert">docs</Link>
           <Link href="/privacy" className="hover:text-alert">privacy</Link>
         </div>

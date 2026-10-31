@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
+import { onSide, sideOf } from "@/lib/side";
 import { withView } from "@/lib/window";
 
 /**
@@ -64,9 +65,11 @@ export function SheetLabel({ children }: { children: ReactNode }) {
  * One destination in the sheet: a 52px row, marked with the red bar when it is the page you are on.
  * `view` carries the reader's window and metric along, like `ViewLink` does for boards and profiles.
  */
-export function SheetLink({ href, view = false, children }: { href: string; view?: boolean; children: ReactNode }) {
+export function SheetLink({ href: written, view = false, children }: { href: string; view?: boolean; children: ReactNode }) {
   const path = usePathname();
   const params = useSearchParams();
+  // A board or profile row stays on the side the sheet was opened on; shared pages are unchanged.
+  const href = onSide(written, sideOf(path));
   const here = path === href || path.startsWith(`${href}/`);
   return (
     <Link

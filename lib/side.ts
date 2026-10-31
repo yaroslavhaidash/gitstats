@@ -55,6 +55,25 @@ export function counterpart(pathname: string, search: Params | string = ""): str
 }
 
 /**
+ * A link written as a gitstats path, as it reads on `side`: on claudestats a page with a twin (a
+ * crew, a member, the global board, the demo, the landing, the dashboard index) goes to the twin with
+ * its query kept. Shared pages (settings, inbox, docs, compare, new crew, admin) and anything already
+ * on the claude side are unchanged, so every nav link can go through this without a list of its own.
+ */
+export function onSide(href: string, side: Side): string {
+  if (side === "git") return href;
+  const cut = href.search(/[?#]/);
+  const path = cut < 0 ? href : href.slice(0, cut);
+  const rest = cut < 0 ? "" : href.slice(cut);
+  if (path === SIDE_HOME.git) return SIDE_HOME.claude + rest;
+  for (const [git, , intoClaude] of TWINS) {
+    const m = git.exec(path);
+    if (m) return intoClaude(m) + rest;
+  }
+  return href;
+}
+
+/**
  * The claudestats theme colour, with three candidates the admin flips between on production before
  * one is locked. Each holds what the side needs that CSS cannot derive from the colour alone: the heat
  * ramp (validated as an ordinal ramp against the void, light end above 2:1), the own-row tint (the

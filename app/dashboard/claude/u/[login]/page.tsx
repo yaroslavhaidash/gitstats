@@ -15,6 +15,7 @@ import { db } from "@/db";
 import { cliTokens } from "@/db/schema";
 import { backTarget, sharesCrew, userByLogin } from "@/lib/crews";
 import { mintShareToken, type ShareOptions } from "@/lib/share";
+import { onSide } from "@/lib/side";
 import { SITE_URL } from "@/lib/site";
 import { CLAUDE_METRICS, parseClaudeMetric, parseWindow, viewQuery, windowQuery } from "@/lib/window";
 
@@ -66,7 +67,7 @@ export default async function ClaudeUserPage({
   ]);
   return (
     <>
-      <BackLink href={back.href.replace(/^\/dashboard(?=\/|\?|$)/, "/dashboard/claude")} label={back.label} />
+      <BackLink href={onSide(back.href, "claude")} label={back.label} />
       <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
         <div className="flex items-center gap-5 min-w-0">
           <Image src={user.avatarUrl} alt="" width={64} height={64} className="border-2 border-silver shrink-0" unoptimized />

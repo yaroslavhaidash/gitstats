@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { counterpart, sideOf } from "@/lib/side";
+import { counterpart, onSide, sideOf } from "@/lib/side";
 import { PRESETS, withMetric, withView } from "@/lib/window";
 import { guardNavigation } from "./UnsavedGuard";
 
@@ -48,7 +48,10 @@ export function Palette({
   const listRef = useRef<HTMLUListElement>(null);
 
   const items = useMemo<Item[]>(() => {
-    // Everything that lands on a board or a profile takes the reader's window and metric with it.
+    // Everything that lands on a board or a profile takes the reader's window and metric with it,
+    // and stays on the side the palette was opened on.
+    const side = sideOf(pathname);
+    const board = (href: string) => withView(onSide(href, side), params);
     const windows: Item[] = PRESETS.map((w) => ({
       kind: "window",
       label: w === "all" ? "all time" : w,
@@ -56,15 +59,15 @@ export function Palette({
       href: withMetric(`${pathname}?w=${w}`, params),
     }));
     return [
-      ...crews.map((c) => ({ kind: "crew", label: c.name, hint: c.code, href: withView(`/dashboard/c/${c.code}`, params) })),
-      { kind: "board", label: "global board", href: withView("/dashboard/global", params) },
-      { kind: "side", label: sideOf(pathname) === "claude" ? "switch to gitstats" : "switch to claudestats", hint: "s", href: counterpart(pathname, params) },
+      ...crews.map((c) => ({ kind: "crew", label: c.name, hint: c.code, href: board(`/dashboard/c/${c.code}`) })),
+      { kind: "board", label: "global board", href: board("/dashboard/global") },
+      { kind: "side", label: side === "claude" ? "switch to gitstats" : "switch to claudestats", hint: "s", href: counterpart(pathname, params) },
       ...windows,
       { kind: "page", label: "settings", href: "/dashboard/settings" },
       { kind: "page", label: "setup", href: "/dashboard/setup" },
       { kind: "page", label: "new crew", href: "/dashboard/new" },
       { kind: "page", label: "docs", href: "/docs" },
-      ...members.map((m) => ({ kind: "dev", label: m.login, hint: m.name ?? undefined, href: withView(`/dashboard/u/${m.login}`, params) })),
+      ...members.map((m) => ({ kind: "dev", label: m.login, hint: m.name ?? undefined, href: board(`/dashboard/u/${m.login}`) })),
     ];
   }, [crews, members, pathname, params]);
 

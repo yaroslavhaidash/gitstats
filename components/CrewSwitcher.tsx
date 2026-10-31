@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { collapses, type NavCrew } from "@/lib/nav";
+import { onSide, sideOf } from "@/lib/side";
 import { NavMenu } from "./NavMenu";
 import { ViewLink } from "./ViewLink";
 
@@ -21,7 +22,7 @@ export function CrewSwitcher({ crews }: { crews: NavCrew[] }) {
       </ViewLink>
     );
   }
-  const current = crews.find((c) => path.startsWith(`/dashboard/c/${c.code}`));
+  const current = crews.find((c) => path.startsWith(onSide(`/dashboard/c/${c.code}`, sideOf(path))));
   return (
     <NavMenu
       label={
