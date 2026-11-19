@@ -305,9 +305,10 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
 
   const nodeIds = [...activeRepos.keys()];
   const known = nodeIds.length > 0
-    ? await db.select({ id: repos.githubNodeId, statsFetchedFor: repos.statsFetchedFor, goneAt: repos.goneAt }).from(repos).where(inArray(repos.githubNodeId, nodeIds))
+    ? await db.select({ id: repos.githubNodeId, statsFetchedFor: repos.statsFetchedFor, statsPending: repos.statsPending, goneAt: repos.goneAt }).from(repos).where(inArray(repos.githubNodeId, nodeIds))
     : [];
   const statsFetchedFor = new Map(known.map((r) => [r.id, r.statsFetchedFor]));
+  const statsPending = new Set(known.flatMap((r) => (r.statsPending ? [r.id] : [])));
   const goneAt = new Map(known.flatMap((r) => (r.goneAt ? [[r.id, r.goneAt] as const] : [])));
 
   if (activeRepos.size > 0) {
@@ -359,7 +360,8 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
   // A repo nobody has pushed to since the last successful fetch would answer with the same numbers,
   // so it is not asked. A targeted run always asks: it exists because a user is new to this repo's
   // rows, and their rows are exactly what a cached answer would be missing. A repo the history step
-  // returned is asked once too: its older weeks were never written.
+  // returned is asked once too: its older weeks were never written. A repo left at 202 is asked
+  // whatever its pushed_at: another member's fetch may have stamped it while this one's weeks are missing.
   const local = await locallyOwnedPairs();
   let pending: ActiveRepo[] = [];
   let reposSkipped = 0;
@@ -373,7 +375,7 @@ export async function runSnapshot(deadline: Date, options: SnapshotOptions = {})
       continue;
     }
     const last = statsFetchedFor.get(repo.nodeId);
-    if (!onlyUserIds && !forceFetch.has(repo.nodeId) && repo.pushedAt !== null && last && last.getTime() === new Date(repo.pushedAt).getTime()) {
+    if (!onlyUserIds && !forceFetch.has(repo.nodeId) && !statsPending.has(repo.nodeId) && repo.pushedAt !== null && last && last.getTime() === new Date(repo.pushedAt).getTime()) {
       reposSkipped += 1;
       continue;
     }
